@@ -1,0 +1,68 @@
+plugins {
+    id 'java'
+    id 'net.fabricmc.fabric-loom' version '1.16.2'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://api.modrinth.com/maven" }
+    maven { url "https://maven.shedaniel.me/" }
+}
+
+dependencies {
+    // Minecraft 26.1 — non-obfuscated, no mappings needed
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+    // Fabric Loader
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // Fabric API — full module suite
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    // ModMenu integration (compile-only, provided at runtime by the player's mod folder)
+    compileOnly "maven.modrinth:modmenu:18.0.0-beta.1"
+}
+
+java {
+    // Minecraft 26.1 requires Java 25
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+// In MC 26.1 (non-obfuscated), we use the standard 'jar' task.
+// The 'remapJar' task is NOT used — Loom 1.15 with fabric-loom plugin handles this.
+
+processResources {
+    inputs.property 'version', project.version
+
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        // Uncomment to publish to a local Maven repository
+        // maven { url = layout.buildDirectory.dir('repo') }
+    }
+}

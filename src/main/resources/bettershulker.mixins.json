@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.bettershulker.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "refmap": "bettershulker-refmap.json",
+  "client": [
+    "HandledScreenMixin"
+  ],
+  "mixins": [
+    "ItemStackMixin",
+    "ItemMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
