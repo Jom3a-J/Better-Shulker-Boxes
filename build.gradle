@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'net.fabricmc.fabric-loom' version '1.16.2'
+    id 'net.fabricmc.fabric-loom' version '1.17.11'
     id 'maven-publish'
 }
 
@@ -28,7 +28,7 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
     // ModMenu integration (compile-only, provided at runtime by the player's mod folder)
-    compileOnly "maven.modrinth:modmenu:18.0.0-beta.1"
+    compileOnly "maven.modrinth:modmenu:20.0.0-beta.2"
 }
 
 java {

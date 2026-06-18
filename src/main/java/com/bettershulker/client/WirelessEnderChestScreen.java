@@ -188,7 +188,7 @@ public class WirelessEnderChestScreen extends Screen {
                 bettershulker$playClientSound(ItemStack.EMPTY, false);
 
                 // Polished Feedback Overlay
-                Minecraft.getInstance().gui.setOverlayMessage(
+                Minecraft.getInstance().gui.hud.setOverlayMessage(
                     Component.literal("Ender Chest Sorted! (" + BetterShulkerClient.getCurrentSortMode().getDisplayName() + ")")
                         .withStyle(ChatFormatting.LIGHT_PURPLE),
                     false
@@ -209,7 +209,7 @@ public class WirelessEnderChestScreen extends Screen {
             bettershulker$playClientSound(ItemStack.EMPTY, shiftHeld);
 
             // Polished Feedback Overlay
-            Minecraft.getInstance().gui.setOverlayMessage(
+            Minecraft.getInstance().gui.hud.setOverlayMessage(
                 Component.literal(shiftHeld ? "Inventory Items Deposited to Ender Chest!" : "Hotbar Restocked from Ender Chest!")
                     .withStyle(shiftHeld ? ChatFormatting.GREEN : ChatFormatting.GOLD),
                 false
@@ -239,7 +239,7 @@ public class WirelessEnderChestScreen extends Screen {
                     bettershulker$playClientSound(hotbarStack, true);
 
                     // Polished Feedback Overlay
-                    Minecraft.getInstance().gui.setOverlayMessage(
+                    Minecraft.getInstance().gui.hud.setOverlayMessage(
                         Component.literal("Inserted hotbar stack into Ender Chest!").withStyle(ChatFormatting.AQUA),
                         false
                     );

@@ -5,12 +5,8 @@
   "name": "Better Shulker Boxes",
   "description": "Peek inside Shulker Boxes and Ender Chests without placing them! Better Shulker Boxes adds a rich 9×3 interactive tooltip that lets you preview, insert, and extract items directly from any inventory screen. Scroll to select slots, left-click to extract, right-click to insert — no more tedious place-open-close-break cycles. Features full server-side validation to prevent duplication exploits, rate-limited Ender Chest syncing, and seamless compatibility with vanilla mechanics.",
   "authors": [
-    "BetterShulker Team"
+    "Jom3a"
   ],
-  "contact": {
-    "homepage": "https://github.com/bettershulker/better-shulker",
-    "sources": "https://github.com/bettershulker/better-shulker"
-  },
   "license": "MIT",
   "icon": "icon.png",
   "environment": "*",
@@ -30,20 +26,16 @@
   ],
   "depends": {
     "fabricloader": ">=0.19.0",
-    "minecraft": "~26.1",
+    "minecraft": "~26.2",
     "java": ">=25",
-    "fabric-api": "*",
-    "modmenu": ">=11.0.0"
+    "fabric-api": "*"
   },
   "suggests": {
     "modmenu": "*"
   },
   "custom": {
     "modmenu": {
-      "badges": ["client_and_server"],
-      "links": {
-        "modmenu.source": "https://github.com/bettershulker/better-shulker"
-      }
+      "badges": ["client_and_server"]
     }
   }
 }

@@ -137,11 +137,11 @@ public class CustomColorPickerScreen extends Screen {
             BetterShulkerConfig.setCustomNameBorderColor(newNameBr);
             BetterShulkerConfig.setCustomSelectionSquareColor(newSel);
             BetterShulkerConfig.save();
-            Minecraft.getInstance().setScreen(parent);
+            Minecraft.getInstance().setScreenAndShow(parent);
         }).bounds(leftX, startY + 160, 74, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.literal("Cancel").withStyle(ChatFormatting.RED), btn -> {
-            Minecraft.getInstance().setScreen(parent);
+            Minecraft.getInstance().setScreenAndShow(parent);
         }).bounds(leftX + 76, startY + 160, 74, 20).build());
     }
 

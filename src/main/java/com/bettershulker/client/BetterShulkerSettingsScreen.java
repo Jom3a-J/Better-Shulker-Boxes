@@ -52,7 +52,7 @@ public class BetterShulkerSettingsScreen extends Screen {
         // Edit Colors button (opens custom color picker - always active)
         Button editColorsBtn = Button.builder(
                 Component.literal("Edit Colors"),
-                btn -> Minecraft.getInstance().setScreen(new CustomColorPickerScreen(this)))
+                btn -> Minecraft.getInstance().setScreenAndShow(new CustomColorPickerScreen(this)))
                 .bounds(rightX, startY + 120, bw, bh).build();
         editColorsBtn.active = true;
 
@@ -72,7 +72,7 @@ public class BetterShulkerSettingsScreen extends Screen {
         // Visuals & Animations (left column bottom)
         this.addRenderableWidget(Button.builder(
                 Component.literal("Visuals & Animations"),
-                btn -> Minecraft.getInstance().setScreen(new BetterShulkerVisualsScreen(this)))
+                btn -> Minecraft.getInstance().setScreenAndShow(new BetterShulkerVisualsScreen(this)))
                 .bounds(leftX, startY + 144, bw, bh).build());
 
         // Right Column - Toggles and Sound controls
@@ -106,7 +106,7 @@ public class BetterShulkerSettingsScreen extends Screen {
         // Configure Controls button (right column bottom)
         this.addRenderableWidget(Button.builder(
                 Component.literal("Configure Controls"),
-                btn -> Minecraft.getInstance().setScreen(new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(this, Minecraft.getInstance().options)))
+                btn -> Minecraft.getInstance().setScreenAndShow(new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(this, Minecraft.getInstance().options)))
                 .bounds(rightX, startY + 96, bw, bh).build());
 
         // Center Done button at bottom — full width, well below all buttons
@@ -114,7 +114,7 @@ public class BetterShulkerSettingsScreen extends Screen {
                 Component.literal("Done").withStyle(ChatFormatting.WHITE),
                 btn -> {
                     BetterShulkerConfig.save();
-                    Minecraft.getInstance().setScreen(this.lastScreen);
+                    Minecraft.getInstance().setScreenAndShow(this.lastScreen);
                 }
         ).bounds(cx - 100, startY + 180, 200, bh).build());
     }
@@ -241,7 +241,7 @@ class BetterShulkerVisualsScreen extends Screen {
                 Component.literal("Back").withStyle(ChatFormatting.WHITE),
                 btn -> {
                     BetterShulkerConfig.save();
-                    Minecraft.getInstance().setScreen(this.lastScreen);
+                    Minecraft.getInstance().setScreenAndShow(this.lastScreen);
                 }
         ).bounds(cx - 100, startY + 60, 200, bh).build());
     }

@@ -51,8 +51,7 @@ public abstract class HandledScreenMixin extends Screen {
     @Shadow
     protected abstract void slotClicked(Slot slot, int slotId, int mouseButton, ContainerInput clickType);
 
-    @Shadow
-    protected abstract void clearDraggingState();
+
 
     @Unique
     private static boolean bettershulker$isDragging = false;
@@ -230,7 +229,7 @@ public abstract class HandledScreenMixin extends Screen {
         }
 
         bettershulker$resetDragState();
-        clearDraggingState();
+        this.setDragging(false);
 
         ci.setReturnValue(true);
         ci.cancel();

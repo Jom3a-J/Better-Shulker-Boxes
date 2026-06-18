@@ -314,24 +314,24 @@ public class BetterShulkerClient implements ClientModInitializer {
         // Tick event to detect key press
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (settingsKey.consumeClick()) {
-                if (client.screen != null || client.level != null) {
+                if (client.gui.screen() != null || client.level != null) {
                     try {
-                        client.setScreen(new BetterShulkerSettingsScreen(client.screen));
+                        client.setScreenAndShow(new BetterShulkerSettingsScreen(client.gui.screen()));
                     } catch (Exception e) {
                         BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open settings screen", e);
                     }
                 }
             }
             while (wirelessEnderChestKey.consumeClick()) {
-                if (client.screen == null && client.player != null) {
+                if (client.gui.screen() == null && client.player != null) {
                     if (bettershulker$hasEnderChestInInventory(client.player)) {
                         try {
-                            client.setScreen(new WirelessEnderChestScreen());
+                            client.setScreenAndShow(new WirelessEnderChestScreen());
                         } catch (Exception e) {
                             BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
                         }
                     } else {
-                        client.gui.setOverlayMessage(
+                        client.gui.hud.setOverlayMessage(
                             Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
                             false
                         );
