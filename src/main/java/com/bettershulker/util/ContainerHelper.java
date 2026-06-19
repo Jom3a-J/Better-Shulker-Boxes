@@ -11,6 +11,8 @@ import net.minecraft.world.level.block.ShulkerBoxBlock;
 import org.jetbrains.annotations.Nullable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Central utility class for all container-related operations in Better Shulker.
@@ -564,5 +566,167 @@ public final class ContainerHelper {
 
         // 11. Fallback
         return isInsert ? SoundEvents.ITEM_PICKUP : SoundEvents.ITEM_PICKUP;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Shared Action Operations (Issue 6 Refactoring)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Sorts the container contents in place according to a mode:
+     * 1 = NAME, 2 = COUNT, 3 = CATEGORY.
+     */
+    public static void sortContents(NonNullList<ItemStack> contents, int modeVal) {
+        if (modeVal < 1 || modeVal > 3) return;
+        java.util.List<ItemStack> occupied = new java.util.ArrayList<>();
+        for (ItemStack s : contents) {
+            if (!s.isEmpty()) {
+                occupied.add(s.copy());
+            }
+        }
+
+        occupied.sort((sa, sb) -> {
+            if (modeVal == 1) { // NAME
+                return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
+            } else if (modeVal == 2) { // COUNT
+                return Integer.compare(sb.getCount(), sa.getCount()); // Descending
+            } else if (modeVal == 3) { // CATEGORY
+                String catA = getCategorySortString(sa);
+                String catB = getCategorySortString(sb);
+                int c = catA.compareToIgnoreCase(catB);
+                if (c != 0) return c;
+                return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
+            }
+            return 0;
+        });
+
+        for (int i = 0; i < contents.size(); i++) {
+            if (i < occupied.size()) {
+                contents.set(i, occupied.get(i));
+            } else {
+                contents.set(i, ItemStack.EMPTY);
+            }
+        }
+    }
+
+    /**
+     * Pulls items from the player's hotbar slots and merges them into the container contents.
+     * Returns true if any changes were made.
+     */
+    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots) {
+        boolean success = false;
+        for (net.minecraft.world.inventory.Slot slot : slots) {
+            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 9) {
+                ItemStack hotbarStack = slot.getItem();
+                if (hotbarStack.isEmpty()) continue;
+                int maxStack = hotbarStack.getMaxStackSize();
+                if (hotbarStack.getCount() < maxStack) {
+                    int needed = maxStack - hotbarStack.getCount();
+                    boolean slotChanged = false;
+                    for (int i = 0; i < contents.size() && needed > 0; i++) {
+                        ItemStack boxStack = contents.get(i);
+                        if (!boxStack.isEmpty() && ItemStack.isSameItemSameComponents(boxStack, hotbarStack)) {
+                            int toTake = Math.min(needed, boxStack.getCount());
+                            boxStack.shrink(toTake);
+                            hotbarStack.grow(toTake);
+                            needed -= toTake;
+                            if (boxStack.isEmpty()) {
+                                contents.set(i, ItemStack.EMPTY);
+                            }
+                            slotChanged = true;
+                            success = true;
+                        }
+                    }
+                    if (slotChanged) {
+                        slot.set(hotbarStack);
+                        slot.setChanged();
+                    }
+                }
+            }
+        }
+        return success;
+    }
+
+    /**
+     * Deposits items from player's inventory slots (0..35) that match item types already in the container.
+     * Returns true if any changes were made.
+     */
+    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots, int containerSlotId) {
+        boolean success = false;
+        java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
+        for (ItemStack boxStack : contents) {
+            if (!boxStack.isEmpty()) {
+                boolean exists = false;
+                for (ItemStack t : distinctTypes) {
+                    if (ItemStack.isSameItemSameComponents(t, boxStack)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    distinctTypes.add(boxStack.copy());
+                }
+            }
+        }
+
+        if (!distinctTypes.isEmpty()) {
+            for (net.minecraft.world.inventory.Slot slot : slots) {
+                if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+                    if (slot.index == containerSlotId) continue;
+
+                    ItemStack invStack = slot.getItem();
+                    if (invStack.isEmpty()) continue;
+
+                    boolean matches = false;
+                    for (ItemStack t : distinctTypes) {
+                        if (ItemStack.isSameItemSameComponents(t, invStack)) {
+                            matches = true;
+                            break;
+                        }
+                    }
+                    if (matches) {
+                        int originalCount = invStack.getCount();
+                        ItemStack remainder = tryInsert(contents, invStack.copy(), false);
+                        slot.set(remainder);
+                        if (remainder.getCount() < originalCount) {
+                            success = true;
+                        }
+                    }
+                }
+            }
+        }
+        return success;
+    }
+
+    /**
+     * Plays an interaction sound for the given player.
+     * Handles contextual sound selection and volume/pitch randomization.
+     */
+    public static void playInteractionSound(Player player, ItemStack stack, boolean isInsert, float volume) {
+        if (player == null || volume <= 0.0f) return;
+
+        SoundEvent soundEvent = SoundEvents.ITEM_PICKUP;
+        if (com.bettershulker.BetterShulkerConfig.soundOption == com.bettershulker.BetterShulkerConfig.SoundOption.CONTEXTUAL) {
+            soundEvent = getContextualSound(stack, isInsert);
+        } else {
+            try {
+                String[] split = com.bettershulker.BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
+                var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
+                var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                if (soundHolderOpt.isPresent()) {
+                    soundEvent = soundHolderOpt.get().value();
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        if (soundEvent != null) {
+            float pitch = isInsert
+                    ? 0.9F + player.level().getRandom().nextFloat() * 0.2F
+                    : 0.65F + player.level().getRandom().nextFloat() * 0.15F;
+
+            player.level().playSound(player, player.getX(), player.getY(), player.getZ(), soundEvent, SoundSource.PLAYERS, volume, pitch);
+        }
     }
 }

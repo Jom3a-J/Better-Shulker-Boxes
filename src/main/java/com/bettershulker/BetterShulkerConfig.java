@@ -190,11 +190,6 @@ public class BetterShulkerConfig {
         return v != null ? Boolean.parseBoolean(v) : def;
     }
 
-    private static int intVal(Properties p, String key, int def) {
-        String v = p.getProperty(key);
-        if (v == null) return def;
-        try { return Integer.parseInt(v); } catch (NumberFormatException e) { return def; }
-    }
 
     private static float floatVal(Properties p, String key, float def) {
         String v = p.getProperty(key);

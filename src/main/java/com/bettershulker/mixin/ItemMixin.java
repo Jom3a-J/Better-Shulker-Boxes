@@ -1,6 +1,5 @@
 package com.bettershulker.mixin;
 
-import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.util.ContainerHelper;
 
@@ -25,6 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Mixin for Item to add native bundle-like slot click interactions for Shulker Boxes and Ender Chests.
@@ -39,6 +39,32 @@ public abstract class ItemMixin {
     private void bettershulker$overrideStackedOnOther(ItemStack stack, Slot slot, ClickAction clickAction, Player player, CallbackInfoReturnable<Boolean> ci) {
         if (clickAction != ClickAction.SECONDARY) {
             return;
+        }
+
+        if (!ContainerHelper.isContainer(stack)) {
+            return;
+        }
+
+        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+            return;
+        }
+
+        if (!player.level().isClientSide()) {
+            if (!(player instanceof ServerPlayer)) {
+                return;
+            }
+            UUID uuid = player.getUUID();
+            long currentTick = player.level().getGameTime();
+            long lastTick = com.bettershulker.BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
+            if (lastTick != currentTick) {
+                com.bettershulker.BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
+                com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
+            }
+            int count = com.bettershulker.BetterShulkerMod.interactionCountsThisTick.get(uuid);
+            if (count >= com.bettershulker.BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
+                return;
+            }
+            com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
@@ -99,7 +125,7 @@ public abstract class ItemMixin {
                     }
                 } else {
                     // Client side: return true if we can extract, to prevent client-server mismatch
-                    NonNullList<ItemStack> cached = BetterShulkerClient.getEnderChestContents();
+                    NonNullList<ItemStack> cached = bettershulker$getClientEnderChestContents();
                     if (cached != null) {
                         for (ItemStack s : cached) {
                             if (!s.isEmpty()) {
@@ -168,6 +194,32 @@ public abstract class ItemMixin {
     private void bettershulker$overrideOtherStackedOnMe(ItemStack stack, ItemStack other, Slot slot, ClickAction clickAction, Player player, SlotAccess slotAccess, CallbackInfoReturnable<Boolean> ci) {
         if (clickAction != ClickAction.SECONDARY) {
             return;
+        }
+
+        if (!ContainerHelper.isContainer(stack)) {
+            return;
+        }
+
+        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+            return;
+        }
+
+        if (!player.level().isClientSide()) {
+            if (!(player instanceof ServerPlayer)) {
+                return;
+            }
+            UUID uuid = player.getUUID();
+            long currentTick = player.level().getGameTime();
+            long lastTick = com.bettershulker.BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
+            if (lastTick != currentTick) {
+                com.bettershulker.BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
+                com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
+            }
+            int count = com.bettershulker.BetterShulkerMod.interactionCountsThisTick.get(uuid);
+            if (count >= com.bettershulker.BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
+                return;
+            }
+            com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
@@ -259,28 +311,21 @@ public abstract class ItemMixin {
 
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$playLevelSound(Player player, ItemStack stack, boolean isInsert) {
-        var soundEvent = SoundEvents.ITEM_PICKUP;
-        if (com.bettershulker.BetterShulkerConfig.soundOption == com.bettershulker.BetterShulkerConfig.SoundOption.CONTEXTUAL) {
-            soundEvent = ContainerHelper.getContextualSound(stack, isInsert);
-        } else {
-            try {
-                String[] split = com.bettershulker.BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
-                var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
-                var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-                if (soundHolderOpt.isPresent()) {
-                    soundEvent = soundHolderOpt.get().value();
-                }
-            } catch (Exception e) {}
-        }
-
-        float pitch = isInsert
-                ? 0.9F + player.level().getRandom().nextFloat() * 0.2F
-                : 0.65F + player.level().getRandom().nextFloat() * 0.15F;
-
         float volume = player.level().isClientSide()
                 ? com.bettershulker.BetterShulkerConfig.soundVolume
                 : 0.3F;
+        ContainerHelper.playInteractionSound(player, stack, isInsert, volume);
+    }
 
-        player.level().playSound(player.level().isClientSide() ? player : null, player.getX(), player.getY(), player.getZ(), soundEvent, SoundSource.PLAYERS, volume, pitch);
+    @org.spongepowered.asm.mixin.Unique
+    @SuppressWarnings("unchecked")
+    private NonNullList<ItemStack> bettershulker$getClientEnderChestContents() {
+        try {
+            Class<?> clientClass = Class.forName("com.bettershulker.client.BetterShulkerClient");
+            java.lang.reflect.Method method = clientClass.getMethod("getEnderChestContents");
+            return (NonNullList<ItemStack>) method.invoke(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

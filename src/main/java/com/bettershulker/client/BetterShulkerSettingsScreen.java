@@ -119,14 +119,21 @@ public class BetterShulkerSettingsScreen extends Screen {
         ).bounds(cx - 100, startY + 180, 200, bh).build());
     }
 
+    @Override
+    public void onClose() {
+        BetterShulkerConfig.save();
+        Minecraft.getInstance().setScreenAndShow(this.lastScreen);
+    }
+
     private void addToggle(String name, boolean initial, int x, int y, int w, int h,
                            java.util.function.Consumer<Boolean> setter) {
+        final boolean[] state = new boolean[]{initial};
         this.addRenderableWidget(Button.builder(
-                toggleLabel(name, initial),
+                toggleLabel(name, state[0]),
                 btn -> {
-                    boolean next = !btn.getMessage().getString().contains("ON");
-                    setter.accept(next);
-                    btn.setMessage(toggleLabel(name, next));
+                    state[0] = !state[0];
+                    setter.accept(state[0]);
+                    btn.setMessage(toggleLabel(name, state[0]));
                 }
         ).bounds(x, y, w, h).build());
     }
@@ -246,14 +253,21 @@ class BetterShulkerVisualsScreen extends Screen {
         ).bounds(cx - 100, startY + 60, 200, bh).build());
     }
 
+    @Override
+    public void onClose() {
+        BetterShulkerConfig.save();
+        Minecraft.getInstance().setScreenAndShow(this.lastScreen);
+    }
+
     private void addToggle(String name, boolean initial, int x, int y, int w, int h,
                            java.util.function.Consumer<Boolean> setter) {
+        final boolean[] state = new boolean[]{initial};
         this.addRenderableWidget(Button.builder(
-                toggleLabel(name, initial),
+                toggleLabel(name, state[0]),
                 btn -> {
-                    boolean next = !btn.getMessage().getString().contains("ON");
-                    setter.accept(next);
-                    btn.setMessage(toggleLabel(name, next));
+                    state[0] = !state[0];
+                    setter.accept(state[0]);
+                    btn.setMessage(toggleLabel(name, state[0]));
                 }
         ).bounds(x, y, w, h).build());
     }

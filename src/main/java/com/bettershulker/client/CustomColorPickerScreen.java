@@ -146,6 +146,11 @@ public class CustomColorPickerScreen extends Screen {
     }
 
     @Override
+    public void onClose() {
+        Minecraft.getInstance().setScreenAndShow(parent);
+    }
+
+    @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         graphics.fill(0, 0, this.width, this.height, 0xC01A1A2E);
         super.extractRenderState(graphics, mouseX, mouseY, delta);
@@ -280,6 +285,10 @@ public class CustomColorPickerScreen extends Screen {
 
         @Override
         protected void updateMessage() {
+            if (label == null) {
+                this.setMessage(Component.empty());
+                return;
+            }
             int pct = (int) (this.value * 255);
             this.setMessage(Component.literal(label + ": " + pct));
         }

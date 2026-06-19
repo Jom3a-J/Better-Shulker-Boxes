@@ -74,6 +74,9 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private static final Set<Integer> bettershulker$processedDragSlots = new HashSet<>();
 
+    @Unique
+    private boolean bettershulker$wigglePushed = false;
+
     protected HandledScreenMixin(net.minecraft.network.chat.Component title) {
         super(title);
     }
@@ -384,50 +387,9 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private void bettershulker$playClientSound(ItemStack stack, boolean isInsert) {
-        if (BetterShulkerConfig.soundVolume <= 0.0f) return;
-        var mc = Minecraft.getInstance();
-        if (mc.player == null) return;
-        try {
-            net.minecraft.sounds.SoundEvent soundEvent = null;
-            if (BetterShulkerConfig.soundOption == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
-                soundEvent = com.bettershulker.util.ContainerHelper.getContextualSound(stack, isInsert);
-            } else {
-                String[] split = BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
-                var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
-                var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-                if (soundHolderOpt.isPresent()) {
-                    soundEvent = soundHolderOpt.get().value();
-                }
-            }
-            if (soundEvent != null) {
-                float pitch = isInsert
-                        ? 0.9F + mc.player.level().getRandom().nextFloat() * 0.2F
-                        : 0.65F + mc.player.level().getRandom().nextFloat() * 0.15F;
-                mc.player.playSound(soundEvent, BetterShulkerConfig.soundVolume, pitch);
-            }
-        } catch (Exception e) {
-            // fallback safety
-        }
+        ContainerHelper.playInteractionSound(Minecraft.getInstance().player, stack, isInsert, BetterShulkerConfig.soundVolume);
     }
 
-    @Unique
-    private Slot bettershulker$findInventorySlot(AbstractContainerScreen<?> self, ItemStack stack) {
-        Slot bestEmpty = null;
-        for (Slot slot : self.getMenu().slots) {
-            if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)
-                || slot.getContainerSlot() >= 36) continue;
-            if (slot.hasItem()) {
-                ItemStack existing = slot.getItem();
-                if (ItemStack.isSameItemSameComponents(existing, stack)
-                    && existing.getCount() < existing.getMaxStackSize()) {
-                    return slot;
-                }
-            } else if (bestEmpty == null) {
-                bestEmpty = slot;
-            }
-        }
-        return bestEmpty;
-    }
 
     // =========================================================================
     //  Scroll wheel — cycle through tooltip selected item
@@ -696,7 +658,7 @@ public abstract class HandledScreenMixin extends Screen {
             if (hoveredTooltipIdx < 0 && BetterShulkerClient.isTooltipActive()) {
                 hoveredTooltipIdx = BetterShulkerClient.getSelectedSlotIndex();
             }
-            ItemStack hoveredTooltipContainer = BetterShulkerClient.getHoveredTooltipContainer();
+            ItemStack hoveredTooltipContainer = BetterShulkerClient.getActiveContainerStack();
             if (hoveredTooltipIdx >= 0 && !hoveredTooltipContainer.isEmpty()) {
                 NonNullList<ItemStack> contents = bettershulker$getContents(hoveredTooltipContainer);
                 if (hoveredTooltipIdx < contents.size()) {
@@ -803,30 +765,6 @@ public abstract class HandledScreenMixin extends Screen {
         boolean tooltipActive = altForce || (hovering && BetterShulkerConfig.tooltipEnabled);
         BetterShulkerClient.setTooltipActive(tooltipActive);
 
-        // Continuously select slots if the select slot key is held down (Drag Select)
-        var mcWindow = Minecraft.getInstance().getWindow();
-        if (GLFW.glfwGetKey(mcWindow.handle(), GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) {
-            var selectKey = BetterShulkerClient.getSelectSlotKey();
-            int glfwVal = -999;
-            String typeStr = "null";
-            try {
-                var boundKey = InputConstants.getKey(selectKey.saveString());
-                glfwVal = boundKey.getValue();
-                typeStr = boundKey.getType().toString();
-            } catch (Exception e) {}
-            
-            int hoveredIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
-            int setSize = BetterShulkerClient.getSelectedSlotsSet().size();
-            com.bettershulker.BetterShulkerMod.LOGGER.info("[BetterShulker-Debug] Space HELD! glfwSpaceState={}, isKeyHeld={}, selectKeyWasDown={}, hoveredIdx={}, setSize={}, lastMouseX={}, lastMouseY={}",
-                GLFW.glfwGetKey(mcWindow.handle(), GLFW.GLFW_KEY_SPACE),
-                bettershulker$isKeyHeld(selectKey),
-                bettershulker$selectKeyWasDown,
-                hoveredIdx,
-                setSize,
-                BetterShulkerClient.getLastMouseX(),
-                BetterShulkerClient.getLastMouseY());
-        }
-
         if (tooltipActive && bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
             int hoveredIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
             if (hoveredIdx >= 0) {
@@ -844,7 +782,7 @@ public abstract class HandledScreenMixin extends Screen {
                 hoveredContainer = carried;
             }
         }
-        BetterShulkerClient.setHoveredTooltipContainer(hoveredContainer);
+        BetterShulkerClient.setActiveContainerStack(hoveredContainer);
 
         if (altDown && carryingContainer && !hovering) {
             var mc = Minecraft.getInstance();
@@ -883,6 +821,10 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$verifyPredictions();
         bettershulker$renderContainerOverlay(graphics);
         bettershulker$renderRollbackAnimations(graphics);
+        if (this.bettershulker$wigglePushed) {
+            graphics.pose().popMatrix();
+            this.bettershulker$wigglePushed = false;
+        }
     }
 
     // =========================================================================
@@ -924,7 +866,7 @@ public abstract class HandledScreenMixin extends Screen {
             var player = Minecraft.getInstance().player;
             if (player == null || player.containerMenu.getCarried().isEmpty()) return;
 
-            int usedSlots = countNonNullSlots(contents);
+            int usedSlots = bettershulker$countNonNullSlots(contents);
             float fillFraction = (float) usedSlots / Math.max(1, contents.size());
 
             int slotX = this.leftPos + this.hoveredSlot.x;
@@ -953,7 +895,7 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
-    private static int countNonNullSlots(NonNullList<ItemStack> contents) {
+    private static int bettershulker$countNonNullSlots(NonNullList<ItemStack> contents) {
         int count = 0;
         for (ItemStack stack : contents) {
             if (!stack.isEmpty()) count++;
@@ -1006,7 +948,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$processMultiSelectExtract() {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getHoveredTooltipContainer();
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
         if (containerStack.isEmpty()) {
             if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
                 containerStack = this.hoveredSlot.getItem();
@@ -1053,7 +995,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$processSearchExtract() {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getHoveredTooltipContainer();
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
         if (containerStack.isEmpty()) {
             if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
                 containerStack = this.hoveredSlot.getItem();
@@ -1104,7 +1046,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$processSingleSlotExtract() {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getHoveredTooltipContainer();
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
         if (containerStack.isEmpty()) {
             if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
                 containerStack = this.hoveredSlot.getItem();
@@ -1142,7 +1084,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$triggerActualSort() {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getHoveredTooltipContainer();
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
         if (containerStack.isEmpty()) {
             if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
                 containerStack = this.hoveredSlot.getItem();
@@ -1172,7 +1114,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$triggerRestockOrDeposit(boolean deposit) {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getHoveredTooltipContainer();
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
         if (containerStack.isEmpty()) {
             if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
                 containerStack = this.hoveredSlot.getItem();
@@ -1312,10 +1254,12 @@ public abstract class HandledScreenMixin extends Screen {
             }
             case SWEEP_INSERT -> {
                 if (inventorySlotId < 0 || inventorySlotId >= self.getMenu().slots.size()) return;
-                ItemStack invStack = self.getMenu().slots.get(inventorySlotId).getItem();
+                Slot targetSlot = self.getMenu().slots.get(inventorySlotId);
+                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) return;
+                ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 ItemStack remainder = ContainerHelper.tryInsert(contents, invStack.copy(), false);
-                self.getMenu().slots.get(inventorySlotId).set(remainder);
+                targetSlot.set(remainder);
             }
             case SWEEP_EXTRACT -> {
                 if (targetIndex < 0 || targetIndex >= contents.size()) return;
@@ -1358,101 +1302,13 @@ public abstract class HandledScreenMixin extends Screen {
                 }
             }
             case SORT -> {
-                if (targetIndex < 1 || targetIndex > 3) return;
-                java.util.List<ItemStack> occupied = new java.util.ArrayList<>();
-                for (ItemStack s : contents) {
-                    if (!s.isEmpty()) {
-                        occupied.add(s.copy());
-                    }
-                }
-                final int modeVal = targetIndex;
-                occupied.sort((sa, sb) -> {
-                    if (modeVal == 1) {
-                        return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
-                    } else if (modeVal == 2) {
-                        return Integer.compare(sb.getCount(), sa.getCount());
-                    } else if (modeVal == 3) {
-                        String catA = ContainerHelper.getCategorySortString(sa);
-                        String catB = ContainerHelper.getCategorySortString(sb);
-                        int c = catA.compareToIgnoreCase(catB);
-                        if (c != 0) return c;
-                        return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
-                    }
-                    return 0;
-                });
-                for (int i = 0; i < 27; i++) {
-                    if (i < occupied.size()) {
-                        contents.set(i, occupied.get(i));
-                    } else {
-                        contents.set(i, ItemStack.EMPTY);
-                    }
-                }
+                ContainerHelper.sortContents(contents, targetIndex);
             }
             case RESTOCK -> {
-                for (Slot slot : self.getMenu().slots) {
-                    if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 9) {
-                        ItemStack hotbarStack = slot.getItem();
-                        if (hotbarStack.isEmpty()) continue;
-                        int maxStack = hotbarStack.getMaxStackSize();
-                        if (hotbarStack.getCount() < maxStack) {
-                            int needed = maxStack - hotbarStack.getCount();
-                            boolean changed = false;
-                            for (int i = 0; i < contents.size() && needed > 0; i++) {
-                                ItemStack boxStack = contents.get(i);
-                                if (!boxStack.isEmpty() && ItemStack.isSameItemSameComponents(boxStack, hotbarStack)) {
-                                    int toTake = Math.min(needed, boxStack.getCount());
-                                    boxStack.shrink(toTake);
-                                    hotbarStack.grow(toTake);
-                                    needed -= toTake;
-                                    if (boxStack.isEmpty()) {
-                                        contents.set(i, ItemStack.EMPTY);
-                                    }
-                                    changed = true;
-                                }
-                            }
-                            if (changed) {
-                                slot.set(hotbarStack);
-                            }
-                        }
-                    }
-                }
+                ContainerHelper.restockContents(contents, self.getMenu().slots);
             }
             case DEPOSIT -> {
-                java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
-                for (ItemStack boxStack : contents) {
-                    if (!boxStack.isEmpty()) {
-                        boolean exists = false;
-                        for (ItemStack t : distinctTypes) {
-                            if (ItemStack.isSameItemSameComponents(t, boxStack)) {
-                                exists = true;
-                                break;
-                            }
-                        }
-                        if (!exists) {
-                            distinctTypes.add(boxStack.copy());
-                        }
-                    }
-                }
-                if (!distinctTypes.isEmpty()) {
-                    for (Slot slot : self.getMenu().slots) {
-                        if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
-                            if (slot.index == containerSlotId) continue;
-                            ItemStack invStack = slot.getItem();
-                            if (invStack.isEmpty()) continue;
-                            boolean matches = false;
-                            for (ItemStack t : distinctTypes) {
-                                if (ItemStack.isSameItemSameComponents(t, invStack)) {
-                                    matches = true;
-                                    break;
-                                }
-                            }
-                            if (matches) {
-                                ItemStack remainder = ContainerHelper.tryInsert(contents, invStack.copy(), false);
-                                slot.set(remainder);
-                            }
-                        }
-                    }
-                }
+                ContainerHelper.depositContents(contents, self.getMenu().slots, containerSlotId);
             }
         }
 
@@ -1545,7 +1401,9 @@ public abstract class HandledScreenMixin extends Screen {
             }
             case SWEEP_INSERT -> {
                 if (inventorySlotId < 0 || inventorySlotId >= self.getMenu().slots.size()) return;
-                ItemStack invStack = self.getMenu().slots.get(inventorySlotId).getItem();
+                Slot targetSlot = self.getMenu().slots.get(inventorySlotId);
+                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) return;
+                ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 for (int i = 0; i < contents.size(); i++) {
                     ItemStack existing = contents.get(i);
@@ -1610,121 +1468,13 @@ public abstract class HandledScreenMixin extends Screen {
                 }
             }
             case SORT -> {
-                if (targetIndex < 1 || targetIndex > 3) return;
-                java.util.List<ItemStack> occupied = new java.util.ArrayList<>();
-                for (int i = 0; i < contents.size(); i++) {
-                    ItemStack s = contents.get(i);
-                    if (!s.isEmpty()) {
-                        occupied.add(s.copy());
-                    }
-                }
-                final int modeVal = targetIndex;
-                occupied.sort((sa, sb) -> {
-                    if (modeVal == 1) {
-                        return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
-                    } else if (modeVal == 2) {
-                        return Integer.compare(sb.getCount(), sa.getCount());
-                    } else if (modeVal == 3) {
-                        String catA = ContainerHelper.getCategorySortString(sa);
-                        String catB = ContainerHelper.getCategorySortString(sb);
-                        int c = catA.compareToIgnoreCase(catB);
-                        if (c != 0) return c;
-                        return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
-                    }
-                    return 0;
-                });
-                for (int i = 0; i < contents.size(); i++) {
-                    contents.set(i, ItemStack.EMPTY);
-                }
-                for (int i = 0; i < occupied.size(); i++) {
-                    contents.set(i, occupied.get(i));
-                }
+                ContainerHelper.sortContents(contents, targetIndex);
             }
             case RESTOCK -> {
-                for (Slot slot : self.getMenu().slots) {
-                    if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 9) {
-                        ItemStack hotbarStack = slot.getItem();
-                        if (hotbarStack.isEmpty()) continue;
-                        int maxStack = hotbarStack.getMaxStackSize();
-                        if (hotbarStack.getCount() < maxStack) {
-                            int needed = maxStack - hotbarStack.getCount();
-                            boolean changed = false;
-                            for (int i = 0; i < contents.size() && needed > 0; i++) {
-                                ItemStack chestStack = contents.get(i);
-                                if (!chestStack.isEmpty() && ItemStack.isSameItemSameComponents(chestStack, hotbarStack)) {
-                                    int toTake = Math.min(needed, chestStack.getCount());
-                                    chestStack.shrink(toTake);
-                                    hotbarStack.grow(toTake);
-                                    needed -= toTake;
-                                    if (chestStack.isEmpty()) {
-                                        contents.set(i, ItemStack.EMPTY);
-                                    }
-                                    changed = true;
-                                }
-                            }
-                            if (changed) {
-                                slot.set(hotbarStack);
-                            }
-                        }
-                    }
-                }
+                ContainerHelper.restockContents(contents, self.getMenu().slots);
             }
             case DEPOSIT -> {
-                java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
-                for (int i = 0; i < contents.size(); i++) {
-                    ItemStack chestStack = contents.get(i);
-                    if (!chestStack.isEmpty()) {
-                        boolean exists = false;
-                        for (ItemStack t : distinctTypes) {
-                            if (ItemStack.isSameItemSameComponents(t, chestStack)) {
-                                exists = true;
-                                break;
-                            }
-                        }
-                        if (!exists) {
-                            distinctTypes.add(chestStack.copy());
-                        }
-                    }
-                }
-                if (!distinctTypes.isEmpty()) {
-                    for (Slot slot : self.getMenu().slots) {
-                        if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
-                            ItemStack invStack = slot.getItem();
-                            if (invStack.isEmpty()) continue;
-                            boolean matches = false;
-                            for (ItemStack t : distinctTypes) {
-                                if (ItemStack.isSameItemSameComponents(t, invStack)) {
-                                    matches = true;
-                                    break;
-                                }
-                            }
-                            if (matches) {
-                                for (int i = 0; i < contents.size(); i++) {
-                                    ItemStack existing = contents.get(i);
-                                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
-                                        int canFit = existing.getMaxStackSize() - existing.getCount();
-                                        int toInsert = Math.min(canFit, invStack.getCount());
-                                        if (toInsert > 0) {
-                                            existing.grow(toInsert);
-                                            invStack.shrink(toInsert);
-                                        }
-                                    }
-                                    if (invStack.isEmpty()) break;
-                                }
-                                if (!invStack.isEmpty()) {
-                                    while (invStack.getCount() > 0) {
-                                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(contents, invStack);
-                                        if (bestSlot == -1) break;
-                                        int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                                        contents.set(bestSlot, invStack.copyWithCount(toInsert));
-                                        invStack.shrink(toInsert);
-                                    }
-                                }
-                                slot.set(invStack);
-                            }
-                        }
-                    }
-                }
+                ContainerHelper.depositContents(contents, self.getMenu().slots, -2); // containerSlotId for Ender Chest prediction is -2
             }
         }
     }
@@ -1740,7 +1490,7 @@ public abstract class HandledScreenMixin extends Screen {
             for (int idx = txs.size() - 1; idx >= 0; idx--) {
                 BetterShulkerClient.PredictionTransaction tx = txs.get(idx);
 
-                if (now - tx.timestamp > 800) {
+                if (now - tx.timestamp > 5000) {
                     txs.remove(idx);
                     continue;
                 }
@@ -1825,6 +1575,10 @@ public abstract class HandledScreenMixin extends Screen {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
         if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
+            if (this.bettershulker$wigglePushed) {
+                graphics.pose().popMatrix();
+                this.bettershulker$wigglePushed = false;
+            }
             // Apply organic figure-8 wiggle translation
             long time = System.currentTimeMillis();
             double angle = (time % 250) * (2 * Math.PI / 250.0);
@@ -1834,6 +1588,7 @@ public abstract class HandledScreenMixin extends Screen {
 
             graphics.pose().pushMatrix();
             graphics.pose().translate(wobbleX, wobbleY);
+            this.bettershulker$wigglePushed = true;
         }
     }
 
@@ -1843,8 +1598,11 @@ public abstract class HandledScreenMixin extends Screen {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
         if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
-            // Pop the wiggle translation matrix
-            graphics.pose().popMatrix();
+            if (this.bettershulker$wigglePushed) {
+                // Pop the wiggle translation matrix
+                graphics.pose().popMatrix();
+                this.bettershulker$wigglePushed = false;
+            }
 
             // Draw a gorgeous pixel-perfect emerald green plus icon with a white center dot and black shadow in top-right corner
             int px = slot.x + 11;

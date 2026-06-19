@@ -21,7 +21,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.List;
+
 
 /**
  * Better Shulker — Client-side entry point.
@@ -91,7 +91,7 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static boolean tooltipActive = false;
 
     private static int hoveredTooltipSlotIndex = -1;
-    private static ItemStack hoveredTooltipContainer = ItemStack.EMPTY;
+    private static ItemStack activeContainerStack = ItemStack.EMPTY;
     private static ItemStack filterItemStack = ItemStack.EMPTY;
     private static String searchQuery = "";
     private static boolean searchFocused = false;
@@ -439,12 +439,12 @@ public class BetterShulkerClient implements ClientModInitializer {
         hoveredTooltipSlotIndex = index;
     }
 
-    public static ItemStack getHoveredTooltipContainer() {
-        return hoveredTooltipContainer;
+    public static ItemStack getActiveContainerStack() {
+        return activeContainerStack;
     }
-
-    public static void setHoveredTooltipContainer(ItemStack container) {
-        hoveredTooltipContainer = container;
+ 
+    public static void setActiveContainerStack(ItemStack stack) {
+        activeContainerStack = stack;
     }
 
     public static ItemStack getFilterItemStack() {
@@ -609,7 +609,7 @@ public class BetterShulkerClient implements ClientModInitializer {
         tooltipActive = false;
         lastEnderChestRequestTime = 0;
         hoveredTooltipSlotIndex = -1;
-        hoveredTooltipContainer = ItemStack.EMPTY;
+        activeContainerStack = ItemStack.EMPTY;
         filterItemStack = ItemStack.EMPTY;
         searchQuery = "";
         searchFocused = false;

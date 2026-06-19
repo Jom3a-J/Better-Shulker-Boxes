@@ -5,10 +5,10 @@
   "compatibilityLevel": "JAVA_25",
   "refmap": "bettershulker-refmap.json",
   "client": [
-    "HandledScreenMixin"
+    "HandledScreenMixin",
+    "ItemStackMixin"
   ],
   "mixins": [
-    "ItemStackMixin",
     "ItemMixin"
   ],
   "injectors": {

@@ -1019,35 +1019,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
-    public static int hslToRgb(float h, float s, float l) {
-        float q = l < 0.5f ? l * (1.0f + s) : l + s - l * s;
-        float p = 2.0f * l - q;
-        float r = hueToRgb(p, q, h + 1.0f/3.0f);
-        float g = hueToRgb(p, q, h);
-        float b = hueToRgb(p, q, h - 1.0f/3.0f);
-        return 0xFF000000 | ((int)(r * 255) << 16) | ((int)(g * 255) << 8) | (int)(b * 255);
-    }
-
-    private static float hueToRgb(float p, float q, float t) {
-        if (t < 0.0f) t += 1.0f;
-        if (t > 1.0f) t -= 1.0f;
-        if (t < 1.0f/6.0f) return p + (q - p) * 6.0f * t;
-        if (t < 1.0f/2.0f) return q;
-        if (t < 2.0f/3.0f) return p + (q - p) * (2.0f/3.0f - t) * 6.0f;
-        return p;
-    }
-
-    private static int brightenColor(int color) {
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-
-        r = Math.min(255, (int) (r * 1.3));
-        g = Math.min(255, (int) (g * 1.3));
-        b = Math.min(255, (int) (b * 1.3));
-
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
 
     public static boolean parseAndMatchQuery(ItemStack stack, String query) {
         if (stack.isEmpty()) return false;

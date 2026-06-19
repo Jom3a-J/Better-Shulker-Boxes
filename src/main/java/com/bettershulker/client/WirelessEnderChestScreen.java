@@ -26,6 +26,7 @@ import java.util.List;
 public class WirelessEnderChestScreen extends Screen {
 
     private static final int SCREEN_BG_COLOR = 0xE505050B; // Deep obsidian background with subtle transparency
+    private long openTime;
 
     public WirelessEnderChestScreen() {
         super(Component.literal("Wireless Ender Chest"));
@@ -34,6 +35,7 @@ public class WirelessEnderChestScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+        openTime = System.currentTimeMillis();
         // Force refresh from server when opening screen
         BetterShulkerClient.requestEnderChestSync();
 
@@ -61,7 +63,7 @@ public class WirelessEnderChestScreen extends Screen {
         graphics.fill(0, 0, this.width, this.height, SCREEN_BG_COLOR);
 
         // 2. Render drifting portal particles rising up
-        long timeNow = System.currentTimeMillis();
+        long timeNow = System.currentTimeMillis() - openTime;
         double particleTime = timeNow / 1000.0;
         for (int p = 0; p < 25; p++) {
             long seed = p * 12345L;
@@ -178,7 +180,7 @@ public class WirelessEnderChestScreen extends Screen {
             BetterShulkerClient.cycleSortMode();
             BetterShulkerClient.setLastSortTime(System.currentTimeMillis());
             int modeVal = BetterShulkerClient.getCurrentSortMode().ordinal();
-            if (modeVal > 0) {
+            {
                 ClientPlayNetworking.send(new ContainerInteractPayload(
                     -2, // Wireless indicator
                     modeVal, // Sort mode (1=NAME, 2=COUNT, 3=CATEGORY)
@@ -303,6 +305,10 @@ public class WirelessEnderChestScreen extends Screen {
     @Override
     public void onClose() {
         BetterShulkerClient.setTooltipActive(false);
+        BetterShulkerClient.clearSelectedSlotsSet();
+        BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
+        BetterShulkerClient.setSearchQuery("");
+        BetterShulkerClient.setSearchFocused(false);
 
         // Auditory Immersion: Play Block Ender Chest Close sound
         var player = Minecraft.getInstance().player;
@@ -392,38 +398,12 @@ public class WirelessEnderChestScreen extends Screen {
         } else {
             int size = contents.size();
             if (size <= 0) return current;
-            int newSlot = current + delta;
-            if (newSlot < 0) newSlot = size - 1;
-            if (newSlot >= size) newSlot = 0;
-            return newSlot;
+            return Math.floorMod(current + delta, size);
         }
     }
 
     private void bettershulker$playClientSound(ItemStack stack, boolean isInsert) {
-        if (BetterShulkerConfig.soundVolume <= 0.0f) return;
-        var mc = Minecraft.getInstance();
-        if (mc.player == null) return;
-        try {
-            net.minecraft.sounds.SoundEvent soundEvent = null;
-            if (BetterShulkerConfig.soundOption == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
-                soundEvent = com.bettershulker.util.ContainerHelper.getContextualSound(stack, isInsert);
-            } else {
-                String[] split = BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
-                var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
-                var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-                if (soundHolderOpt.isPresent()) {
-                    soundEvent = soundHolderOpt.get().value();
-                }
-            }
-            if (soundEvent != null) {
-                float pitch = isInsert
-                        ? 0.9F + mc.player.level().getRandom().nextFloat() * 0.2F
-                        : 0.65F + mc.player.level().getRandom().nextFloat() * 0.15F;
-                mc.player.playSound(soundEvent, BetterShulkerConfig.soundVolume, pitch);
-            }
-        } catch (Exception e) {
-            // ignore
-        }
+        ContainerHelper.playInteractionSound(Minecraft.getInstance().player, stack, isInsert, BetterShulkerConfig.soundVolume);
     }
 
     private int findMergeInventorySlot(ItemStack stackToMerge) {

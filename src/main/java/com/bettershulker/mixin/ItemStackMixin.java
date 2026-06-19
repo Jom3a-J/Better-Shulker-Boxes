@@ -20,7 +20,7 @@ import java.util.Optional;
 public abstract class ItemStackMixin {
 
     @Inject(method = "getTooltipImage", at = @At("RETURN"), cancellable = true)
-    private void bettershulker(CallbackInfoReturnable<Optional<TooltipComponent>> ci) {
+    private void bettershulker$injectGetTooltipImage(CallbackInfoReturnable<Optional<TooltipComponent>> ci) {
         if (!BetterShulkerConfig.tooltipEnabled) return;
 
         ItemStack self = (ItemStack) (Object) this;
