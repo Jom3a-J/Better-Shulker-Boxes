@@ -4,12 +4,10 @@
   "key.bettershulker.extract": "Bulk Extract Selected Slots",
   "key.bettershulker.select_slot": "Select Slot",
   "key.bettershulker.filter": "Filter Item Type",
-  "key.bettershulker.toggle_search": "Toggle Tooltip Search",
   "key.bettershulker.precision": "Precision Mode (Insert/Extract 1)",
   "key.bettershulker.alt_force": "Alt-Force Tooltip on Cursor",
   "key.bettershulker.scroll_left": "Cycle Selection Backward",
   "key.bettershulker.scroll_right": "Cycle Selection Forward",
-  "key.bettershulker.sort": "Sort Container Items",
   "key.bettershulker.restock": "Restock / Deposit Items",
   "key.bettershulker.wireless_ender": "Wireless Ender Chest Preview",
   "key.bettershulker.show_full_tooltip": "Temporarily Show Full Tooltip"

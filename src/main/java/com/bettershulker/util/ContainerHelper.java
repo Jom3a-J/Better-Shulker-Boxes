@@ -288,7 +288,7 @@ public final class ContainerHelper {
     /**
      * Categorizes item stacks to support category-based proximity heuristics.
      */
-    public static String getCategorySortString(ItemStack stack) {
+    private static String getCategoryKey(ItemStack stack) {
         var item = stack.getItem();
         String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
@@ -344,7 +344,7 @@ public final class ContainerHelper {
         int bestSameItemDist = 999;
         int bestCategoryDist = 999;
 
-        String targetCategory = getCategorySortString(toInsert);
+        String targetCategory = getCategoryKey(toInsert);
 
         for (int i = 0; i < contents.size(); i++) {
             if (!contents.get(i).isEmpty()) continue;
@@ -372,7 +372,7 @@ public final class ContainerHelper {
                 }
 
                 // Check if same category
-                if (getCategorySortString(jStack).equals(targetCategory)) {
+                if (getCategoryKey(jStack).equals(targetCategory)) {
                     if (dist < minCategoryDist) {
                         minCategoryDist = dist;
                     }
@@ -581,45 +581,7 @@ public final class ContainerHelper {
     }
 
     // =========================================================================
-    //  Shared Action Operations (Sort, Restock, Deposit)
-    // =========================================================================
-
-    /**
-     * Sorts the container contents in place according to a mode:
-     * 1 = NAME, 2 = COUNT, 3 = CATEGORY.
-     */
-    public static void sortContents(NonNullList<ItemStack> contents, int modeVal) {
-        if (modeVal < 1 || modeVal > 3) return;
-        java.util.List<ItemStack> occupied = new java.util.ArrayList<>();
-        for (ItemStack s : contents) {
-            if (!s.isEmpty()) {
-                occupied.add(s.copy());
-            }
-        }
-
-        occupied.sort((sa, sb) -> {
-            if (modeVal == 1) { // NAME
-                return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
-            } else if (modeVal == 2) { // COUNT
-                return Integer.compare(sb.getCount(), sa.getCount()); // Descending
-            } else if (modeVal == 3) { // CATEGORY
-                String catA = getCategorySortString(sa);
-                String catB = getCategorySortString(sb);
-                int c = catA.compareToIgnoreCase(catB);
-                if (c != 0) return c;
-                return sa.getHoverName().getString().compareToIgnoreCase(sb.getHoverName().getString());
-            }
-            return 0;
-        });
-
-        for (int i = 0; i < contents.size(); i++) {
-            if (i < occupied.size()) {
-                contents.set(i, occupied.get(i));
-            } else {
-                contents.set(i, ItemStack.EMPTY);
-            }
-        }
-    }
+    //  Shared Action Operations (Restock, Deposit)
 
     /**
      * Pulls items from the player's hotbar slots and merges them into the container contents.

@@ -53,7 +53,7 @@ public class BetterShulkerMod implements ModInitializer {
     
     /**
      * Maximum allowed container interactions per single game tick (exploit protection).
-     * Multi-select/search extraction can legitimately send up to one packet per shulker slot,
+     * Multi-select extraction can legitimately send up to one packet per shulker slot,
      * so this must be high enough for a full 27-slot batch while still bounding spam.
      */
     public static final int MAX_INTERACTIONS_PER_TICK = 32;
@@ -215,7 +215,6 @@ public class BetterShulkerMod implements ModInitializer {
         boolean needsTargetIndex = (action != ContainerInteractPayload.InteractType.SWEEP_INSERT
                 && action != ContainerInteractPayload.InteractType.INSERT
                 && action != ContainerInteractPayload.InteractType.INSERT_ONE
-                && action != ContainerInteractPayload.InteractType.SORT
                 && action != ContainerInteractPayload.InteractType.RESTOCK
                 && action != ContainerInteractPayload.InteractType.DEPOSIT);
         if (needsTargetIndex && (targetIndex < 0 || targetIndex >= 27)) {
@@ -436,10 +435,6 @@ public class BetterShulkerMod implements ModInitializer {
                         }
                     }
                 }
-            }
-            case SORT -> {
-                ContainerHelper.sortContents(contents, targetIndex);
-                success = true;
             }
             case RESTOCK -> {
                 success = ContainerHelper.restockContents(contents, player.containerMenu.slots);
@@ -696,13 +691,6 @@ public class BetterShulkerMod implements ModInitializer {
                     }
                 }
             }
-            case SORT -> {
-                NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                for (int i = 0; i < enderInv.getContainerSize(); i++) contents.set(i, enderInv.getItem(i));
-                ContainerHelper.sortContents(contents, targetIndex);
-                for (int i = 0; i < enderInv.getContainerSize(); i++) enderInv.setItem(i, contents.get(i));
-                success = true;
-            }
             case RESTOCK -> {
                 NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
                 for (int i = 0; i < enderInv.getContainerSize(); i++) contents.set(i, enderInv.getItem(i));
@@ -776,12 +764,5 @@ public class BetterShulkerMod implements ModInitializer {
     private static void resyncPlayer(ServerPlayer player) {
         player.containerMenu.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
-    }
-
-    /**
-     * Internal sorting helper delegating to ContainerHelper.
-     */
-    private static String getCategorySortString(ItemStack stack) {
-        return com.bettershulker.util.ContainerHelper.getCategorySortString(stack);
     }
 }

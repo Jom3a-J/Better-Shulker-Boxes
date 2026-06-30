@@ -20,7 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.List;
 
 /**
- * Easy Shulker Boxes-inspired tooltip renderer.
+ * Interactive shulker/ender chest tooltip renderer.
  *
  * The base panel is sampled from vanilla container textures so resource packs that recolor
  * shulker/container GUIs can affect the preview. Better Shulker themes are applied as
@@ -176,17 +176,13 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     @Override
     public int getHeight(Font textRenderer) {
-        int searchHeight = 0;
-        int sortHeight = 0;
         if (this.compactMode) {
-            return getPanelHeight() + COMPACT_HINT_HEIGHT + searchHeight + sortHeight;
+            return getPanelHeight() + COMPACT_HINT_HEIGHT;
         }
-        // The selected-item tab is drawn above the component like Easy Shulker Boxes' selected
-        // tooltip, so it must not increase the component height or the vanilla tooltip background
+        // The selected-item tab is drawn above the component as a separate tooltip,
+        // so it must not increase the component height or the vanilla tooltip background
         // will stretch downward whenever a selected name appears.
-        int targetHeight = getPanelHeight() + TOOLTIP_BOTTOM_PADDING + searchHeight + sortHeight;
-
-        return targetHeight;
+        return getPanelHeight() + TOOLTIP_BOTTOM_PADDING;
     }
 
     @Override
@@ -212,9 +208,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int panelX = this.compactMode && getPanelWidth() > 0 ? tooltipX + (width - getPanelWidth()) / 2 : tooltipX + (width - getPanelWidth()) / 2;
         int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
         long now = System.currentTimeMillis();
-
-        int searchHeight = 0;
-        boolean showSortBar = false;
 
         boolean resourcePackMode = this.resourcePackOverridesPanel;
         boolean hasCompactPreview = this.compactMode && !this.isContainerEmpty && !this.displaySlots.isEmpty();
@@ -247,14 +240,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int extraY = panelY + getPanelHeight() + (this.compactMode ? 0 : TOOLTIP_BOTTOM_PADDING);
         if (this.compactMode) {
             drawCompactFullHint(textRenderer, context, tooltipX, extraY, width);
-            extraY += COMPACT_HINT_HEIGHT;
-        }
-        if (showSortBar) {
-            drawSortBar(textRenderer, context, panelX, extraY, now);
-            extraY += 15;
-        }
-        if (searchHeight > 0) {
-            drawSearchBar(textRenderer, context, panelX, extraY);
         }
 
         // Tiny theme-colored fill strip at the bottom. Hide it in resource-pack mode so the
@@ -394,7 +379,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                     yield blendColor(0xFF000000 | this.color.getTextureDiffuseColor(), 0xFF000000, 0.18f);                }
                 // Undyed/default shulker boxes are purple. The normal tooltip panel was becoming
                 // near-black in compact mode because the original palette used translucent dark
-                // overlay colors; compact mode needs an opaque base color like ShulkerBoxTooltip.
+                // overlay colors; compact mode needs an opaque base color.
                 yield 0xFF6F2D8F;
             }
             case CLASSIC -> 0xFF2D4A1A;
@@ -623,7 +608,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private void drawItemsAndSlotOverlays(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int hoveredSlot, long now) {
         ItemStack filterStack = BetterShulkerClient.getFilterItemStack();
         boolean isFiltering = !filterStack.isEmpty();
-        boolean isSearching = false;
         int selectedDisplay = getDisplayIndexForSlot(BetterShulkerClient.getSelectedSlotIndex());
         int hoveredDisplay = hoveredSlot >= 0 ? getDisplayIndexForSlot(hoveredSlot) : -1;
         int animatedDisplay = selectedDisplay >= 0 ? selectedDisplay : hoveredDisplay;
@@ -695,7 +679,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             if (isFiltering) {
                 matches = !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, filterStack);
             }
-            if (isFiltering || isSearching) {
+            if (isFiltering) {
                 if (matches) {
                     drawSlotOutline(context, slotX, slotY, this.matchColor, true);
                 } else {
@@ -854,8 +838,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         if (this.compactMode) {
             drawCompactSelectedNameTooltip(font, context, panelX, panelY, selectedStack, nameColor);
         } else {
-            // Use the Easy Shulker Boxes approach for both vanilla/theme and resource-pack modes:
-            // draw the selected name as a separate tooltip above the preview. This avoids the broken
+            // Draw the selected name as a separate tooltip above the preview for both vanilla/theme
+            // and resource-pack modes. This avoids the broken
             // custom tab path and prevents the main tooltip background from stretching.
             drawVanillaSelectedNameTooltip(font, context, panelX, panelY, selectedStack, nameColor);
         }
@@ -943,45 +927,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return BetterShulkerConfig.selectedItemNameEnabled
                 && this.selectedItemName != null
                 && !this.selectedItemName.isEmpty();
-    }
-
-    private void drawSortBar(Font font, GuiGraphicsExtractor context, int x, int y, long now) {
-        long timeSinceSort = System.currentTimeMillis() - BetterShulkerClient.getLastSortTime();
-        float fade = 1.0f;
-        if (timeSinceSort > 1500) {
-            fade = Math.max(0.0f, 1.0f - (timeSinceSort - 1500) / 500.0f);
-        }
-        int alpha = (int) (fade * 255);
-        int bg = ((int) (alpha * 0.45f) << 24) | (this.panelShadowColor & 0x00FFFFFF);
-        int border = ((int) (alpha * 0.75f) << 24) | (this.borderColor & 0x00FFFFFF);
-        drawHudBar(context, x, y, bg, border);
-
-        int slide = (int) ((1.0f - Math.min(1.0f, timeSinceSort / 250.0f)) * -6.0f);
-        int textX = x + 7 + slide;
-        int textY = y + 3;
-        context.text(font, Component.literal("⇅ Sort: "), textX, textY, (alpha << 24) | (this.selectionColor & 0x00FFFFFF));
-        int labelWidth = font.width("⇅ Sort: ");
-        context.text(font, Component.literal(BetterShulkerClient.getCurrentSortMode().getDisplayName()), textX + labelWidth, textY,
-                (alpha << 24) | (this.textColor & 0x00FFFFFF));
-    }
-
-    private void drawSearchBar(Font font, GuiGraphicsExtractor context, int x, int y) {
-        int bg = 0x66000000;
-        int border = BetterShulkerClient.isSearchFocused() ? this.selectionColor : withAlpha(this.borderColor, 150);
-        drawHudBar(context, x, y, bg, border);
-
-        String query = BetterShulkerClient.getSearchQuery();
-        String cursor = BetterShulkerClient.isSearchFocused() && (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
-        int textX = x + 7;
-        int textY = y + 3;
-        context.text(font, Component.literal("Search: "), textX, textY, this.selectionColor);
-        int labelWidth = font.width("Search: ");
-        context.text(font, Component.literal(query + cursor), textX + labelWidth, textY, this.textColor);
-    }
-
-    private void drawHudBar(GuiGraphicsExtractor context, int x, int y, int bg, int border) {
-        int w = getPanelWidth();        context.fill(x + 3, y + 1, x + w - 3, y + 14, bg);
-        drawRectFrame(context, x + 3, y + 1, w - 6, 13, border);
     }
 
     private void drawFillStrip(GuiGraphicsExtractor context, int x, int y) {
@@ -1200,13 +1145,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int g = Math.round(gA + (gB - gA) * factor);
         int b = Math.round(bA + (bB - bA) * factor);
         return 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
-
-    public static boolean parseAndMatchQuery(ItemStack stack, String query) {
-        if (stack.isEmpty()) return false;
-        query = query.trim().toLowerCase();
-        if (query.isEmpty()) return true;
-        return stack.getHoverName().getString().toLowerCase().contains(query);
     }
 
     public static int getTextColorForBackground(int color) {

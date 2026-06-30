@@ -84,7 +84,7 @@ public record ContainerInteractPayload(
     // =========================================================================
 
     /**
-     * Enumerates the nine possible container interaction types.
+     * Enumerates the supported container interaction types.
      *
      * <p>Each type corresponds to a specific user gesture:</p>
      */
@@ -101,8 +101,6 @@ public record ContainerInteractPayload(
         SWEEP_INSERT,
         /** Sweep extraction from the container into an inventory slot. */
         SWEEP_EXTRACT,
-        /** Actual sorting on the server. */
-        SORT,
         /** Restock hotbar slots from container. */
         RESTOCK,
         /** Deposit matching items from player inventory into the container. */

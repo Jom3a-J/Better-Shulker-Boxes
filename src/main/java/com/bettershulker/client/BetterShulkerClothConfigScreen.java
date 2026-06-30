@@ -11,15 +11,10 @@ import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.RenderPipelines;
-
-import java.util.List;
-import java.util.Optional;
 
 /**
  * Cloth Config-powered settings screen for Better Shulker Boxes.
@@ -472,133 +467,6 @@ public final class BetterShulkerClothConfigScreen {
         int color() {
             return 0xFF000000 | (red.getValue() << 16) | (green.getValue() << 8) | blue.getValue();
         }
-    }
-
-    private static final class CustomThemePreviewEntry extends AbstractConfigListEntry<Object> {
-        private final ColorSliders background;
-        private final ColorSliders border;
-        private final ColorSliders nameBackground;
-        private final ColorSliders nameBorder;
-        private final ColorSliders selection;
-
-        private CustomThemePreviewEntry(ColorSliders background, ColorSliders border,
-                                        ColorSliders nameBackground, ColorSliders nameBorder,
-                                        ColorSliders selection) {
-            super(text("Live Custom Theme Preview"), false);
-            this.background = background;
-            this.border = border;
-            this.nameBackground = nameBackground;
-            this.nameBorder = nameBorder;
-            this.selection = selection;
-        }
-
-        @Override
-        public void extractRenderState(GuiGraphicsExtractor graphics, int index, int y, int x, int entryWidth,
-                                       int entryHeight, int mouseX, int mouseY, boolean hovered, float delta) {
-            super.extractRenderState(graphics, index, y, x, entryWidth, entryHeight, mouseX, mouseY, hovered, delta);
-            var font = Minecraft.getInstance().font;
-            int bg = background.color();
-            int br = border.color();
-            int nameBg = nameBackground.color();
-            int nameBr = nameBorder.color();
-            int sel = selection.color();
-
-            int previewW = Math.min(260, entryWidth - 24);
-            int previewX = x + (entryWidth - previewW) / 2;
-            int previewY = y + 8;
-
-            graphics.centeredText(font, text("Live Custom Theme Preview"), previewX + previewW / 2, previewY, 0xFFFFFFFF);
-            drawFullPreview(graphics, font, previewX, previewY + 14, previewW, bg, br, sel);
-            drawNamePreview(graphics, font, previewX + 14, previewY + 92, nameBg, nameBr);
-            drawCompactPreview(graphics, font, previewX + 146, previewY + 88, bg, br, sel);
-        }
-
-        private void drawFullPreview(GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font, int x, int y,
-                                     int w, int bg, int br, int sel) {
-            int panelW = 176;
-            int panelH = 68;
-            int panelX = x + (w - panelW) / 2;
-            graphics.fill(panelX, y, panelX + panelW, y + panelH, bg);
-            drawFrame(graphics, panelX, y, panelW, panelH, br);
-            int slotTint = withAlpha(br, 38);
-            for (int row = 0; row < 3; row++) {
-                for (int col = 0; col < 9; col++) {
-                    int sx = panelX + 8 + col * 18;
-                    int sy = y + 7 + row * 18;
-                    graphics.fill(sx, sy, sx + 18, sy + 18, withAlpha(br, 100));
-                    graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, 0xAA101010);
-                    graphics.fill(sx + 2, sy + 2, sx + 16, sy + 16, slotTint);
-                }
-            }
-            int selectedX = panelX + 8 + 2 * 18;
-            int selectedY = y + 7 + 1 * 18;
-            drawFrame(graphics, selectedX, selectedY, 18, 18, sel);
-            graphics.fill(selectedX + 1, selectedY + 1, selectedX + 17, selectedY + 17, withAlpha(sel, 45));
-        }
-
-        private void drawNamePreview(GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font, int x, int y,
-                                     int bg, int br) {
-            String label = "Diamond Pickaxe";
-            int w = font.width(label) + 12;
-            graphics.fill(x, y, x + w, y + 14, bg);
-            drawFrame(graphics, x, y, w, 14, br);
-            graphics.text(font, text(label), x + 6, y + 3, getTextColorForBackground(bg));
-        }
-
-        private void drawCompactPreview(GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font, int x, int y,
-                                        int bg, int br, int sel) {
-            int panelW = 14 + 5 * 20;
-            int panelH = 14 + 20;
-            graphics.fill(x, y, x + panelW, y + panelH, blendColor(bg, 0xFF000000, 0.16f));
-            graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, blendColor(bg, 0xFFFFFFFF, 0.10f));
-            drawFrame(graphics, x + 1, y + 1, panelW - 2, panelH - 2, br);
-            for (int i = 0; i < 5; i++) {
-                int sx = x + 7 + i * 20;
-                int sy = y + 7;
-                graphics.fill(sx, sy, sx + 20, sy + 20, withAlpha(br, 180));
-                graphics.fill(sx + 1, sy + 1, sx + 19, sy + 19, 0xC0101010);
-            }
-            drawFrame(graphics, x + 7 + 20, y + 7, 20, 20, sel);
-            graphics.text(font, text("64"), x + 9, y + 18, 0xFFFFFFFF);
-        }
-
-        private void drawFrame(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int color) {
-            graphics.fill(x, y, x + w, y + 1, color);
-            graphics.fill(x, y + h - 1, x + w, y + h, color);
-            graphics.fill(x, y + 1, x + 1, y + h - 1, color);
-            graphics.fill(x + w - 1, y + 1, x + w, y + h - 1, color);
-        }
-
-        private int withAlpha(int color, int alpha) {
-            return (Math.max(0, Math.min(255, alpha)) << 24) | (color & 0x00FFFFFF);
-        }
-
-        private int getTextColorForBackground(int color) {
-            int r = (color >> 16) & 0xFF;
-            int g = (color >> 8) & 0xFF;
-            int b = color & 0xFF;
-            double luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-            return luminance > 0.65 ? 0xFF373737 : 0xFFFFFFFF;
-        }
-
-        private int blendColor(int colorA, int colorB, float factor) {
-            int rA = (colorA >> 16) & 0xFF;
-            int gA = (colorA >> 8) & 0xFF;
-            int bA = colorA & 0xFF;
-            int rB = (colorB >> 16) & 0xFF;
-            int gB = (colorB >> 8) & 0xFF;
-            int bB = colorB & 0xFF;
-            int r = Math.round(rA + (rB - rA) * factor);
-            int g = Math.round(gA + (gB - gA) * factor);
-            int b = Math.round(bA + (bB - bA) * factor);
-            return 0xFF000000 | (r << 16) | (g << 8) | b;
-        }
-
-        @Override public int getItemHeight() { return 132; }
-        @Override public Object getValue() { return null; }
-        @Override public Optional<Object> getDefaultValue() { return Optional.empty(); }
-        @Override public List<? extends GuiEventListener> children() { return List.of(); }
-        @Override public List<? extends NarratableEntry> narratables() { return List.of(); }
     }
 
     private static int red(int color) { return (color >> 16) & 0xFF; }

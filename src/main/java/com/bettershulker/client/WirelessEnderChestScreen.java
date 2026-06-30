@@ -303,8 +303,6 @@ public class WirelessEnderChestScreen extends Screen {
         BetterShulkerClient.setTooltipActive(false);
         BetterShulkerClient.clearSelectedSlotsSet();
         BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
-        BetterShulkerClient.setSearchQuery("");
-        BetterShulkerClient.setSearchFocused(false);
 
         // Auditory Immersion: Play Block Ender Chest Close sound
         var player = Minecraft.getInstance().player;
@@ -408,7 +406,7 @@ public class WirelessEnderChestScreen extends Screen {
         var player = Minecraft.getInstance().player;
         if (player == null) return -1;
         int bestEmpty = -1;
-        // Search inventory slots (9 to 44)
+        // Check inventory slots (9 to 44)
         for (int i = 9; i < 45; i++) {
             var slot = player.inventoryMenu.slots.get(i);
             var existing = slot.getItem();

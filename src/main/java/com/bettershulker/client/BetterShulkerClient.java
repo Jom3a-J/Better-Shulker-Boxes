@@ -48,12 +48,10 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static KeyMapping extractKey = null;
     private static KeyMapping selectSlotKey = null;
     private static KeyMapping filterKey = null;
-    private static KeyMapping toggleSearchKey = null;
     private static KeyMapping precisionKey = null;
     private static KeyMapping altForceKey = null;
     private static KeyMapping scrollLeftKey = null;
     private static KeyMapping scrollRightKey = null;
-    private static KeyMapping sortKey = null;
     private static KeyMapping restockKey = null;
     private static KeyMapping wirelessEnderChestKey = null;
     private static KeyMapping showFullTooltipKey = null;
@@ -61,19 +59,6 @@ public class BetterShulkerClient implements ClientModInitializer {
     // =========================================================================
     //  Client State Definitions
     // =========================================================================
-
-    public enum SortMode {
-        NONE("Original"),
-        NAME("Name"),
-        COUNT("Count"),
-        CATEGORY("Category");
-
-        private final String displayName;
-        SortMode(String displayName) { this.displayName = displayName; }
-        public String getDisplayName() { return displayName; }
-    }
-
-    private static SortMode currentSortMode = SortMode.NONE;
 
     /** Cached ender chest contents received from the server via S2C packet. */
     private static NonNullList<ItemStack> enderChestContents = null;
@@ -87,8 +72,6 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static int hoveredTooltipSlotIndex = -1;
     private static ItemStack activeContainerStack = ItemStack.EMPTY;
     private static ItemStack filterItemStack = ItemStack.EMPTY;
-    private static String searchQuery = "";
-    private static boolean searchFocused = false;
     private static final java.util.Set<Integer> selectedSlotsSet = new java.util.HashSet<>();
 
     /** Cooldown tracking to limit ender chest sync request packets. */
@@ -107,7 +90,6 @@ public class BetterShulkerClient implements ClientModInitializer {
 
     private static final float[] slotScales = new float[27];
     private static long lastSlotScaleUpdateTime = 0L;
-    private static long lastSortTime = 0L;
     
     private static float currentAnimatedHeight = -1f;
     private static long lastHeightUpdateTime = 0L;
@@ -366,22 +348,6 @@ public class BetterShulkerClient implements ClientModInitializer {
         filterItemStack = stack;
     }
 
-    public static String getSearchQuery() {
-        return searchQuery;
-    }
-
-    public static void setSearchQuery(String query) {
-        searchQuery = query != null ? query : "";
-    }
-
-    public static boolean isSearchFocused() {
-        return searchFocused;
-    }
-
-    public static void setSearchFocused(boolean focused) {
-        searchFocused = focused;
-    }
-
     public static java.util.Set<Integer> getSelectedSlotsSet() {
         return selectedSlotsSet;
     }
@@ -430,10 +396,6 @@ public class BetterShulkerClient implements ClientModInitializer {
         return filterKey;
     }
 
-    public static KeyMapping getToggleSearchKey() {
-        return toggleSearchKey;
-    }
-
     public static KeyMapping getPrecisionKey() {
         return precisionKey;
     }
@@ -448,10 +410,6 @@ public class BetterShulkerClient implements ClientModInitializer {
 
     public static KeyMapping getScrollRightKey() {
         return scrollRightKey;
-    }
-
-    public static KeyMapping getSortKey() {
-        return sortKey;
     }
 
     public static KeyMapping getRestockKey() {
@@ -489,15 +447,6 @@ public class BetterShulkerClient implements ClientModInitializer {
         return true;
     }
 
-    public static SortMode getCurrentSortMode() {
-        return currentSortMode;
-    }
-
-    public static void cycleSortMode() {
-        var values = SortMode.values();
-        currentSortMode = values[(currentSortMode.ordinal() + 1) % values.length];
-    }
-
     public static float getCurrentSelectedCol() { return currentSelectedCol; }
     public static void setCurrentSelectedCol(float v) { currentSelectedCol = v; }
     public static float getCurrentSelectedRow() { return currentSelectedRow; }
@@ -508,8 +457,6 @@ public class BetterShulkerClient implements ClientModInitializer {
     public static float[] getSlotScales() { return slotScales; }
     public static long getLastSlotScaleUpdateTime() { return lastSlotScaleUpdateTime; }
     public static void setLastSlotScaleUpdateTime(long v) { lastSlotScaleUpdateTime = v; }
-    public static long getLastSortTime() { return lastSortTime; }
-    public static void setLastSortTime(long t) { lastSortTime = t; }
 
     public static float getCurrentAnimatedHeight() { return currentAnimatedHeight; }
     public static void setCurrentAnimatedHeight(float v) { currentAnimatedHeight = v; }
@@ -562,13 +509,9 @@ public class BetterShulkerClient implements ClientModInitializer {
         hoveredTooltipSlotIndex = -1;
         activeContainerStack = ItemStack.EMPTY;
         filterItemStack = ItemStack.EMPTY;
-        searchQuery = "";
-        searchFocused = false;
         selectedSlotsSet.clear();
         lastMouseX = 0;
         lastMouseY = 0;
-        currentSortMode = SortMode.NONE;
-        lastSortTime = 0L;
 
         // Reset Category 1 visual animation state
         currentSelectedCol = -1f;

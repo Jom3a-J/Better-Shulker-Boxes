@@ -981,57 +981,6 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
-    private void bettershulker$processSearchExtract() {
-        var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
-        if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
-
-        NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
-        String query = BetterShulkerClient.getSearchQuery();
-        if (query.isEmpty()) return;
-
-        // Build virtual inventory state map for player inventory slots
-        java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
-        for (Slot slot : self.getMenu().slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
-                virtualInv.put(slot.index, slot.getItem().copy());
-            }
-        }
-
-        ItemStack firstExtracted = ItemStack.EMPTY;
-        // Search match loop
-        for (int targetIdx = 0; targetIdx < contents.size(); targetIdx++) {
-            ItemStack shulkerStack = contents.get(targetIdx);
-            if (shulkerStack.isEmpty()) continue;
-
-            if (com.bettershulker.client.render.ShulkerTooltipComponent.parseAndMatchQuery(shulkerStack, query)) {
-                if (firstExtracted.isEmpty()) {
-                    firstExtracted = shulkerStack;
-                }
-                int targetSlotIdx = bettershulker$findVirtualInventorySlot(self.getMenu().slots, shulkerStack, virtualInv);
-                if (targetSlotIdx != -1) {
-                    bettershulker$sendInteractPayload(
-                        containerSlotIndex, targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
-                }
-            }
-        }
-
-        BetterShulkerClient.setSearchQuery(""); // Clear search query after batch extraction
-        BetterShulkerClient.setSearchFocused(false);
-        bettershulker$playClientSound(firstExtracted, false);
-    }
-
-    @Unique
     private void bettershulker$processSingleSlotExtract() {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
@@ -1070,36 +1019,6 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
-    private void bettershulker$triggerActualSort() {
-        var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
-        if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
-
-        // Cycle sort mode on the client to send the new mode to the server
-        BetterShulkerClient.cycleSortMode();
-        var newMode = BetterShulkerClient.getCurrentSortMode();
-        if (newMode == BetterShulkerClient.SortMode.NONE) {
-            BetterShulkerClient.cycleSortMode(); // Skip NONE so we always sort when pressing G
-            newMode = BetterShulkerClient.getCurrentSortMode();
-        }
-
-        BetterShulkerClient.setLastSortTime(System.currentTimeMillis());
-
-        bettershulker$sendInteractPayload(
-            containerSlotIndex, newMode.ordinal(), ContainerInteractPayload.InteractType.SORT.toId(), -1);
-    }
-
-    @Unique
     private void bettershulker$triggerRestockOrDeposit(boolean deposit) {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
@@ -1129,8 +1048,6 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$selectKeyWasDown = false;
         bettershulker$lastTooltipScrollTime = 0L;
         BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
-        BetterShulkerClient.setSearchFocused(false);
-        BetterShulkerClient.setSearchQuery("");
         BetterShulkerClient.clearSelectedSlotsSet();
     }
 
@@ -1308,9 +1225,6 @@ public abstract class HandledScreenMixin extends Screen {
                     }
                 }
             }
-            case SORT -> {
-                ContainerHelper.sortContents(contents, targetIndex);
-            }
             case RESTOCK -> {
                 ContainerHelper.restockContents(contents, self.getMenu().slots);
             }
@@ -1474,9 +1388,6 @@ public abstract class HandledScreenMixin extends Screen {
                         }
                     }
                 }
-            }
-            case SORT -> {
-                ContainerHelper.sortContents(contents, targetIndex);
             }
             case RESTOCK -> {
                 ContainerHelper.restockContents(contents, self.getMenu().slots);
