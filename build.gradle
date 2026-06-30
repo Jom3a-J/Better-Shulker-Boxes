@@ -29,6 +29,9 @@ dependencies {
 
     // ModMenu integration (compile-only, provided at runtime by the player's mod folder)
     compileOnly "maven.modrinth:modmenu:20.0.0-beta.2"
+
+    // Cloth Config settings screen
+    implementation "me.shedaniel.cloth:cloth-config-fabric:26.2.155"
 }
 
 java {

@@ -24,31 +24,49 @@ import java.util.Map;
 import java.util.HashMap;
 
 /**
- * Better Shulker  Main server/common entry point.
+ * Better Shulker — Main server/common entry point.
  *
  * Responsibilities:
  * 1. Register all custom payload types (C2S and S2C) via PayloadTypeRegistry
  * 2. Handle server-side Ender Chest sync requests
  * 3. Validate and process all container interaction packets (anti-duplication)
  *
- * Minecraft 26.1 is unobfuscated  all names use Mojang official mappings.
+ * Minecraft 26.1 is unobfuscated — all names use Mojang official mappings.
  */
 public class BetterShulkerMod implements ModInitializer {
+
+    // =========================================================================
+    //  Constants & Fields
+    // =========================================================================
 
     public static final String MOD_ID = "bettershulker";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
+    /** Diffs cache to keep track of the last synced Ender Chest state per player UUID. */
     private static final Map<UUID, NonNullList<ItemStack>> lastSyncedEnderChest = new HashMap<>();
+    
+    /** Keeps track of the last game tick an interaction was processed per player UUID. */
     public static final Map<UUID, Long> lastInteractionTick = new java.util.HashMap<>();
+    
+    /** Rate-limiting count of interactions processed in the current tick per player. */
     public static final Map<UUID, Integer> interactionCountsThisTick = new java.util.HashMap<>();
-    public static final int MAX_INTERACTIONS_PER_TICK = 5;
+    
+    /**
+     * Maximum allowed container interactions per single game tick (exploit protection).
+     * Multi-select/search extraction can legitimately send up to one packet per shulker slot,
+     * so this must be high enough for a full 27-slot batch while still bounding spam.
+     */
+    public static final int MAX_INTERACTIONS_PER_TICK = 32;
 
+    // =========================================================================
+    //  Lifecycle & Initialization
+    // =========================================================================
 
     @Override
     public void onInitialize() {
         LOGGER.info("[BetterShulker] Initializing Better Shulker mod for Minecraft 26.1");
 
-        //  Register Payload Types 
+        // -- Register Custom Payload Types --
         // C2S: Client requests Ender Chest contents
         PayloadTypeRegistry.serverboundPlay().register(
                 EnderChestRequestPayload.TYPE,
@@ -67,7 +85,7 @@ public class BetterShulkerMod implements ModInitializer {
                 ContainerInteractPayload.CODEC
         );
 
-        //  Register Server-Side Packet Handlers 
+        // -- Register Server-Side Packet Handlers --
         registerEnderChestRequestHandler();
         registerContainerInteractHandler();
 
@@ -81,6 +99,10 @@ public class BetterShulkerMod implements ModInitializer {
 
         LOGGER.info("[BetterShulker] All payload types and handlers registered successfully");
     }
+
+    // =========================================================================
+    //  Network Packet Receivers
+    // =========================================================================
 
     /**
      * Handles C2S ender chest request: reads the player's ender chest inventory
@@ -120,16 +142,7 @@ public class BetterShulkerMod implements ModInitializer {
 
     /**
      * Handles C2S container interaction packets. This is the critical anti-duplication
-     * validation layer  ALL container mutations flow through here for server authority.
-     *
-     * The server independently validates every operation:
-     * 1. The container slot ID maps to a real slot in the player's current menu
-     * 2. The item in that slot is actually a shulker box or ender chest
-     * 3. The target index (026) is within bounds
-     * 4. The insertion/extraction is physically possible (stack sizes, nesting rules)
-     * 5. The cursor stack matches what the client claims
-     *
-     * If any check fails, the packet is silently dropped and the client is re-synced.
+     * validation layer — ALL container mutations flow through here for server authority.
      */
     private void registerContainerInteractHandler() {
         ServerPlayNetworking.registerGlobalReceiver(
@@ -160,10 +173,21 @@ public class BetterShulkerMod implements ModInitializer {
         );
     }
 
+    // =========================================================================
+    //  Interaction Logic Handler & Validation
+    // =========================================================================
+
     /**
      * Static entry point for processing a ContainerInteractPayload.
      * Used by both the remote packet handler AND single-player direct calls,
      * ensuring identical server-side validation regardless of invocation path.
+     *
+     * The server independently validates every operation:
+     * 1. The container slot ID maps to a real slot in the player's current menu
+     * 2. The item in that slot is actually a shulker box or ender chest
+     * 3. The target index (0-26) is within bounds
+     * 4. The insertion/extraction is physically possible (stack sizes, nesting rules)
+     * 5. The cursor stack matches what the client claims
      */
     public static void handleContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
         int containerSlotId = payload.containerSlotId();
@@ -251,12 +275,16 @@ public class BetterShulkerMod implements ModInitializer {
         resyncPlayer(player);
     }
 
+    // =========================================================================
+    //  Shulker Box Operations
+    // =========================================================================
+
     /**
      * Processes shulker box insertion/extraction on the server.
      * Reads from DataComponents.CONTAINER, validates, modifies, and writes back.
      */
     private static void handleShulkerInteraction(ServerPlayer player, int containerSlotId, ItemStack containerStack,
-                                          int targetIndex, ContainerInteractPayload.InteractType action, int inventorySlotId) {
+                                           int targetIndex, ContainerInteractPayload.InteractType action, int inventorySlotId) {
         NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(containerStack);
         ItemStack cursorStack = player.containerMenu.getCarried();
         boolean success = false;
@@ -282,7 +310,7 @@ public class BetterShulkerMod implements ModInitializer {
                 ItemStack singleItem = cursorStack.copyWithCount(1);
                 ItemStack remainder = ContainerHelper.tryInsert(contents, singleItem, true);
                 if (remainder.isEmpty()) {
-                    // Successfully inserted 1 item  shrink cursor
+                    // Successfully inserted 1 item — shrink cursor
                     cursorStack.shrink(1);
                     success = true;
                     isInsert = true;
@@ -441,6 +469,10 @@ public class BetterShulkerMod implements ModInitializer {
             ContainerHelper.playInteractionSound(player, soundStack, isInsert, 0.3F);
         }
     }
+
+    // =========================================================================
+    //  Ender Chest Operations
+    // =========================================================================
 
     /**
      * Processes ender chest insertion/extraction on the server.
@@ -699,9 +731,14 @@ public class BetterShulkerMod implements ModInitializer {
         }
     }
 
+    // =========================================================================
+    //  Synchronization & Resync Utilities
+    // =========================================================================
+
     /**
      * Builds an S2C sync payload containing only the differences (diffs)
      * between the current player's ender chest contents and the last synced state.
+     * Ensures minimum bandwidth overhead.
      */
     public static EnderChestSyncPayload buildEnderChestSyncPayload(ServerPlayer player) {
         var enderInv = player.getEnderChestInventory();
@@ -734,16 +771,17 @@ public class BetterShulkerMod implements ModInitializer {
 
     /**
      * Re-syncs the player's entire inventory to fix any client-side desync.
-     * This is the nuclear option  used when validation fails.
+     * This is the nuclear option — used when server validation fails.
      */
     private static void resyncPlayer(ServerPlayer player) {
         player.containerMenu.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
     }
 
+    /**
+     * Internal sorting helper delegating to ContainerHelper.
+     */
     private static String getCategorySortString(ItemStack stack) {
         return com.bettershulker.util.ContainerHelper.getCategorySortString(stack);
     }
 }
-
-

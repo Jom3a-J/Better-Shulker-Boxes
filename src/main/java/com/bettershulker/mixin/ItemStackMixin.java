@@ -6,19 +6,36 @@ import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.util.ContainerHelper;
 
 import net.minecraft.core.NonNullList;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.List;
 import java.util.Optional;
 
+/**
+ * Mixin for ItemStack to inject the custom container preview tooltip.
+ * Intercepts getTooltipImage to provide custom ShulkerTooltipData.
+ */
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
 
+    // =========================================================================
+    //  Mixin Injections
+    // =========================================================================
+
+    /**
+     * Intercepts ItemStack::getTooltipImage to inject the Better Shulker tooltip component
+     * for Shulker Boxes and Ender Chests if the feature is enabled.
+     */
     @Inject(method = "getTooltipImage", at = @At("RETURN"), cancellable = true)
     private void bettershulker$injectGetTooltipImage(CallbackInfoReturnable<Optional<TooltipComponent>> ci) {
         if (!BetterShulkerConfig.tooltipEnabled) return;
@@ -27,14 +44,7 @@ public abstract class ItemStackMixin {
 
         if (ContainerHelper.isShulkerBox(self)) {
             NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(self);
-            boolean empty = true;
-            for (ItemStack stack : contents) {
-                if (!stack.isEmpty()) {
-                    empty = false;
-                    break;
-                }
-            }
-            if (empty) {
+            if (BetterShulkerClient.isCompactModeActive() && bettershulker$isEmpty(contents)) {
                 ci.setReturnValue(Optional.empty());
                 return;
             }
@@ -55,14 +65,7 @@ public abstract class ItemStackMixin {
                 ci.setReturnValue(Optional.empty());
                 return;
             }
-            boolean empty = true;
-            for (ItemStack stack : cachedContents) {
-                if (!stack.isEmpty()) {
-                    empty = false;
-                    break;
-                }
-            }
-            if (empty) {
+            if (BetterShulkerClient.isCompactModeActive() && bettershulker$isEmpty(cachedContents)) {
                 ci.setReturnValue(Optional.empty());
                 return;
             }
@@ -75,6 +78,35 @@ public abstract class ItemStackMixin {
                 }
             }
             ci.setReturnValue(Optional.of(new ShulkerTooltipData(cachedContents, null, true, selectedItemName, self.getHoverName().getString())));
+        }
+    }
+
+    private boolean bettershulker$isEmpty(NonNullList<ItemStack> contents) {
+        for (ItemStack stack : contents) {
+            if (!stack.isEmpty()) return false;
+        }
+        return true;
+    }
+
+    @Inject(at = @At("RETURN"), method =
+            "getTooltipLines(Lnet/minecraft/world/item/Item$TooltipContext;Lnet/minecraft/world/entity/player/Player;"
+                    + "Lnet/minecraft/world/item/TooltipFlag;)Ljava/util/List;")
+    private void bettershulker$hideCompactContainerName(Item.TooltipContext context, Player player, TooltipFlag type,
+                                                       CallbackInfoReturnable<List<Component>> ci) {
+        if (!BetterShulkerConfig.tooltipEnabled || !BetterShulkerClient.isCompactModeActive()) return;
+
+        ItemStack self = (ItemStack) (Object) this;
+        if (!ContainerHelper.isShulkerBox(self) && !ContainerHelper.isEnderChest(self)) return;
+
+        List<Component> tooltip = ci.getReturnValue();
+        if (tooltip == null || tooltip.isEmpty()) return;
+
+        try {
+            // Compact mode draws the selected item name with the preview component.
+            // Remove all vanilla text lines so no black tooltip box/name remains behind it.
+            tooltip.clear();
+        } catch (UnsupportedOperationException ignored) {
+            // Vanilla currently returns a mutable list; if another mod wraps it, leave it alone.
         }
     }
 }

@@ -36,8 +36,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * Mixin for AbstractContainerScreen to handle client-side container UI interactions.
+ * 
+ * <p>Responsibilities:
+ * 1. Capture drag/click mouse events to perform inserts/extractions.
+ * 2. Intercept mouse scroll wheel inputs to cycle selected container slots.
+ * 3. Render shulker box/ender chest preview tooltips and highlight overlays.
+ * 4. Maintain short-term prediction states for smooth client-side inventory updates.</p>
+ */
 @Mixin(AbstractContainerScreen.class)
 public abstract class HandledScreenMixin extends Screen {
+
+    // =========================================================================
+    //  Mixin Shadowed Fields
+    // =========================================================================
 
     @Shadow
     protected Slot hoveredSlot;
@@ -52,6 +65,10 @@ public abstract class HandledScreenMixin extends Screen {
     protected abstract void slotClicked(Slot slot, int slotId, int mouseButton, ContainerInput clickType);
 
 
+
+    // =========================================================================
+    //  State Tracking Fields
+    // =========================================================================
 
     @Unique
     private static boolean bettershulker$isDragging = false;
@@ -70,6 +87,12 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private static boolean bettershulker$selectKeyWasDown = false;
+
+    @Unique
+    private static long bettershulker$lastTooltipScrollTime = 0L;
+
+    @Unique
+    private static final long bettershulker$TOOLTIP_SCROLL_COOLDOWN_MS = 85L;
 
     @Unique
     private static final Set<Integer> bettershulker$processedDragSlots = new HashSet<>();
@@ -99,6 +122,16 @@ public abstract class HandledScreenMixin extends Screen {
     private static boolean bettershulker$isCtrlDown() {
         if (!BetterShulkerConfig.precisionModeEnabled) return false;
         return bettershulker$isKeyHeld(BetterShulkerClient.getPrecisionKey());
+    }
+
+    @Unique
+    private static boolean bettershulker$consumeTooltipScrollStep() {
+        long now = System.currentTimeMillis();
+        if (now - bettershulker$lastTooltipScrollTime < bettershulker$TOOLTIP_SCROLL_COOLDOWN_MS) {
+            return false;
+        }
+        bettershulker$lastTooltipScrollTime = now;
+        return true;
     }
 
     @Unique
@@ -219,14 +252,17 @@ public abstract class HandledScreenMixin extends Screen {
 
         var self = bettershulker$self();
 
-        if (!bettershulker$dragFired && !bettershulker$dragDidWork) {
+        if (!bettershulker$dragDidWork) {
             if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
-                // Right-click tap → extract selected item to hovered slot
+                // Right-click tap → extract selected item to hovered slot. Tiny mouse jitter can fire
+                // mouseDragged before release, so treat any no-work drag as a normal tap.
                 if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
                     bettershulker$tapExtractToSlot(self, this.hoveredSlot);
                 }
             } else if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
-                // Left-click tap → simulate vanilla click to place item down
+                // Left-click tap → simulate vanilla click to grab/place the carried container.
+                // Previously this was skipped after even a 1px accidental drag, swallowing the click
+                // and making users click twice to pick up or release the item.
                 this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, button, ContainerInput.PICKUP);
             }
         }
@@ -407,13 +443,15 @@ public abstract class HandledScreenMixin extends Screen {
         if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
             ItemStack hoveredStack = this.hoveredSlot.getItem();
             if (ContainerHelper.isContainer(hoveredStack)) {
-                int delta = verticalAmount != 0 ? (int)Math.signum(-verticalAmount) : (int)Math.signum(-horizontalAmount);
-                int oldSlot = BetterShulkerClient.getSelectedSlotIndex();
-                int newSlot = bettershulker$clampScroll(oldSlot, delta, hoveredStack);
-                if (newSlot != oldSlot) {
-                    BetterShulkerClient.setSelectedSlotIndex(newSlot);
-                    if (bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
-                        BetterShulkerClient.getSelectedSlotsSet().add(newSlot);
+                if (bettershulker$consumeTooltipScrollStep()) {
+                    int delta = verticalAmount != 0 ? (int)Math.signum(-verticalAmount) : (int)Math.signum(-horizontalAmount);
+                    int oldSlot = BetterShulkerClient.getSelectedSlotIndex();
+                    int newSlot = bettershulker$clampScroll(oldSlot, delta, hoveredStack);
+                    if (newSlot != oldSlot) {
+                        BetterShulkerClient.setSelectedSlotIndex(newSlot);
+                        if (bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
+                            BetterShulkerClient.getSelectedSlotsSet().add(newSlot);
+                        }
                     }
                 }
                 handled = true;
@@ -424,13 +462,15 @@ public abstract class HandledScreenMixin extends Screen {
         if (!handled) {
             ItemStack carried = self.getMenu().getCarried();
             if (ContainerHelper.isContainer(carried)) {
-                int delta = verticalAmount != 0 ? (int)Math.signum(-verticalAmount) : (int)Math.signum(-horizontalAmount);
-                int oldSlot = BetterShulkerClient.getSelectedSlotIndex();
-                int newSlot = bettershulker$clampScroll(oldSlot, delta, carried);
-                if (newSlot != oldSlot) {
-                    BetterShulkerClient.setSelectedSlotIndex(newSlot);
-                    if (bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
-                        BetterShulkerClient.getSelectedSlotsSet().add(newSlot);
+                if (bettershulker$consumeTooltipScrollStep()) {
+                    int delta = verticalAmount != 0 ? (int)Math.signum(-verticalAmount) : (int)Math.signum(-horizontalAmount);
+                    int oldSlot = BetterShulkerClient.getSelectedSlotIndex();
+                    int newSlot = bettershulker$clampScroll(oldSlot, delta, carried);
+                    if (newSlot != oldSlot) {
+                        BetterShulkerClient.setSelectedSlotIndex(newSlot);
+                        if (bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
+                            BetterShulkerClient.getSelectedSlotsSet().add(newSlot);
+                        }
                     }
                 }
                 handled = true;
@@ -465,6 +505,16 @@ public abstract class HandledScreenMixin extends Screen {
             }
             if (visibleIndices.isEmpty()) {
                 visibleIndices.add(0);
+            } else {
+                visibleIndices.sort((a, b) -> {
+                    int countCompare = Integer.compare(
+                            bettershulker$countMergedItems(contents, b),
+                            bettershulker$countMergedItems(contents, a));
+                    return countCompare != 0 ? countCompare : Integer.compare(a, b);
+                });
+                if (visibleIndices.size() > 5) {
+                    visibleIndices = new java.util.ArrayList<>(visibleIndices.subList(0, 5));
+                }
             }
 
             int idx = visibleIndices.indexOf(current);
@@ -500,6 +550,20 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
+    private int bettershulker$countMergedItems(NonNullList<ItemStack> contents, int slot) {
+        if (slot < 0 || slot >= contents.size()) return 0;
+        ItemStack displayStack = contents.get(slot);
+        if (displayStack.isEmpty()) return 0;
+        int total = 0;
+        for (ItemStack stack : contents) {
+            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(displayStack, stack)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    @Unique
     private int bettershulker$getContainerSize(ItemStack containerStack) {
         return ContainerHelper.isContainer(containerStack) ? 27 : 0;
     }
@@ -530,16 +594,8 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$onKeyPressed(KeyEvent keyEvent, CallbackInfoReturnable<Boolean> ci) {
         int keyCode = keyEvent.key();
 
-        // 0000. Cycle sort mode and trigger actual sorting via configurable sort key when tooltip is active and search is not focused
-        if (!BetterShulkerClient.isSearchFocused() && BetterShulkerClient.getSortKey().matches(keyEvent) && BetterShulkerClient.isTooltipActive()) {
-            bettershulker$triggerActualSort();
-            ci.setReturnValue(true);
-            ci.cancel();
-            return;
-        }
-
-        // 00000. Restock or Deposit via configurable restock key when tooltip is active and search is not focused
-        if (!BetterShulkerClient.isSearchFocused() && BetterShulkerClient.getRestockKey().matches(keyEvent) && BetterShulkerClient.isTooltipActive()) {
+        // 00000. Restock or Deposit via configurable restock key when tooltip is active
+        if (BetterShulkerClient.getRestockKey().matches(keyEvent) && BetterShulkerClient.isTooltipActive()) {
             boolean shiftHeld = bettershulker$isShiftDown();
             bettershulker$triggerRestockOrDeposit(shiftHeld);
             ci.setReturnValue(true);
@@ -547,8 +603,9 @@ public abstract class HandledScreenMixin extends Screen {
             return;
         }
 
-        // 000. Handle slot selection toggling via configurable key when search is NOT focused
-        if (!BetterShulkerClient.isSearchFocused() && BetterShulkerClient.isTooltipActive()) {
+        // 000. Select/toggle tooltip slots via configurable key.
+        // Pressing Space explicitly arms slots for extraction; E only extracts after this selection.
+        if (BetterShulkerClient.isTooltipActive()) {
             int targetSlotIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
             if (targetSlotIdx < 0) {
                 targetSlotIdx = BetterShulkerClient.getSelectedSlotIndex();
@@ -556,6 +613,7 @@ public abstract class HandledScreenMixin extends Screen {
             if (targetSlotIdx >= 0 && BetterShulkerClient.getSelectSlotKey().matches(keyEvent)) {
                 if (!bettershulker$selectKeyWasDown) {
                     bettershulker$selectKeyWasDown = true;
+                    BetterShulkerClient.setSelectedSlotIndex(targetSlotIdx);
                     BetterShulkerClient.toggleSelectedSlot(targetSlotIdx);
                 }
                 ci.setReturnValue(true);
@@ -564,89 +622,15 @@ public abstract class HandledScreenMixin extends Screen {
             }
         }
 
-        // 00. Toggle search focus with configurable hotkey
-        if (BetterShulkerClient.getToggleSearchKey().matches(keyEvent) && BetterShulkerClient.isTooltipActive()) {
-            boolean nextState = !BetterShulkerClient.isSearchFocused();
-            BetterShulkerClient.setSearchFocused(nextState);
-            if (nextState) {
-                BetterShulkerClient.setSearchQuery(""); // Clear search when focusing
-            }
+        // 1. E/extract only acts when the user explicitly selected tooltip slot(s) with Space.
+        // If nothing is selected, do not consume the key so Minecraft closes the inventory normally.
+        if (BetterShulkerClient.getExtractKey().matches(keyEvent)
+                && BetterShulkerClient.isTooltipActive()
+                && !BetterShulkerClient.getSelectedSlotsSet().isEmpty()) {
+            bettershulker$processMultiSelectExtract();
             ci.setReturnValue(true);
             ci.cancel();
             return;
-        }
-
-        // 0. Handle keyboard typing when search is focused
-        if (BetterShulkerClient.isSearchFocused()) {
-            if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
-                String current = BetterShulkerClient.getSearchQuery();
-                if (!current.isEmpty()) {
-                    BetterShulkerClient.setSearchQuery(current.substring(0, current.length() - 1));
-                }
-                ci.setReturnValue(true);
-                ci.cancel();
-                return;
-            } else if (keyCode == GLFW.GLFW_KEY_ESCAPE || keyCode == GLFW.GLFW_KEY_ENTER || BetterShulkerClient.getToggleSearchKey().matches(keyEvent)) {
-                BetterShulkerClient.setSearchFocused(false);
-                ci.setReturnValue(true);
-                ci.cancel();
-                return;
-            }
-
-            // Translate GLFW keycodes to printable characters
-            boolean shiftHeld = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_SHIFT)
-                    || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_RIGHT_SHIFT);
-
-            char chr = 0;
-            if (keyCode >= GLFW.GLFW_KEY_A && keyCode <= GLFW.GLFW_KEY_Z) {
-                chr = (char) ((shiftHeld ? 'A' : 'a') + (keyCode - GLFW.GLFW_KEY_A));
-            } else if (keyCode >= GLFW.GLFW_KEY_0 && keyCode <= GLFW.GLFW_KEY_9) {
-                if (shiftHeld) {
-                    char[] shiftNum = {')', '!', '@', '#', '$', '%', '^', '&', '*', '('};
-                    chr = shiftNum[keyCode - GLFW.GLFW_KEY_0];
-                } else {
-                    chr = (char) ('0' + (keyCode - GLFW.GLFW_KEY_0));
-                }
-            } else if (keyCode == GLFW.GLFW_KEY_SPACE) {
-                chr = ' ';
-            } else if (keyCode == GLFW.GLFW_KEY_MINUS) {
-                chr = shiftHeld ? '_' : '-';
-            } else if (keyCode == GLFW.GLFW_KEY_SLASH) {
-                chr = shiftHeld ? '?' : '/';
-            } else if (keyCode == GLFW.GLFW_KEY_BACKSLASH) {
-                chr = shiftHeld ? '|' : '\\';
-            }
-
-            if (chr != 0) {
-                String current = BetterShulkerClient.getSearchQuery();
-                BetterShulkerClient.setSearchQuery(current + chr);
-            }
-
-            ci.setReturnValue(true);
-            ci.cancel();
-            return;
-        }
-
-        // 1. Handle extractKey for multi-select OR search-to-extract OR single-slot extraction
-        if (BetterShulkerClient.getExtractKey().matches(keyEvent)) {
-            if (BetterShulkerClient.isTooltipActive()) {
-                if (!BetterShulkerClient.getSelectedSlotsSet().isEmpty()) {
-                    bettershulker$processMultiSelectExtract();
-                    ci.setReturnValue(true);
-                    ci.cancel();
-                    return;
-                } else if (!BetterShulkerClient.getSearchQuery().isEmpty()) {
-                    bettershulker$processSearchExtract();
-                    ci.setReturnValue(true);
-                    ci.cancel();
-                    return;
-                } else {
-                    bettershulker$processSingleSlotExtract();
-                    ci.setReturnValue(true);
-                    ci.cancel();
-                    return;
-                }
-            }
         }
 
         // 1. Handle filterKey for item filtering inside container tooltips
@@ -694,13 +678,18 @@ public abstract class HandledScreenMixin extends Screen {
             }
         }
 
-        // 2. Handle scrollLeftKey and scrollRightKey for tooltip scroll cycling
-        if (BetterShulkerConfig.secondaryTooltipEnabled) {
+        // 2. Handle arrow-key movement for the tooltip selection square.
+        // Left/Right use the configured scroll keys; Up/Down move one row in the 9x3 grid.
+        if (BetterShulkerConfig.secondaryTooltipEnabled && BetterShulkerClient.isTooltipActive()) {
             int scrollDelta = 0;
-            if (BetterShulkerClient.getScrollLeftKey().matches(keyEvent)) {
+            if (BetterShulkerClient.getScrollLeftKey().matches(keyEvent) || keyCode == GLFW.GLFW_KEY_LEFT) {
                 scrollDelta = -1;
-            } else if (BetterShulkerClient.getScrollRightKey().matches(keyEvent)) {
+            } else if (BetterShulkerClient.getScrollRightKey().matches(keyEvent) || keyCode == GLFW.GLFW_KEY_RIGHT) {
                 scrollDelta = 1;
+            } else if (keyCode == GLFW.GLFW_KEY_UP) {
+                scrollDelta = -9;
+            } else if (keyCode == GLFW.GLFW_KEY_DOWN) {
+                scrollDelta = 9;
             }
 
             if (scrollDelta != 0) {
@@ -765,12 +754,7 @@ public abstract class HandledScreenMixin extends Screen {
         boolean tooltipActive = altForce || (hovering && BetterShulkerConfig.tooltipEnabled);
         BetterShulkerClient.setTooltipActive(tooltipActive);
 
-        if (tooltipActive && bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
-            int hoveredIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
-            if (hoveredIdx >= 0) {
-                BetterShulkerClient.getSelectedSlotsSet().add(hoveredIdx);
-            }
-        } else {
+        if (!tooltipActive || !bettershulker$isKeyHeld(BetterShulkerClient.getSelectSlotKey())) {
             bettershulker$selectKeyWasDown = false;
         }
 
@@ -922,9 +906,14 @@ public abstract class HandledScreenMixin extends Screen {
                 if (ItemStack.isSameItemSameComponents(virtualStack, stack)
                     && virtualStack.getCount() < virtualStack.getMaxStackSize()) {
                     int canFit = virtualStack.getMaxStackSize() - virtualStack.getCount();
-                    int toAdd = Math.min(canFit, stack.getCount());
-                    virtualStack.grow(toAdd);
-                    return slot.index;
+                    // A SWEEP_EXTRACT packet has only one destination slot. If the selected
+                    // stack does not fully fit in this partial stack, the server will extract
+                    // only part of it and leave the rest in the shulker. Skip partial fits here
+                    // so batch/multi-select extraction uses an empty slot when available.
+                    if (canFit >= stack.getCount()) {
+                        virtualStack.grow(stack.getCount());
+                        return slot.index;
+                    }
                 }
             }
         }
@@ -1138,6 +1127,7 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$resetDragState();
         bettershulker$tapHandled = false;
         bettershulker$selectKeyWasDown = false;
+        bettershulker$lastTooltipScrollTime = 0L;
         BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
         BetterShulkerClient.setSearchFocused(false);
         BetterShulkerClient.setSearchQuery("");
@@ -1201,6 +1191,22 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
+    private void bettershulker$commitPredictedContainerStack(AbstractContainerScreen<?> self, int containerSlotId, ItemStack containerStack) {
+        if (containerStack.isEmpty()) return;
+
+        // Push the predicted component change back into the same UI slot/cursor immediately.
+        // Mutating the ItemStack component alone can leave the rendered tooltip waiting for the
+        // next server menu sync, which feels like item insertion lag.
+        if (containerSlotId == -1) {
+            self.getMenu().setCarried(containerStack);
+        } else if (containerSlotId >= 0 && containerSlotId < self.getMenu().slots.size()) {
+            self.getMenu().slots.get(containerSlotId).set(containerStack);
+        }
+
+        BetterShulkerClient.setActiveContainerStack(containerStack);
+    }
+
+    @Unique
     private void bettershulker$predictShulkerBox(long txId, int containerSlotId, ItemStack containerStack,
                                                   int targetIndex, ContainerInteractPayload.InteractType action, int inventorySlotId) {
         var self = bettershulker$self();
@@ -1219,6 +1225,7 @@ public abstract class HandledScreenMixin extends Screen {
                 ItemStack remainder = ContainerHelper.tryInsert(contents, singleItem, true);
                 if (remainder.isEmpty()) {
                     cursorStack.shrink(1);
+                    self.getMenu().setCarried(cursorStack.isEmpty() ? ItemStack.EMPTY : cursorStack);
                 }
             }
             case EXTRACT -> {
@@ -1313,6 +1320,7 @@ public abstract class HandledScreenMixin extends Screen {
         }
 
         ContainerHelper.setContainerContents(containerStack, contents);
+        bettershulker$commitPredictedContainerStack(self, containerSlotId, containerStack);
     }
 
     @Unique
@@ -1490,52 +1498,35 @@ public abstract class HandledScreenMixin extends Screen {
             for (int idx = txs.size() - 1; idx >= 0; idx--) {
                 BetterShulkerClient.PredictionTransaction tx = txs.get(idx);
 
-                if (now - tx.timestamp > 5000) {
-                    txs.remove(idx);
-                    continue;
+                // Client prediction is only an instant visual layer; the server still corrects state
+                // through the normal menu sync. The old rollback detector compared slots against
+                // their pre-prediction values every frame, which caused valid extractions to look
+                // like items spawned elsewhere and then slid into the real slot when a transient
+                // server sync briefly matched the old state. Treat any observed change as accepted
+                // and silently expire unchanged transactions instead of animating false rollbacks.
+                boolean accepted = false;
+
+                if (!tx.originalCarried.isEmpty()
+                        && (!ItemStack.isSameItemSameComponents(carried, tx.originalCarried)
+                        || carried.getCount() != tx.originalCarried.getCount())) {
+                    accepted = true;
                 }
 
-                boolean rejected = false;
-                int sourceSlotIndex = -1;
-                ItemStack itemToSlide = ItemStack.EMPTY;
-
-                if (!tx.originalCarried.isEmpty() && ItemStack.isSameItemSameComponents(carried, tx.originalCarried) 
-                        && carried.getCount() == tx.originalCarried.getCount()) {
-                    rejected = true;
-                    itemToSlide = tx.originalCarried;
-                }
-
-                for (java.util.Map.Entry<Integer, ItemStack> entry : tx.originalSlots.entrySet()) {
-                    int slotId = entry.getKey();
-                    ItemStack orig = entry.getValue();
-                    if (slotId >= 0 && slotId < self.getMenu().slots.size()) {
-                        ItemStack current = self.getMenu().slots.get(slotId).getItem();
-                        if (ItemStack.isSameItemSameComponents(current, orig) && current.getCount() == orig.getCount()) {
-                            rejected = true;
-                            itemToSlide = orig;
-                            sourceSlotIndex = slotId;
-                            break;
+                if (!accepted) {
+                    for (java.util.Map.Entry<Integer, ItemStack> entry : tx.originalSlots.entrySet()) {
+                        int slotId = entry.getKey();
+                        ItemStack orig = entry.getValue();
+                        if (slotId >= 0 && slotId < self.getMenu().slots.size()) {
+                            ItemStack current = self.getMenu().slots.get(slotId).getItem();
+                            if (!ItemStack.isSameItemSameComponents(current, orig) || current.getCount() != orig.getCount()) {
+                                accepted = true;
+                                break;
+                            }
                         }
                     }
                 }
 
-                if (rejected) {
-                    double startX = this.width / 2.0;
-                    double startY = this.height / 2.0;
-                    double endX = startX;
-                    double endY = startY;
-
-                    if (sourceSlotIndex >= 0 && sourceSlotIndex < self.getMenu().slots.size()) {
-                        Slot slot = self.getMenu().slots.get(sourceSlotIndex);
-                        endX = this.leftPos + slot.x + 8;
-                        endY = this.topPos + slot.y + 8;
-                    }
-
-                    if (!itemToSlide.isEmpty()) {
-                        BetterShulkerClient.triggerRollbackAnimation(itemToSlide, startX, startY, endX, endY);
-                        BetterShulkerMod$LOGGER$info("Rollback animation triggered for: " + itemToSlide.getHoverName().getString());
-                    }
-
+                if (accepted || now - tx.timestamp > 750) {
                     txs.remove(idx);
                 }
             }

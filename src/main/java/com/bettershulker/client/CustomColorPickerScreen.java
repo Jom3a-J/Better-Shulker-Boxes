@@ -14,6 +14,11 @@ import net.minecraft.ChatFormatting;
  * with a real-time live tooltip preview and tabbed controls for main tooltip and name badge.
  */
 public class CustomColorPickerScreen extends Screen {
+
+    // =========================================================================
+    //  Constants & Fields
+    // =========================================================================
+
     private final Screen parent;
     private final int[] bgColor = new int[3]; // R,G,B
     private final int[] borderColor = new int[3];
@@ -22,6 +27,10 @@ public class CustomColorPickerScreen extends Screen {
     private final int[] selSquareColor = new int[3]; // R,G,B
 
     private int activeTab = 0; // 0 = Main Tooltip, 1 = Name Badge, 2 = Selection Square
+
+    // =========================================================================
+    //  Constructor & Screen Init
+    // =========================================================================
 
     public CustomColorPickerScreen(Screen parent) {
         super(Component.literal("Custom Theme Colors"));
@@ -61,7 +70,7 @@ public class CustomColorPickerScreen extends Screen {
         int sliderWidth = 150, sliderHeight = 20;
         int leftX = cx - 160;
 
-        // 1. Tab buttons
+        // -- Tab buttons --
         Button tab0Btn = Button.builder(Component.literal("Tooltip"), btn -> {
             activeTab = 0;
             this.clearWidgets();
@@ -87,7 +96,7 @@ public class CustomColorPickerScreen extends Screen {
         this.addRenderableWidget(tab1Btn);
         this.addRenderableWidget(tab2Btn);
 
-        // 2. Active Tab Sliders
+        // -- Active Tab Sliders --
         if (activeTab == 0) {
             // Background Sliders
             for (int i = 0; i < 3; i++) {
@@ -123,7 +132,7 @@ public class CustomColorPickerScreen extends Screen {
             }
         }
 
-        // 3. Save & Cancel Buttons at the bottom
+        // -- Save & Cancel Buttons --
         this.addRenderableWidget(Button.builder(Component.literal("Save").withStyle(ChatFormatting.GREEN), btn -> {
             int newBg = (0xFF << 24) | (bgColor[0] << 16) | (bgColor[1] << 8) | bgColor[2];
             int newBr = (0xFF << 24) | (borderColor[0] << 16) | (borderColor[1] << 8) | borderColor[2];
@@ -149,6 +158,10 @@ public class CustomColorPickerScreen extends Screen {
     public void onClose() {
         Minecraft.getInstance().setScreenAndShow(parent);
     }
+
+    // =========================================================================
+    //  Render & Live Preview
+    // =========================================================================
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -208,7 +221,6 @@ public class CustomColorPickerScreen extends Screen {
         graphics.fill(previewX + previewWidth - 2, previewY + 2, previewX + previewWidth - 1, previewY + previewHeight - 2, customShadow);
 
         // Draw simulated classic grey slot grids inside preview
-        int slotXSize = 18;
         int gridX = previewX + 8;
         int gridY = previewY + 8;
         for (int r = 0; r < 3; r++) {
@@ -248,6 +260,10 @@ public class CustomColorPickerScreen extends Screen {
         graphics.text(this.font, Component.literal(previewBadgeName), badgeX + 5, badgeY + 2, previewTextCol);
     }
 
+    // =========================================================================
+    //  Color Helper Utilities
+    // =========================================================================
+
     public static int getTextColorForBackground(int color) {
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
@@ -271,6 +287,10 @@ public class CustomColorPickerScreen extends Screen {
 
         return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
+
+    // =========================================================================
+    //  ColorSlider Inner Component
+    // =========================================================================
 
     private static class ColorSlider extends AbstractSliderButton {
         private final java.util.function.Consumer<Double> setter;

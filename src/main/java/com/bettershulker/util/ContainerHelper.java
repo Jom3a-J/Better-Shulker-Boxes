@@ -28,6 +28,10 @@ import net.minecraft.world.entity.player.Player;
  */
 public final class ContainerHelper {
 
+    // =========================================================================
+    //  Constants & Constructors
+    // =========================================================================
+
     /** Number of inventory slots in a shulker box (3 rows × 9 columns). */
     public static final int SHULKER_SLOT_COUNT = 27;
 
@@ -36,9 +40,9 @@ public final class ContainerHelper {
         throw new UnsupportedOperationException("ContainerHelper is a static utility class");
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Type identification
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Type Identification
+    // =========================================================================
 
     /**
      * Checks whether the given stack is any variant of shulker box.
@@ -81,9 +85,9 @@ public final class ContainerHelper {
         return isShulkerBox(stack) || isEnderChest(stack);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Container metadata
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Container Metadata
+    // =========================================================================
 
     /**
      * Returns the dye color of a shulker box, or {@code null} for uncolored
@@ -103,9 +107,9 @@ public final class ContainerHelper {
         return null;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Contents read / write
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Contents Read / Write
+    // =========================================================================
 
     /**
      * Reads the container contents from the stack's {@link DataComponents#CONTAINER}
@@ -155,9 +159,9 @@ public final class ContainerHelper {
         stack.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Insertion logic
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Insertion Logic
+    // =========================================================================
 
     /**
      * Attempts to insert an item stack into the container contents.
@@ -216,9 +220,9 @@ public final class ContainerHelper {
         return toInsert.copyWithCount(remaining);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Extraction logic
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Extraction Logic
+    // =========================================================================
 
     /**
      * Extracts items from a specific slot in the container contents.
@@ -261,9 +265,9 @@ public final class ContainerHelper {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Capacity check
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Capacity & Proximity Checks
+    // =========================================================================
 
     /**
      * Finds the first slot index in the container that matches the given target stack.
@@ -319,6 +323,10 @@ public final class ContainerHelper {
         }
         return "6_other";
     }
+
+    // =========================================================================
+    //  Smart-Merge Proximity Heuristic
+    // =========================================================================
 
     /**
      * Finds the best empty slot index (0..26) inside the contents list to place the given item stack,
@@ -410,6 +418,10 @@ public final class ContainerHelper {
         if (color == null) return Items.SHULKER_BOX;
         return Items.DYED_SHULKER_BOX.pick(color);
     }
+
+    // =========================================================================
+    //  Contextual Sound Selection
+    // =========================================================================
 
     /**
      * Returns the contextual sound for an ItemStack based on its material.
@@ -568,9 +580,9 @@ public final class ContainerHelper {
         return isInsert ? SoundEvents.ITEM_PICKUP : SoundEvents.ITEM_PICKUP;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Shared Action Operations (Issue 6 Refactoring)
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Shared Action Operations (Sort, Restock, Deposit)
+    // =========================================================================
 
     /**
      * Sorts the container contents in place according to a mode:
@@ -697,6 +709,10 @@ public final class ContainerHelper {
         }
         return success;
     }
+
+    // =========================================================================
+    //  Audio Utility Wrap
+    // =========================================================================
 
     /**
      * Plays an interaction sound for the given player.

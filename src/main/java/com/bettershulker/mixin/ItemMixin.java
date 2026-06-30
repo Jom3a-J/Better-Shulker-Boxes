@@ -28,9 +28,14 @@ import java.util.UUID;
 
 /**
  * Mixin for Item to add native bundle-like slot click interactions for Shulker Boxes and Ender Chests.
+ * Handles item insertion, extraction, and shulker box dyeing from within the inventory UI screen.
  */
 @Mixin(Item.class)
 public abstract class ItemMixin {
+
+    // =========================================================================
+    //  Slot Intercept Hooks & Click Overrides
+    // =========================================================================
 
     /**
      * Called when the player holds this item (carried) and right-clicks on another slot.
@@ -308,6 +313,10 @@ public abstract class ItemMixin {
             }
         }
     }
+
+    // =========================================================================
+    //  Private Helpers
+    // =========================================================================
 
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$playLevelSound(Player player, ItemStack stack, boolean isInsert) {

@@ -23,10 +23,22 @@ import net.minecraft.sounds.SoundSource;
 
 import java.util.List;
 
+/**
+ * Screen rendering wireless Ender Chest previews and handling actions.
+ * Contains custom particle effects and handles hotkeys for wireless operations.
+ */
 public class WirelessEnderChestScreen extends Screen {
+
+    // =========================================================================
+    //  Constants & Fields
+    // =========================================================================
 
     private static final int SCREEN_BG_COLOR = 0xE505050B; // Deep obsidian background with subtle transparency
     private long openTime;
+
+    // =========================================================================
+    //  Constructor & Screen Lifecycle
+    // =========================================================================
 
     public WirelessEnderChestScreen() {
         super(Component.literal("Wireless Ender Chest"));
@@ -56,6 +68,10 @@ public class WirelessEnderChestScreen extends Screen {
             BetterShulkerClient.requestEnderChestSync();
         }
     }
+
+    // =========================================================================
+    //  Render & Visuals (Particles / Tooltips)
+    // =========================================================================
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
@@ -136,12 +152,16 @@ public class WirelessEnderChestScreen extends Screen {
         graphics.fill(badgeX, badgeY, badgeX + badgeWidth, badgeY + badgeHeight, 0xE0100010);
         graphics.fill(badgeX, badgeY, badgeX + badgeWidth, badgeY + 1, 0xFF8932B8); // Purple top border
         
-        Component instructions = Component.literal("Left-Click: Extract | 1-9: Insert | R: Restock | G: Sort")
+        Component instructions = Component.literal("Left-Click: Extract | 1-9: Insert | R: Restock")
                 .withStyle(ChatFormatting.GRAY);
         graphics.centeredText(this.font, instructions, this.width / 2, badgeY + 6, 0xFFFFFFFF);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
     }
+
+    // =========================================================================
+    //  Keyboard & Mouse Input Events
+    // =========================================================================
 
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent keyEvent) {
@@ -172,30 +192,6 @@ public class WirelessEnderChestScreen extends Screen {
             return true;
         } else if (keyCode == GLFW.GLFW_KEY_DOWN) {
             bettershulker$scrollSelectedSlot(9); // Move down a row
-            return true;
-        }
-
-        // 3. Sorting (G key)
-        if (BetterShulkerClient.getSortKey().matches(keyEvent)) {
-            BetterShulkerClient.cycleSortMode();
-            BetterShulkerClient.setLastSortTime(System.currentTimeMillis());
-            int modeVal = BetterShulkerClient.getCurrentSortMode().ordinal();
-            {
-                ClientPlayNetworking.send(new ContainerInteractPayload(
-                    -2, // Wireless indicator
-                    modeVal, // Sort mode (1=NAME, 2=COUNT, 3=CATEGORY)
-                    ContainerInteractPayload.InteractType.SORT.toId(),
-                    -1
-                ));
-                bettershulker$playClientSound(ItemStack.EMPTY, false);
-
-                // Polished Feedback Overlay
-                Minecraft.getInstance().gui.hud.setOverlayMessage(
-                    Component.literal("Ender Chest Sorted! (" + BetterShulkerClient.getCurrentSortMode().getDisplayName() + ")")
-                        .withStyle(ChatFormatting.LIGHT_PURPLE),
-                    false
-                );
-            }
             return true;
         }
 
@@ -326,7 +322,9 @@ public class WirelessEnderChestScreen extends Screen {
         return false; // Ender Chest is real-time interaction
     }
 
-    // ── Helper Methods ─────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Private Helpers & Utilities
+    // =========================================================================
 
     private boolean isCtrlDown() {
         if (!BetterShulkerConfig.precisionModeEnabled) return false;

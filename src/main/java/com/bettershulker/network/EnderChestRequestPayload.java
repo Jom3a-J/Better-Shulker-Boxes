@@ -23,6 +23,10 @@ import net.minecraft.resources.Identifier;
  */
 public record EnderChestRequestPayload() implements CustomPacketPayload {
 
+    // =========================================================================
+    //  Network Registration
+    // =========================================================================
+
     /**
      * Unique packet type identifier for registration with Fabric's networking API.
      * Channel: {@code bettershulker:ender_request}
@@ -41,6 +45,10 @@ public record EnderChestRequestPayload() implements CustomPacketPayload {
      */
     public static final StreamCodec<RegistryFriendlyByteBuf, EnderChestRequestPayload> CODEC =
             StreamCodec.unit(new EnderChestRequestPayload());
+
+    // =========================================================================
+    //  CustomPacketPayload Overrides
+    // =========================================================================
 
     /**
      * Returns the packet type for Fabric networking dispatch.

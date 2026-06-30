@@ -15,7 +15,7 @@ import net.minecraft.resources.Identifier;
  * the container, the slot indices are valid, and the operation is legal)
  * before applying the change.</p>
  *
- * <p><b>All container mutations MUST go through this packet.</b> The client
+ * <p>All container mutations MUST go through this packet. The client
  * never modifies container contents directly — it only renders the preview
  * and sends interaction requests. This architecture prevents desync and
  * ensures all anti-exploit checks (nested shulkers, stack size limits, etc.)
@@ -31,6 +31,8 @@ import net.minecraft.resources.Identifier;
  * @param action          the numeric action ID — see {@link InteractType} for
  *                        the mapping. Using an int on the wire keeps the packet
  *                        compact and version-resilient.
+ * @param inventorySlotId the slot index in the player's inventory containing
+ *                        the source/destination stack for sweeps.
  */
 public record ContainerInteractPayload(
         int containerSlotId,
@@ -38,6 +40,10 @@ public record ContainerInteractPayload(
         int action,
         int inventorySlotId
 ) implements CustomPacketPayload {
+
+    // =========================================================================
+    //  Network Registration
+    // =========================================================================
 
     /**
      * Unique packet type identifier for registration with Fabric's networking API.
@@ -51,24 +57,15 @@ public record ContainerInteractPayload(
      * Codec using {@link StreamCodec#composite} for clean, declarative
      * field-by-field serialization.
      *
-     * <p>All three fields are encoded as VarInts, which is compact for the
-     * small values we use (slot IDs 0–40, target indices 0–26, action 0–3).</p>
-     *
-     * <p>The composite pattern maps each field to a codec and an accessor,
-     * then uses the record constructor to reassemble on decode. This is the
-     * idiomatic approach in Minecraft 26.1's networking layer.</p>
+     * <p>All four fields are encoded as VarInts, which is compact for the
+     * small values we use (slot IDs, target indices, actions).</p>
      */
     public static final StreamCodec<RegistryFriendlyByteBuf, ContainerInteractPayload> CODEC =
             StreamCodec.composite(
-                    // Field 1: containerSlotId — the inventory slot holding the container
                     ByteBufCodecs.VAR_INT, ContainerInteractPayload::containerSlotId,
-                    // Field 2: targetIndex — the slot inside the container (0-26)
                     ByteBufCodecs.VAR_INT, ContainerInteractPayload::targetIndex,
-                    // Field 3: action — the interaction type as an integer ID
                     ByteBufCodecs.VAR_INT, ContainerInteractPayload::action,
-                    // Field 4: inventorySlotId — the inventory slot swept over
                     ByteBufCodecs.VAR_INT, ContainerInteractPayload::inventorySlotId,
-                    // Constructor reference for decoding
                     ContainerInteractPayload::new
             );
 
@@ -82,27 +79,14 @@ public record ContainerInteractPayload(
         return TYPE;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Interaction type enum
-    // ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Interaction Type Enum
+    // =========================================================================
 
     /**
-     * Enumerates the four possible container interaction types.
+     * Enumerates the nine possible container interaction types.
      *
      * <p>Each type corresponds to a specific user gesture:</p>
-     * <ul>
-     *   <li>{@link #INSERT} (0) — Left-click insert: place the entire carried
-     *       stack into the container (merge into existing + fill empty slots).</li>
-     *   <li>{@link #EXTRACT} (1) — Left-click extract: pull an entire stack
-     *       out of the specified container slot onto the cursor.</li>
-     *   <li>{@link #INSERT_ONE} (2) — Right-click insert: place exactly 1 item
-     *       from the carried stack into the container (precision mode).</li>
-     *   <li>{@link #EXTRACT_ONE} (3) — Right-click extract: pull exactly 1 item
-     *       from the specified container slot onto the cursor.</li>
-     * </ul>
-     *
-     * <p>The ordinal values are used as wire IDs. The {@link #fromId(int)} and
-     * {@link #toId()} methods provide safe conversion with bounds checking.</p>
      */
     public enum InteractType {
         /** Full-stack insertion (left-click with items on cursor). */
@@ -130,7 +114,7 @@ public record ContainerInteractPayload(
         /**
          * Converts a numeric wire ID to an {@link InteractType}.
          *
-         * @param id the integer ID (0–3)
+         * @param id the integer ID (0–8)
          * @return the corresponding {@link InteractType}
          * @throws IllegalArgumentException if the ID is out of range
          */
@@ -147,7 +131,7 @@ public record ContainerInteractPayload(
         /**
          * Returns the numeric wire ID for this interaction type.
          *
-         * @return the ordinal value (0–3)
+         * @return the ordinal value (0–8)
          */
         public int toId() {
             return ordinal();

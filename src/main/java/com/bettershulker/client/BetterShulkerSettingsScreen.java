@@ -9,11 +9,24 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import com.bettershulker.BetterShulkerConfig;
 
+/**
+ * Main settings GUI screen for Better Shulker Plus.
+ * Allows customizing features, volume, themes, and opens color picker / visuals sub-menus.
+ */
 public class BetterShulkerSettingsScreen extends Screen {
+
+    // =========================================================================
+    //  Constants & Fields
+    // =========================================================================
+
     private static final int BG_COLOR = 0xC01A1A2E;
     private static final int ACCENT_COLOR = 0xFF9B59B6;
 
     private final Screen lastScreen;
+
+    // =========================================================================
+    //  Constructor & Screen Init
+    // =========================================================================
 
     public BetterShulkerSettingsScreen(Screen lastScreen) {
         super(Component.literal("Better Shulker Settings"));
@@ -28,7 +41,7 @@ public class BetterShulkerSettingsScreen extends Screen {
         int leftX = cx - 165;
         int rightX = cx + 5;
 
-        // Left Column - Toggles
+        // -- Left Column: Toggles & Visual Configs --
         addToggle("Tooltip", BetterShulkerConfig.isTooltipEnabled(),
                 leftX, startY, bw, bh,
                 v -> BetterShulkerConfig.setTooltipEnabled(v));
@@ -49,14 +62,7 @@ public class BetterShulkerSettingsScreen extends Screen {
                 leftX, startY + 96, bw, bh,
                 v -> BetterShulkerConfig.setAltForceTooltipEnabled(v));
 
-        // Edit Colors button (opens custom color picker - always active)
-        Button editColorsBtn = Button.builder(
-                Component.literal("Edit Colors"),
-                btn -> Minecraft.getInstance().setScreenAndShow(new CustomColorPickerScreen(this)))
-                .bounds(rightX, startY + 120, bw, bh).build();
-        editColorsBtn.active = true;
-
-        // Tooltip Theme cycle (left column)
+        // Theme cycle button (left column bottom)
         this.addRenderableWidget(Button.builder(
                 Component.literal("Theme: " + BetterShulkerConfig.getTooltipTheme().getDisplayName()),
                 btn -> {
@@ -67,15 +73,13 @@ public class BetterShulkerSettingsScreen extends Screen {
                 }
         ).bounds(leftX, startY + 120, bw, bh).build());
 
-        this.addRenderableWidget(editColorsBtn);
-
-        // Visuals & Animations (left column bottom)
+        // Visuals & Animations screen button
         this.addRenderableWidget(Button.builder(
                 Component.literal("Visuals & Animations"),
                 btn -> Minecraft.getInstance().setScreenAndShow(new BetterShulkerVisualsScreen(this)))
                 .bounds(leftX, startY + 144, bw, bh).build());
 
-        // Right Column - Toggles and Sound controls
+        // -- Right Column: Settings & Sound Configs --
         addToggle("Selected Item Name", BetterShulkerConfig.isSelectedItemNameEnabled(),
                 rightX, startY, bw, bh,
                 v -> BetterShulkerConfig.setSelectedItemNameEnabled(v));
@@ -84,14 +88,14 @@ public class BetterShulkerSettingsScreen extends Screen {
                 rightX, startY + 24, bw, bh,
                 v -> BetterShulkerConfig.setCompactTooltipEnabled(v));
 
-        // Volume Slider (using nested VolumeSlider class)
+        // Volume Slider
         this.addRenderableWidget(new VolumeSlider(
                 rightX, startY + 48, bw, bh,
                 BetterShulkerConfig.getSoundVolume(),
                 val -> BetterShulkerConfig.setSoundVolume(val.floatValue())
         ));
 
-        // Custom Sound Cycle Button (right column)
+        // Custom Sound Cycle Button
         this.addRenderableWidget(Button.builder(
                 soundLabel(),
                 btn -> {
@@ -103,13 +107,21 @@ public class BetterShulkerSettingsScreen extends Screen {
                 }
         ).bounds(rightX, startY + 72, bw, bh).build());
 
-        // Configure Controls button (right column bottom)
+        // Configure Controls keybinds button
         this.addRenderableWidget(Button.builder(
                 Component.literal("Configure Controls"),
                 btn -> Minecraft.getInstance().setScreenAndShow(new net.minecraft.client.gui.screens.options.controls.KeyBindsScreen(this, Minecraft.getInstance().options)))
                 .bounds(rightX, startY + 96, bw, bh).build());
 
-        // Center Done button at bottom — full width, well below all buttons
+        // Custom Color Picker button
+        Button editColorsBtn = Button.builder(
+                Component.literal("Edit Colors"),
+                btn -> Minecraft.getInstance().setScreenAndShow(new CustomColorPickerScreen(this)))
+                .bounds(rightX, startY + 120, bw, bh).build();
+        editColorsBtn.active = true;
+        this.addRenderableWidget(editColorsBtn);
+
+        // -- Bottom Column: Done --
         this.addRenderableWidget(Button.builder(
                 Component.literal("Done").withStyle(ChatFormatting.WHITE),
                 btn -> {
@@ -119,11 +131,35 @@ public class BetterShulkerSettingsScreen extends Screen {
         ).bounds(cx - 100, startY + 180, 200, bh).build());
     }
 
+    // =========================================================================
+    //  Screen Rendering & Events
+    // =========================================================================
+
     @Override
     public void onClose() {
         BetterShulkerConfig.save();
         Minecraft.getInstance().setScreenAndShow(this.lastScreen);
     }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        graphics.fill(0, 0, this.width, this.height, BG_COLOR);
+        super.extractRenderState(graphics, mouseX, mouseY, delta);
+
+        MutableComponent title = Component.literal("Better Shulker")
+                .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD);
+        graphics.centeredText(this.font, title, this.width / 2, 12, 0xFFFFFFFF);
+
+        MutableComponent subtitle = Component.literal("Customize your container experience")
+                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
+        graphics.centeredText(this.font, subtitle, this.width / 2, 24, 0xFFAAAAAA);
+
+        graphics.fill(this.width / 2 - 100, 32, this.width / 2 + 100, 33, ACCENT_COLOR);
+    }
+
+    // =========================================================================
+    //  Private Component Helper Methods
+    // =========================================================================
 
     private void addToggle(String name, boolean initial, int x, int y, int w, int h,
                            java.util.function.Consumer<Boolean> setter) {
@@ -171,23 +207,10 @@ public class BetterShulkerSettingsScreen extends Screen {
         }
     }
 
-    @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        graphics.fill(0, 0, this.width, this.height, BG_COLOR);
-        super.extractRenderState(graphics, mouseX, mouseY, delta);
+    // =========================================================================
+    //  VolumeSlider Inner Component
+    // =========================================================================
 
-        MutableComponent title = Component.literal("Better Shulker")
-                .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD);
-        graphics.centeredText(this.font, title, this.width / 2, 12, 0xFFFFFFFF);
-
-        MutableComponent subtitle = Component.literal("Customize your container experience")
-                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
-        graphics.centeredText(this.font, subtitle, this.width / 2, 24, 0xFFAAAAAA);
-
-        graphics.fill(this.width / 2 - 100, 32, this.width / 2 + 100, 33, ACCENT_COLOR);
-    }
-
-    // Nested Volume Slider class
     private static class VolumeSlider extends net.minecraft.client.gui.components.AbstractSliderButton {
         private final java.util.function.Consumer<Double> setter;
 
@@ -209,6 +232,10 @@ public class BetterShulkerSettingsScreen extends Screen {
         }
     }
 }
+
+// =============================================================================
+//  BetterShulkerVisualsScreen (Sub-screen for animations settings)
+// =============================================================================
 
 /**
  * Sub-screen for visual animations and customizations.

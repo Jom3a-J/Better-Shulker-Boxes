@@ -10,7 +10,11 @@ import java.util.Properties;
  */
 public class BetterShulkerConfig {
 
-    // ---- Static config fields (accessed directly by mixins & renderers) ----
+    // =========================================================================
+    //  Constants & Config Fields
+    // =========================================================================
+
+    // -- Feature Toggles --
     public static boolean tooltipEnabled = true;
     public static boolean precisionModeEnabled = true;
     public static boolean fillIndicatorEnabled = true;
@@ -19,33 +23,37 @@ public class BetterShulkerConfig {
     public static boolean selectedItemNameEnabled = true;
     public static boolean compactTooltipEnabled = false;
     
-    // Core Visuals & Animations toggles
+    // -- Visuals & Animations --
     public static boolean selectionGlideEnabled = true;
     public static boolean hoverAnimationsEnabled = true;
     public static boolean rareItemWobbleEnabled = true;
     
+    // -- Audio Configurations --
     public static float soundVolume = 0.3f;
     public static SoundOption soundOption = SoundOption.ITEM_PICKUP;
     
-    // Tooltip themes and custom colors
+    // -- Themes & Colors --
     public static TooltipTheme tooltipTheme = TooltipTheme.ORIGINAL;
     public static int customBackgroundColor = 0xFF1A1A1A;
     public static int customBorderColor = 0xFF8932B8;
     public static int customNameBgColor = 0xF0100010;
     public static int customNameBorderColor = 0xFF8932B8;
+    public static int customNameTextColor = 0xFFFFFFFF;
     public static int customSelectionSquareColor = 0xFFFFD700;
 
-    // ---- Enums ----
+    // =========================================================================
+    //  Enums
+    // =========================================================================
+
+    /** Specifies the active visual layout style theme for container tooltips. */
     public enum TooltipTheme {
         ORIGINAL("Original"),
         CLASSIC("Classic"),
         RETRO("Retro"),
         SOLARIZED_DARK("Solarized Dark"),
         SOLARIZED_LIGHT("Solarized Light"),
-        PASTEL_SOFT("Pastel Soft"),
         HIGH_CONTRAST("High Contrast"),
         CUSTOM("Custom"),
-        LIGHT("Light"),
         GLASS("Glass");
 
         private final String displayName;
@@ -53,6 +61,7 @@ public class BetterShulkerConfig {
         public String getDisplayName() { return displayName; }
     }
 
+    /** Specifies available sound effects when performing slot operations. */
     public enum SoundOption {
         ITEM_PICKUP("Item Pickup (Default)", "minecraft:entity.item.pickup"),
         UI_CLICK("UI Button Click", "minecraft:ui.button.click"),
@@ -75,31 +84,43 @@ public class BetterShulkerConfig {
         public String getSoundId() { return soundId; }
     }
 
-    // ---- Getter / Setter helpers (used by the settings screen) ----
+    // =========================================================================
+    //  Getters & Setters (used by UI screens)
+    // =========================================================================
+
     public static boolean isTooltipEnabled() { return tooltipEnabled; }
     public static void setTooltipEnabled(boolean v) { tooltipEnabled = v; }
+    
     public static boolean isPrecisionModeEnabled() { return precisionModeEnabled; }
     public static void setPrecisionModeEnabled(boolean v) { precisionModeEnabled = v; }
+    
     public static boolean isFillIndicatorEnabled() { return fillIndicatorEnabled; }
     public static void setFillIndicatorEnabled(boolean v) { fillIndicatorEnabled = v; }
+    
     public static boolean isSecondaryTooltipEnabled() { return secondaryTooltipEnabled; }
     public static void setSecondaryTooltipEnabled(boolean v) { secondaryTooltipEnabled = v; }
+    
     public static boolean isAltForceTooltipEnabled() { return altForceTooltipEnabled; }
     public static void setAltForceTooltipEnabled(boolean v) { altForceTooltipEnabled = v; }
+    
     public static boolean isSelectedItemNameEnabled() { return selectedItemNameEnabled; }
     public static void setSelectedItemNameEnabled(boolean v) { selectedItemNameEnabled = v; }
+    
     public static boolean isCompactTooltipEnabled() { return compactTooltipEnabled; }
     public static void setCompactTooltipEnabled(boolean v) { compactTooltipEnabled = v; }
     
     public static boolean isSelectionGlideEnabled() { return selectionGlideEnabled; }
     public static void setSelectionGlideEnabled(boolean v) { selectionGlideEnabled = v; }
+    
     public static boolean isHoverAnimationsEnabled() { return hoverAnimationsEnabled; }
     public static void setHoverAnimationsEnabled(boolean v) { hoverAnimationsEnabled = v; }
+    
     public static boolean isRareItemWobbleEnabled() { return rareItemWobbleEnabled; }
     public static void setRareItemWobbleEnabled(boolean v) { rareItemWobbleEnabled = v; }
     
     public static float getSoundVolume() { return soundVolume; }
     public static void setSoundVolume(float v) { soundVolume = v; }
+    
     public static SoundOption getSoundOption() { return soundOption; }
     public static void setSoundOption(SoundOption s) { soundOption = s; }
     
@@ -108,21 +129,29 @@ public class BetterShulkerConfig {
     
     public static int getCustomBackgroundColor() { return customBackgroundColor; }
     public static void setCustomBackgroundColor(int v) { customBackgroundColor = v; }
+    
     public static int getCustomBorderColor() { return customBorderColor; }
     public static void setCustomBorderColor(int v) { customBorderColor = v; }
     
     public static int getCustomNameBgColor() { return customNameBgColor; }
     public static void setCustomNameBgColor(int v) { customNameBgColor = v; }
+    
     public static int getCustomNameBorderColor() { return customNameBorderColor; }
     public static void setCustomNameBorderColor(int v) { customNameBorderColor = v; }
+
+    public static int getCustomNameTextColor() { return customNameTextColor; }
+    public static void setCustomNameTextColor(int v) { customNameTextColor = v; }
+    
     public static int getCustomSelectionSquareColor() { return customSelectionSquareColor; }
     public static void setCustomSelectionSquareColor(int v) { customSelectionSquareColor = v; }
 
-    // ---- Persistence ----
-    private static final Path CONFIG_PATH =
-            Path.of("config", "bettershulker-plus.properties");
+    // =========================================================================
+    //  Configuration Persistence
+    // =========================================================================
 
-    /** Load config from disk (call once at mod init). */
+    private static final Path CONFIG_PATH = Path.of("config", "bettershulker-plus.properties");
+
+    /** Load config from disk (called once during mod initialization). */
     public static void load() {
         if (!Files.exists(CONFIG_PATH)) return;
         try (var reader = Files.newBufferedReader(CONFIG_PATH)) {
@@ -145,6 +174,7 @@ public class BetterShulkerConfig {
             customBorderColor     = hexVal(props, "customBorderColor", customBorderColor);
             customNameBgColor     = hexVal(props, "customNameBgColor", customNameBgColor);
             customNameBorderColor = hexVal(props, "customNameBorderColor", customNameBorderColor);
+            customNameTextColor   = hexVal(props, "customNameTextColor", customNameTextColor);
             customSelectionSquareColor = hexVal(props, "customSelectionSquareColor", customSelectionSquareColor);
             System.out.println("[BetterShulker] Config loaded from " + CONFIG_PATH);
         } catch (Exception e) {
@@ -152,7 +182,7 @@ public class BetterShulkerConfig {
         }
     }
 
-    /** Save current config to disk. */
+    /** Save current config properties to disk. */
     public static void save() {
         try {
             Files.createDirectories(CONFIG_PATH.getParent());
@@ -174,6 +204,7 @@ public class BetterShulkerConfig {
             props.setProperty("customBorderColor", String.format("0x%08X", customBorderColor));
             props.setProperty("customNameBgColor", String.format("0x%08X", customNameBgColor));
             props.setProperty("customNameBorderColor", String.format("0x%08X", customNameBorderColor));
+            props.setProperty("customNameTextColor", String.format("0x%08X", customNameTextColor));
             props.setProperty("customSelectionSquareColor", String.format("0x%08X", customSelectionSquareColor));
             try (var writer = Files.newBufferedWriter(CONFIG_PATH)) {
                 props.store(writer, "Better Shulker Plus Configuration");
@@ -184,12 +215,14 @@ public class BetterShulkerConfig {
         }
     }
 
-    // ---- Parsing helpers ----
+    // =========================================================================
+    //  Internal Parsing Helpers
+    // =========================================================================
+
     private static boolean bool(Properties p, String key, boolean def) {
         String v = p.getProperty(key);
         return v != null ? Boolean.parseBoolean(v) : def;
     }
-
 
     private static float floatVal(Properties p, String key, float def) {
         String v = p.getProperty(key);

@@ -21,13 +21,11 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-
-
 /**
  * Better Shulker — Client-side entry point.
  *
  * Responsibilities:
- * 1. Register TooltipComponentCallback to map ShulkerTooltipData → ShulkerTooltipComponent
+ * 1. Register TooltipComponentCallback to map ShulkerTooltipData -> ShulkerTooltipComponent
  * 2. Register client-side packet receiver for EnderChestSyncPayload
  * 3. Maintain client-side state:
  *    - Cached ender chest contents (populated by S2C packets)
@@ -39,7 +37,10 @@ import org.lwjgl.glfw.GLFW;
 @Environment(EnvType.CLIENT)
 public class BetterShulkerClient implements ClientModInitializer {
 
-    // ── Keybindings ─────────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Keybindings
+    // =========================================================================
+
     private static final KeyMapping.Category CUSTOM_CATEGORY = KeyMapping.Category.register(
             net.minecraft.resources.Identifier.fromNamespaceAndPath("bettershulker", "keys")
     );
@@ -57,7 +58,9 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static KeyMapping wirelessEnderChestKey = null;
     private static KeyMapping showFullTooltipKey = null;
 
-    // ── Client-Side State ───────────────────────────────────────────────────────
+    // =========================================================================
+    //  Client State Definitions
+    // =========================================================================
 
     public enum SortMode {
         NONE("Original"),
@@ -72,22 +75,13 @@ public class BetterShulkerClient implements ClientModInitializer {
 
     private static SortMode currentSortMode = SortMode.NONE;
 
-    /**
-     * Cached ender chest contents received from the server via S2C packet.
-     * Null until the first sync packet arrives. Contains 27 ItemStacks.
-     */
+    /** Cached ender chest contents received from the server via S2C packet. */
     private static NonNullList<ItemStack> enderChestContents = null;
 
-    /**
-     * The currently selected slot index within the 9×3 tooltip grid.
-     * Controlled by the scroll wheel (via HandledScreenMixin).
-     * Range: 0–26 (wrapping).
-     */
+    /** Current selected slot index inside the 9x3 grid (controlled by mouse scroll). */
     private static int selectedSlotIndex = 0;
 
-    /**
-     * Whether the tooltip preview is currently active (a container is being hovered).
-     */
+    /** Whether the tooltip preview is currently active. */
     private static boolean tooltipActive = false;
 
     private static int hoveredTooltipSlotIndex = -1;
@@ -97,15 +91,16 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static boolean searchFocused = false;
     private static final java.util.Set<Integer> selectedSlotsSet = new java.util.HashSet<>();
 
-    /**
-     * Timestamp of the last ender chest sync request, used to rate-limit requests
-     * and prevent spamming the server with C2S packets during rapid hovering.
-     */
+    /** Cooldown tracking to limit ender chest sync request packets. */
     private static int lastMouseX = 0;
     private static int lastMouseY = 0;
     private static long lastEnderChestRequestTime = 0;
+    private static final long ENDER_CHEST_REQUEST_COOLDOWN_MS = 500;
 
-    // ── Visual Animations State ───────────────────────────────────────────────
+    // =========================================================================
+    //  Visual Animations State
+    // =========================================================================
+
     private static float currentSelectedCol = -1f;
     private static float currentSelectedRow = -1f;
     private static long lastHighlightRenderTime = 0L;
@@ -117,12 +112,10 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static float currentAnimatedHeight = -1f;
     private static long lastHeightUpdateTime = 0L;
 
-    public static float getCurrentAnimatedHeight() { return currentAnimatedHeight; }
-    public static void setCurrentAnimatedHeight(float v) { currentAnimatedHeight = v; }
-    public static long getLastHeightUpdateTime() { return lastHeightUpdateTime; }
-    public static void setLastHeightUpdateTime(long v) { lastHeightUpdateTime = v; }
-    
-    // ── Prediction & Rollbacks State ──────────────────────────────────────────
+    // =========================================================================
+    //  Prediction & Rollbacks State Classes
+    // =========================================================================
+
     public static class PredictionTransaction {
         public final long id;
         public final long timestamp;
@@ -168,40 +161,9 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static final java.util.List<PredictionTransaction> activeTransactions = new java.util.ArrayList<>();
     private static final java.util.List<RollbackAnimation> activeRollbacks = new java.util.ArrayList<>();
 
-    public static long startPrediction(ItemStack carried, ItemStack container, int containerSlotId, NonNullList<ItemStack> enderChest) {
-        long id = nextTransactionId++;
-        activeTransactions.add(new PredictionTransaction(id, carried, container, containerSlotId, enderChest));
-        return id;
-    }
-
-    public static void addOriginalSlotSnapshot(long id, int slotIndex, ItemStack stack) {
-        for (PredictionTransaction tx : activeTransactions) {
-            if (tx.id == id) {
-                tx.originalSlots.put(slotIndex, stack.copy());
-                break;
-            }
-        }
-    }
-
-    public static java.util.List<PredictionTransaction> getActiveTransactions() {
-        return activeTransactions;
-    }
-
-    public static java.util.List<RollbackAnimation> getActiveRollbacks() {
-        return activeRollbacks;
-    }
-
-    public static void triggerRollbackAnimation(ItemStack stack, double startX, double startY, double endX, double endY) {
-        activeRollbacks.add(new RollbackAnimation(stack, startX, startY, endX, endY));
-    }
-
-    /**
-     * Minimum interval between ender chest sync requests in milliseconds.
-     * Prevents packet spam when rapidly moving the mouse over ender chests.
-     */
-    private static final long ENDER_CHEST_REQUEST_COOLDOWN_MS = 500;
-
-    // ── Initialization ──────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Mod Lifecycle Initialization
+    // =========================================================================
 
     @Override
     public void onInitializeClient() {
@@ -210,22 +172,18 @@ public class BetterShulkerClient implements ClientModInitializer {
         // Load saved configuration from disk
         BetterShulkerConfig.load();
 
-        // Register the tooltip component factory.
-        // When the game encounters a ShulkerTooltipData in an item's tooltip data,
-        // this callback creates the corresponding ShulkerTooltipComponent for rendering.
+        // Register the tooltip component factory mapping data payload to actual component
         ClientTooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof ShulkerTooltipData shulkerData) {
                 return new ShulkerTooltipComponent(shulkerData);
             }
-            return null;  // Not our data — let other handlers process it
+            return null;
         });
 
-        // Register client-side receiver for the ender chest sync packet.
-        // This updates our local cache dynamically when the server sends fresh ender chest diffs.
+        // Register receiver for server Ender Chest sync packets
         ClientPlayNetworking.registerGlobalReceiver(
                 EnderChestSyncPayload.TYPE,
                 (payload, context) -> {
-                    // This runs on the network thread — schedule to main client thread
                     context.client().execute(() -> {
                         if (enderChestContents == null) {
                             enderChestContents = NonNullList.withSize(27, ItemStack.EMPTY);
@@ -244,7 +202,7 @@ public class BetterShulkerClient implements ClientModInitializer {
                 }
         );
 
-        // Register keybindings for Better Shulker Plus under custom category
+        // Register keybindings
         settingsKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.bettershulker.settings",
                 GLFW.GLFW_KEY_B,
@@ -263,11 +221,6 @@ public class BetterShulkerClient implements ClientModInitializer {
         filterKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.bettershulker.filter",
                 GLFW.GLFW_KEY_F,
-                CUSTOM_CATEGORY
-        ));
-        toggleSearchKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.toggle_search",
-                GLFW.GLFW_KEY_TAB,
                 CUSTOM_CATEGORY
         ));
         precisionKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -290,11 +243,6 @@ public class BetterShulkerClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_RIGHT,
                 CUSTOM_CATEGORY
         ));
-        sortKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.sort",
-                GLFW.GLFW_KEY_G,
-                CUSTOM_CATEGORY
-        ));
         restockKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.bettershulker.restock",
                 GLFW.GLFW_KEY_R,
@@ -311,12 +259,12 @@ public class BetterShulkerClient implements ClientModInitializer {
                 CUSTOM_CATEGORY
         ));
 
-        // Tick event to detect key press
+        // Tick event to process settings or wireless screen hotkeys
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (settingsKey.consumeClick()) {
                 if (client.gui.screen() != null || client.level != null) {
                     try {
-                        client.setScreenAndShow(new BetterShulkerSettingsScreen(client.gui.screen()));
+                        client.setScreenAndShow(BetterShulkerClothConfigScreen.create(client.gui.screen()));
                     } catch (Exception e) {
                         BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open settings screen", e);
                     }
@@ -340,7 +288,7 @@ public class BetterShulkerClient implements ClientModInitializer {
             }
         });
 
-        // Clear all client states and caches on disconnect to prevent desyncs
+        // Clear client cache upon server disconnect
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetState();
         });
@@ -348,56 +296,30 @@ public class BetterShulkerClient implements ClientModInitializer {
         BetterShulkerMod.LOGGER.info("[BetterShulker] Client module initialized successfully");
     }
 
-    // ── Public Accessors ────────────────────────────────────────────────────────
+    // =========================================================================
+    //  Public Accessors & Control Methods
+    // =========================================================================
 
-    /**
-     * Returns the cached ender chest contents, or null if not yet synced.
-     * Used by the tooltip renderer and ItemStackMixin to display ender chest items.
-     */
     public static NonNullList<ItemStack> getEnderChestContents() {
         return enderChestContents;
     }
 
-    /**
-     * Returns the currently scroll-selected slot index (0–26).
-     * Used by ShulkerTooltipComponent to highlight the selected slot,
-     * and by HandledScreenMixin to determine which slot to extract from.
-     */
     public static int getSelectedSlotIndex() {
         return selectedSlotIndex;
     }
 
-    /**
-     * Sets the selected slot index, wrapping to the valid range [0, 26].
-     * Called by HandledScreenMixin when the player scrolls while hovering a container.
-     *
-     * @param index The new selected index (will be wrapped via Math.floorMod)
-     */
     public static void setSelectedSlotIndex(int index) {
         selectedSlotIndex = Math.floorMod(index, 27);
     }
 
-    /**
-     * Increments the selected slot index by the given delta, wrapping at boundaries.
-     * Positive delta scrolls forward; negative scrolls backward.
-     *
-     * @param delta The scroll direction (+1 or -1 typically)
-     */
     public static void scrollSelectedSlot(int delta) {
         setSelectedSlotIndex(selectedSlotIndex + delta);
     }
 
-    /**
-     * Returns whether the tooltip preview is currently active.
-     */
     public static boolean isTooltipActive() {
         return tooltipActive;
     }
 
-    /**
-     * Sets the tooltip active flag. Called by the rendering system when
-     * a container item is hovered/un-hovered.
-     */
     public static void setTooltipActive(boolean active) {
         tooltipActive = active;
         if (!active) {
@@ -406,14 +328,7 @@ public class BetterShulkerClient implements ClientModInitializer {
         }
     }
 
-    /**
-     * Requests an ender chest sync from the server, with rate limiting.
-     * Sends a C2S EnderChestRequestPayload if enough time has elapsed since
-     * the last request (prevents packet spam during rapid mouse movement).
-     *
-     * Called by ItemStackMixin when hovering over an ender chest and the cache is empty,
-     * and by HandledScreenMixin when scrolling/interacting with an ender chest.
-     */
+    /** Sends wireless/C2S ender chest sync payload request to server. */
     public static void requestEnderChestSync() {
         long now = System.currentTimeMillis();
         if (now - lastEnderChestRequestTime >= ENDER_CHEST_REQUEST_COOLDOWN_MS) {
@@ -423,10 +338,6 @@ public class BetterShulkerClient implements ClientModInitializer {
         }
     }
 
-    /**
-     * Clears the ender chest cache. Called when the player disconnects or
-     * when a fresh sync is needed.
-     */
     public static void clearEnderChestCache() {
         enderChestContents = null;
     }
@@ -599,6 +510,46 @@ public class BetterShulkerClient implements ClientModInitializer {
     public static void setLastSlotScaleUpdateTime(long v) { lastSlotScaleUpdateTime = v; }
     public static long getLastSortTime() { return lastSortTime; }
     public static void setLastSortTime(long t) { lastSortTime = t; }
+
+    public static float getCurrentAnimatedHeight() { return currentAnimatedHeight; }
+    public static void setCurrentAnimatedHeight(float v) { currentAnimatedHeight = v; }
+    public static long getLastHeightUpdateTime() { return lastHeightUpdateTime; }
+    public static void setLastHeightUpdateTime(long v) { lastHeightUpdateTime = v; }
+
+    // =========================================================================
+    //  Prediction Methods
+    // =========================================================================
+
+    public static long startPrediction(ItemStack carried, ItemStack container, int containerSlotId, NonNullList<ItemStack> enderChest) {
+        long id = nextTransactionId++;
+        activeTransactions.add(new PredictionTransaction(id, carried, container, containerSlotId, enderChest));
+        return id;
+    }
+
+    public static void addOriginalSlotSnapshot(long id, int slotIndex, ItemStack stack) {
+        for (PredictionTransaction tx : activeTransactions) {
+            if (tx.id == id) {
+                tx.originalSlots.put(slotIndex, stack.copy());
+                break;
+            }
+        }
+    }
+
+    public static java.util.List<PredictionTransaction> getActiveTransactions() {
+        return activeTransactions;
+    }
+
+    public static java.util.List<RollbackAnimation> getActiveRollbacks() {
+        return activeRollbacks;
+    }
+
+    public static void triggerRollbackAnimation(ItemStack stack, double startX, double startY, double endX, double endY) {
+        activeRollbacks.add(new RollbackAnimation(stack, startX, startY, endX, endY));
+    }
+
+    // =========================================================================
+    //  State Reset Methods
+    // =========================================================================
 
     /**
      * Resets all client-side state. Called when the player leaves a world/server.
