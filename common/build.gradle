@@ -1,0 +1,26 @@
+plugins {
+    id 'java-library'
+}
+
+group = rootProject.maven_group
+version = rootProject.mod_version
+
+repositories {
+    mavenCentral()
+    maven { url "https://maven.shedaniel.me/" }
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+dependencies {
+    compileOnly "com.mojang:minecraft:${rootProject.minecraft_version}"
+    compileOnly "me.shedaniel.cloth:cloth-config-neoforge:${rootProject.cloth_config_version}"
+}
