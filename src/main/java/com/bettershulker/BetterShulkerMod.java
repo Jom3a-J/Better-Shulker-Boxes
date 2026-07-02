@@ -1,20 +1,13 @@
 package com.bettershulker;
 
 import com.bettershulker.network.ContainerInteractPayload;
-import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,13 +21,11 @@ import java.util.HashMap;
  * Better Shulker — Main server/common entry point.
  *
  * Responsibilities:
- * 1. Register all custom payload types (C2S and S2C) via PayloadTypeRegistry
- * 2. Handle server-side Ender Chest sync requests
- * 3. Validate and process all container interaction packets (anti-duplication)
+ * Loader-specific entrypoints register networking/events and call into this shared validation layer.
  *
  * Minecraft 26.1 is unobfuscated — all names use Mojang official mappings.
  */
-public class BetterShulkerMod implements ModInitializer {
+public class BetterShulkerMod {
 
     // =========================================================================
     //  Constants & Fields
@@ -60,121 +51,29 @@ public class BetterShulkerMod implements ModInitializer {
     public static final int MAX_INTERACTIONS_PER_TICK = 32;
 
     // =========================================================================
-    //  Lifecycle & Initialization
-    // =========================================================================
+    //  Shared Cache / Validation Utilities
 
-    @Override
-    public void onInitialize() {
-        LOGGER.info("[BetterShulker] Initializing Better Shulker mod for Minecraft 26.1");
-
-        // -- Register Custom Payload Types --
-        // C2S: Client requests Ender Chest contents
-        PayloadTypeRegistry.serverboundPlay().register(
-                EnderChestRequestPayload.TYPE,
-                EnderChestRequestPayload.CODEC
-        );
-
-        // S2C: Server sends Ender Chest contents back to client
-        PayloadTypeRegistry.clientboundPlay().register(
-                EnderChestSyncPayload.TYPE,
-                EnderChestSyncPayload.CODEC
-        );
-
-        // C2S: Client requests a container interaction (insert/extract)
-        PayloadTypeRegistry.serverboundPlay().register(
-                ContainerInteractPayload.TYPE,
-                ContainerInteractPayload.CODEC
-        );
-
-        // -- Register Server-Side Packet Handlers --
-        registerEnderChestRequestHandler();
-        registerContainerInteractHandler();
-
-        // Clean up cached states when players disconnect to prevent memory leaks
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            UUID uuid = handler.player.getUUID();
-            lastSyncedEnderChest.remove(uuid);
-            lastInteractionTick.remove(uuid);
-            interactionCountsThisTick.remove(uuid);
-        });
-
-        LOGGER.info("[BetterShulker] All payload types and handlers registered successfully");
+    public static void clearPlayerCaches(UUID uuid) {
+        lastSyncedEnderChest.remove(uuid);
+        lastInteractionTick.remove(uuid);
+        interactionCountsThisTick.remove(uuid);
     }
 
-    // =========================================================================
-    //  Network Packet Receivers
-    // =========================================================================
-
-    /**
-     * Handles C2S ender chest request: reads the player's ender chest inventory
-     * and sends all 27 slots back to the client via S2C packet.
-     */
-    private void registerEnderChestRequestHandler() {
-        ServerPlayNetworking.registerGlobalReceiver(
-                EnderChestRequestPayload.TYPE,
-                (payload, context) -> {
-                    ServerPlayer player = context.player();
-
-                    // Access the player's persistent ender chest inventory on the server thread.
-                    context.player().level().getServer().execute(() -> {
-                        // Verify player has an ender chest item in their inventory to access wireless features!
-                        boolean hasEnderChest = false;
-                        var inv = player.getInventory();
-                        for (int i = 0; i < inv.getContainerSize(); i++) {
-                            ItemStack stack = inv.getItem(i);
-                            if (!stack.isEmpty() && ContainerHelper.isEnderChest(stack)) {
-                                hasEnderChest = true;
-                                break;
-                            }
-                        }
-                        if (!hasEnderChest) {
-                            LOGGER.warn("[BetterShulker] Player {} requested ender chest sync without carrying one in their inventory!", player.getName().getString());
-                            return;
-                        }
-
-                        // Force clean full sync on initial request by clearing cache entry
-                        lastSyncedEnderChest.remove(player.getUUID());
-                        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
-                        LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
-                    });
-                }
-        );
+    public static void resetEnderChestSync(UUID uuid) {
+        lastSyncedEnderChest.remove(uuid);
     }
 
-    /**
-     * Handles C2S container interaction packets. This is the critical anti-duplication
-     * validation layer — ALL container mutations flow through here for server authority.
-     */
-    private void registerContainerInteractHandler() {
-        ServerPlayNetworking.registerGlobalReceiver(
-                ContainerInteractPayload.TYPE,
-                (payload, context) -> {
-                    ServerPlayer player = context.player();
-                    player.level().getServer().execute(() -> {
-                        long currentTick = player.level().getGameTime();
-                        UUID uuid = player.getUUID();
-                        
-                        long lastTick = lastInteractionTick.getOrDefault(uuid, -1L);
-                        if (lastTick != currentTick) {
-                            lastInteractionTick.put(uuid, currentTick);
-                            interactionCountsThisTick.put(uuid, 0);
-                        }
-                        
-                        int count = interactionCountsThisTick.get(uuid);
-                        if (count >= MAX_INTERACTIONS_PER_TICK) {
-                            LOGGER.warn("[BetterShulker] Player {} exceeded interaction rate limit, dropping packet",
-                                    player.getName().getString());
-                            return;
-                        }
-                        interactionCountsThisTick.put(uuid, count + 1);
-                        
-                        handleContainerInteraction(player, payload);
-                    });
-                }
-        );
+    public static boolean hasEnderChestInInventory(ServerPlayer player) {
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (!stack.isEmpty() && ContainerHelper.isEnderChest(stack)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    // =========================================================================
     //  Interaction Logic Handler & Validation
     // =========================================================================
 
