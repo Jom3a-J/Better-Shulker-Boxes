@@ -12,6 +12,9 @@ base {
 
 sourceSets.main.java.srcDir rootProject.file('src/main/java')
 sourceSets.main.resources.srcDir rootProject.file('src/main/resources')
+sourceSets.main.java.exclude '**/BetterShulkerNeoForgeMod.java'
+sourceSets.main.java.exclude '**/BetterShulkerNeoForgeClient.java'
+sourceSets.main.resources.exclude 'META-INF/neoforge.mods.toml'
 
 repositories {
     mavenCentral()
