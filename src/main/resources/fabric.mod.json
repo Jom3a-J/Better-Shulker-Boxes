@@ -15,7 +15,7 @@
       "com.bettershulker.BetterShulkerMod"
     ],
     "client": [
-      "com.bettershulker.client.BetterShulkerClient"
+      "com.bettershulker.client.BetterShulkerFabricClient"
     ],
     "modmenu": [
       "com.bettershulker.client.BetterShulkerModMenuIntegration"

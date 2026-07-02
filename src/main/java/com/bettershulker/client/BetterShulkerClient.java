@@ -2,19 +2,9 @@ package com.bettershulker.client;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
-import com.bettershulker.client.render.ShulkerTooltipComponent;
-import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
@@ -26,17 +16,14 @@ import org.lwjgl.glfw.GLFW;
  * Better Shulker — Client-side entry point.
  *
  * Responsibilities:
- * 1. Register TooltipComponentCallback to map ShulkerTooltipData -> ShulkerTooltipComponent
- * 2. Register client-side packet receiver for EnderChestSyncPayload
- * 3. Maintain client-side state:
+ * Maintains client-side state shared by Fabric and NeoForge:
  *    - Cached ender chest contents (populated by S2C packets)
  *    - Selected slot index (controlled by scroll wheel via mixin)
  *    - Tooltip active flag
  *
- * All rendering and tooltip logic is client-only (annotated @Environment(EnvType.CLIENT)).
+ * Loader-specific entrypoints register events and call into this class.
  */
-@Environment(EnvType.CLIENT)
-public class BetterShulkerClient implements ClientModInitializer {
+public class BetterShulkerClient {
 
     // =========================================================================
     //  Keybindings
@@ -145,141 +132,82 @@ public class BetterShulkerClient implements ClientModInitializer {
     private static final java.util.List<RollbackAnimation> activeRollbacks = new java.util.ArrayList<>();
 
     // =========================================================================
-    //  Mod Lifecycle Initialization
-    // =========================================================================
+    //  Loader-neutral Client Initialization Hooks
 
-    @Override
-    public void onInitializeClient() {
-        BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing client module");
-
-        // Load saved configuration from disk
-        BetterShulkerConfig.load();
-
-        // Register the tooltip component factory mapping data payload to actual component
-        ClientTooltipComponentCallback.EVENT.register(data -> {
-            if (data instanceof ShulkerTooltipData shulkerData) {
-                return new ShulkerTooltipComponent(shulkerData);
-            }
-            return null;
-        });
-
-        // Register receiver for server Ender Chest sync packets
-        ClientPlayNetworking.registerGlobalReceiver(
-                EnderChestSyncPayload.TYPE,
-                (payload, context) -> {
-                    context.client().execute(() -> {
-                        if (enderChestContents == null) {
-                            enderChestContents = NonNullList.withSize(27, ItemStack.EMPTY);
-                        }
-                        for (EnderChestSyncPayload.EnderChestDiff diff : payload.diffs()) {
-                            int idx = diff.slotIndex();
-                            if (idx >= 0 && idx < 27) {
-                                enderChestContents.set(idx, diff.stack());
-                            }
-                        }
-                        BetterShulkerMod.LOGGER.debug(
-                                "[BetterShulker] Client received ender chest sync diff ({} updates)",
-                                payload.diffs().size()
-                        );
-                    });
-                }
-        );
-
-        // Register keybindings
-        settingsKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.settings",
-                GLFW.GLFW_KEY_B,
-                CUSTOM_CATEGORY
-        ));
-        extractKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.extract",
-                GLFW.GLFW_KEY_E,
-                CUSTOM_CATEGORY
-        ));
-        selectSlotKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.select_slot",
-                GLFW.GLFW_KEY_SPACE,
-                CUSTOM_CATEGORY
-        ));
-        filterKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.filter",
-                GLFW.GLFW_KEY_F,
-                CUSTOM_CATEGORY
-        ));
-        precisionKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.precision",
-                GLFW.GLFW_KEY_LEFT_CONTROL,
-                CUSTOM_CATEGORY
-        ));
-        altForceKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.alt_force",
-                GLFW.GLFW_KEY_LEFT_ALT,
-                CUSTOM_CATEGORY
-        ));
-        scrollLeftKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.scroll_left",
-                GLFW.GLFW_KEY_LEFT,
-                CUSTOM_CATEGORY
-        ));
-        scrollRightKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.scroll_right",
-                GLFW.GLFW_KEY_RIGHT,
-                CUSTOM_CATEGORY
-        ));
-        restockKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.restock",
-                GLFW.GLFW_KEY_R,
-                CUSTOM_CATEGORY
-        ));
-        wirelessEnderChestKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.wireless_ender",
-                GLFW.GLFW_KEY_O,
-                CUSTOM_CATEGORY
-        ));
-        showFullTooltipKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.bettershulker.show_full_tooltip",
-                GLFW.GLFW_KEY_V,
-                CUSTOM_CATEGORY
-        ));
-
-        // Tick event to process settings or wireless screen hotkeys
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (settingsKey.consumeClick()) {
-                if (client.gui.screen() != null || client.level != null) {
-                    try {
-                        client.setScreenAndShow(BetterShulkerClothConfigScreen.create(client.gui.screen()));
-                    } catch (Exception e) {
-                        BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open settings screen", e);
-                    }
-                }
-            }
-            while (wirelessEnderChestKey.consumeClick()) {
-                if (client.gui.screen() == null && client.player != null) {
-                    if (bettershulker$hasEnderChestInInventory(client.player)) {
-                        try {
-                            client.setScreenAndShow(new WirelessEnderChestScreen());
-                        } catch (Exception e) {
-                            BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
-                        }
-                    } else {
-                        client.gui.hud.setOverlayMessage(
-                            Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
-                            false
-                        );
-                    }
-                }
-            }
-        });
-
-        // Clear client cache upon server disconnect
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            resetState();
-        });
-
-        BetterShulkerMod.LOGGER.info("[BetterShulker] Client module initialized successfully");
+    public static KeyMapping.Category getCustomCategory() {
+        return CUSTOM_CATEGORY;
     }
 
-    // =========================================================================
+    public static void setKeyMappings(
+            KeyMapping settings,
+            KeyMapping extract,
+            KeyMapping selectSlot,
+            KeyMapping filter,
+            KeyMapping precision,
+            KeyMapping altForce,
+            KeyMapping scrollLeft,
+            KeyMapping scrollRight,
+            KeyMapping restock,
+            KeyMapping wirelessEnderChest,
+            KeyMapping showFullTooltip
+    ) {
+        settingsKey = settings;
+        extractKey = extract;
+        selectSlotKey = selectSlot;
+        filterKey = filter;
+        precisionKey = precision;
+        altForceKey = altForce;
+        scrollLeftKey = scrollLeft;
+        scrollRightKey = scrollRight;
+        restockKey = restock;
+        wirelessEnderChestKey = wirelessEnderChest;
+        showFullTooltipKey = showFullTooltip;
+    }
+
+    public static void applyEnderChestSync(EnderChestSyncPayload payload) {
+        if (enderChestContents == null) {
+            enderChestContents = NonNullList.withSize(27, ItemStack.EMPTY);
+        }
+        for (EnderChestSyncPayload.EnderChestDiff diff : payload.diffs()) {
+            int idx = diff.slotIndex();
+            if (idx >= 0 && idx < 27) {
+                enderChestContents.set(idx, diff.stack());
+            }
+        }
+        BetterShulkerMod.LOGGER.debug(
+                "[BetterShulker] Client received ender chest sync diff ({} updates)",
+                payload.diffs().size()
+        );
+    }
+
+    public static void handleClientTick(net.minecraft.client.Minecraft client) {
+        while (settingsKey != null && settingsKey.consumeClick()) {
+            if (client.gui.screen() != null || client.level != null) {
+                try {
+                    client.setScreenAndShow(BetterShulkerClothConfigScreen.create(client.gui.screen()));
+                } catch (Exception e) {
+                    BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open settings screen", e);
+                }
+            }
+        }
+        while (wirelessEnderChestKey != null && wirelessEnderChestKey.consumeClick()) {
+            if (client.gui.screen() == null && client.player != null) {
+                if (bettershulker$hasEnderChestInInventory(client.player)) {
+                    try {
+                        client.setScreenAndShow(new WirelessEnderChestScreen());
+                    } catch (Exception e) {
+                        BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
+                    }
+                } else {
+                    client.gui.hud.setOverlayMessage(
+                        Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
+                        false
+                    );
+                }
+            }
+        }
+    }
+
     //  Public Accessors & Control Methods
     // =========================================================================
 
