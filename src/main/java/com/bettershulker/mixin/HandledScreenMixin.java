@@ -5,8 +5,8 @@ import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.platform.PlatformNetworking;
 
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -1054,7 +1054,7 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private void bettershulker$sendInteractPayload(int containerSlotId, int targetIndex, int actionId, int inventorySlotId) {
         bettershulker$predictAction(containerSlotId, targetIndex, actionId, inventorySlotId);
-        ClientPlayNetworking.send(new ContainerInteractPayload(containerSlotId, targetIndex, actionId, inventorySlotId));
+        PlatformNetworking.sendToServer(new ContainerInteractPayload(containerSlotId, targetIndex, actionId, inventorySlotId));
     }
 
     @Unique

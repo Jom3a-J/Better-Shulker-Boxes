@@ -2,8 +2,8 @@ package com.bettershulker.mixin;
 
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.platform.PlatformNetworking;
 
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
@@ -124,7 +124,7 @@ public abstract class ItemMixin {
                         slot.set(extracted);
 
                         // Sync to client using optimized diff payload
-                        ServerPlayNetworking.send(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
                         bettershulker$playLevelSound(player, extracted, false);
                         ci.setReturnValue(true);
                     }
@@ -181,7 +181,7 @@ public abstract class ItemMixin {
                         slot.set(invStack);
 
                         // Sync to client using optimized diff payload
-                        ServerPlayNetworking.send(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
                         bettershulker$playLevelSound(player, invStack, true);
                         ci.setReturnValue(true);
                     }
@@ -303,7 +303,7 @@ public abstract class ItemMixin {
                         slotAccess.set(invStack);
 
                         // Sync to client using optimized diff payload
-                        ServerPlayNetworking.send(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
                         bettershulker$playLevelSound(player, other, true);
                         ci.setReturnValue(true);
                     }

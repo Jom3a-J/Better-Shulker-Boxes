@@ -6,6 +6,7 @@ import com.bettershulker.client.render.ShulkerTooltipComponent;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.platform.PlatformNetworking;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -315,7 +316,7 @@ public class BetterShulkerClient implements ClientModInitializer {
         long now = System.currentTimeMillis();
         if (now - lastEnderChestRequestTime >= ENDER_CHEST_REQUEST_COOLDOWN_MS) {
             lastEnderChestRequestTime = now;
-            ClientPlayNetworking.send(new EnderChestRequestPayload());
+            PlatformNetworking.sendToServer(new EnderChestRequestPayload());
             BetterShulkerMod.LOGGER.debug("[BetterShulker] Sent ender chest sync request to server");
         }
     }

@@ -4,6 +4,7 @@ import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.platform.PlatformNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -133,7 +134,7 @@ public class BetterShulkerMod implements ModInitializer {
 
                         // Force clean full sync on initial request by clearing cache entry
                         lastSyncedEnderChest.remove(player.getUUID());
-                        ServerPlayNetworking.send(player, buildEnderChestSyncPayload(player));
+                        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
                         LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
                     });
                 }
@@ -712,7 +713,7 @@ public class BetterShulkerMod implements ModInitializer {
 
         // Broadcast changes and re-sync the ender chest contents to the client
         player.containerMenu.broadcastFullState();
-        ServerPlayNetworking.send(player, buildEnderChestSyncPayload(player));
+        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
 
         if (success) {
             ContainerHelper.playInteractionSound(player, soundStack, isInsert, 0.3F);

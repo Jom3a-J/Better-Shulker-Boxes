@@ -6,8 +6,8 @@ import com.bettershulker.client.render.ShulkerTooltipComponent;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.platform.PlatformNetworking;
 
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -198,7 +198,7 @@ public class WirelessEnderChestScreen extends Screen {
         // 4. Restock or Deposit (R key / Shift + R)
         if (BetterShulkerClient.getRestockKey().matches(keyEvent)) {
             boolean shiftHeld = isShiftDown();
-            ClientPlayNetworking.send(new ContainerInteractPayload(
+            PlatformNetworking.sendToServer(new ContainerInteractPayload(
                 -2, // Wireless indicator
                 -1,
                 shiftHeld ? ContainerInteractPayload.InteractType.DEPOSIT.toId() : ContainerInteractPayload.InteractType.RESTOCK.toId(),
@@ -228,7 +228,7 @@ public class WirelessEnderChestScreen extends Screen {
                     int action = ctrlHeld
                         ? ContainerInteractPayload.InteractType.INSERT_ONE.toId()
                         : ContainerInteractPayload.InteractType.SWEEP_INSERT.toId();
-                    ClientPlayNetworking.send(new ContainerInteractPayload(
+                    PlatformNetworking.sendToServer(new ContainerInteractPayload(
                         -2, // Wireless indicator
                         -1, // Smart-merge target index
                         action,
@@ -283,7 +283,7 @@ public class WirelessEnderChestScreen extends Screen {
                         int action = (button == InputConstants.MOUSE_BUTTON_RIGHT)
                             ? ContainerInteractPayload.InteractType.EXTRACT_ONE.toId()
                             : ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId();
-                        ClientPlayNetworking.send(new ContainerInteractPayload(
+                        PlatformNetworking.sendToServer(new ContainerInteractPayload(
                             -2, // Wireless indicator
                             hoveredIdx,
                             action,
@@ -435,7 +435,7 @@ public class WirelessEnderChestScreen extends Screen {
             int action = ctrlHeld 
                 ? ContainerInteractPayload.InteractType.EXTRACT_ONE.toId() 
                 : ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId();
-            ClientPlayNetworking.send(new ContainerInteractPayload(
+            PlatformNetworking.sendToServer(new ContainerInteractPayload(
                 -2, // Wireless indicator
                 targetSlot,
                 action,
