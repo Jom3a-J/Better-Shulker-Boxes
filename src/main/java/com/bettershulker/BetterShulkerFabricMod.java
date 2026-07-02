@@ -20,6 +20,18 @@ public final class BetterShulkerFabricMod implements ModInitializer {
     public void onInitialize() {
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing Fabric module for Minecraft 26.2");
 
+        PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
+            @Override
+            public void sendToServer(net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
+                throw new IllegalStateException("Cannot send serverbound Better Shulker payload from the physical server");
+            }
+
+            @Override
+            public void sendToPlayer(ServerPlayer player, net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
+                ServerPlayNetworking.send(player, payload);
+            }
+        });
+
         PayloadTypeRegistry.serverboundPlay().register(
                 EnderChestRequestPayload.TYPE,
                 EnderChestRequestPayload.CODEC

@@ -5,6 +5,7 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.render.ShulkerTooltipComponent;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.platform.PlatformNetworking;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -14,6 +15,8 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerPlayer;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -26,6 +29,18 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing Fabric client module");
 
         BetterShulkerConfig.load();
+
+        PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
+            @Override
+            public void sendToServer(CustomPacketPayload payload) {
+                ClientPlayNetworking.send(payload);
+            }
+
+            @Override
+            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
+                net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, payload);
+            }
+        });
 
         ClientTooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof ShulkerTooltipData shulkerData) {
