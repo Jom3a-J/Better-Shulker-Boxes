@@ -7,7 +7,7 @@ version = rootProject.mod_version
 
 repositories {
     mavenCentral()
-    maven { url "https://maven.shedaniel.me/" }
+    maven { url = uri('https://maven.shedaniel.me/') }
 }
 
 java {

@@ -19,7 +19,7 @@ sourceSets.main.resources.exclude 'fabric.mod.json'
 
 repositories {
     mavenCentral()
-    maven { url "https://maven.shedaniel.me/" }
+    maven { url = uri('https://maven.shedaniel.me/') }
 }
 
 java {
