@@ -784,8 +784,14 @@ public abstract class HandledScreenMixin extends Screen {
                 ContainerHelper.isEnderChest(carried),
                 selectedItemName,
                 carried.getHoverName().getString());
+            // Cursor/held Alt-Force tooltips bypass ItemStack#getTooltipLines, so compact mode
+            // must hide the vanilla container name here too. Otherwise "Shulker Box" remains
+            // behind the selected item name and visually merges into labels like "Shulke Emerald".
+            List<Component> textLines = BetterShulkerClient.isCompactModeActive()
+                ? List.of()
+                : List.of(carried.getDisplayName());
             graphics.setTooltipForNextFrame(mc.font,
-                List.of(carried.getDisplayName()), Optional.of(data), mouseX, mouseY);
+                textLines, Optional.of(data), mouseX, mouseY);
         }
     }
 
