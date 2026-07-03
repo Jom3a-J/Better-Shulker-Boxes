@@ -90,7 +90,7 @@ public abstract class ItemStackMixin {
 
     @Inject(at = @At("RETURN"), method =
             "getTooltipLines(Lnet/minecraft/world/item/Item$TooltipContext;Lnet/minecraft/world/entity/player/Player;"
-                    + "Lnet/minecraft/world/item/TooltipFlag;)Ljava/util/List;")
+                    + "Lnet/minecraft/world/item/TooltipFlag;)Ljava/util/List;", cancellable = true)
     private void bettershulker$hideCompactContainerName(Item.TooltipContext context, Player player, TooltipFlag type,
                                                        CallbackInfoReturnable<List<Component>> ci) {
         if (!BetterShulkerConfig.tooltipEnabled || !BetterShulkerClient.isCompactModeActive()) return;
@@ -101,12 +101,9 @@ public abstract class ItemStackMixin {
         List<Component> tooltip = ci.getReturnValue();
         if (tooltip == null || tooltip.isEmpty()) return;
 
-        try {
-            // Compact mode draws the selected item name with the preview component.
-            // Remove all vanilla text lines so no black tooltip box/name remains behind it.
-            tooltip.clear();
-        } catch (UnsupportedOperationException ignored) {
-            // Vanilla currently returns a mutable list; if another mod wraps it, leave it alone.
-        }
+        // Compact mode draws the selected item name with the preview component.
+        // Replace the vanilla text list outright so immutable/wrapped lists cannot leave
+        // the container name behind and visually merge it with the selected item name.
+        ci.setReturnValue(new java.util.ArrayList<>());
     }
 }
