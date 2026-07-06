@@ -205,7 +205,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     @Override
     public void extractImage(Font textRenderer, int tooltipX, int tooltipY, int width, int height, GuiGraphicsExtractor context) {
-        int panelX = this.compactMode && getPanelWidth() > 0 ? tooltipX + (width - getPanelWidth()) / 2 : tooltipX + (width - getPanelWidth()) / 2;
+        int panelX = tooltipX + (width - getPanelWidth()) / 2;
         int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
         long now = System.currentTimeMillis();
 

@@ -1,6 +1,7 @@
 package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
+import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.ContainerInteractPayload;
@@ -880,7 +881,7 @@ public abstract class HandledScreenMixin extends Screen {
                 graphics.fill(slotX + 1, slotY + 15, slotX + 1 + filledWidth, slotY + 17, fillColor);
             }
         } catch (Exception e) {
-            System.out.println("bettershulker$renderContainerOverlay error: " + e);
+            BetterShulkerMod.LOGGER.warn("[BetterShulker] Failed to render container fill overlay", e);
         }
     }
 

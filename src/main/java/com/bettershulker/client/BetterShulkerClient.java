@@ -78,9 +78,6 @@ public class BetterShulkerClient {
 
     private static final float[] slotScales = new float[27];
     private static long lastSlotScaleUpdateTime = 0L;
-    
-    private static float currentAnimatedHeight = -1f;
-    private static long lastHeightUpdateTime = 0L;
 
     // =========================================================================
     //  Prediction & Rollbacks State Classes
@@ -233,10 +230,6 @@ public class BetterShulkerClient {
 
     public static void setTooltipActive(boolean active) {
         tooltipActive = active;
-        if (!active) {
-            currentAnimatedHeight = -1f;
-            lastHeightUpdateTime = 0L;
-        }
     }
 
     /** Sends wireless/C2S ender chest sync payload request to server. */
@@ -387,11 +380,6 @@ public class BetterShulkerClient {
     public static long getLastSlotScaleUpdateTime() { return lastSlotScaleUpdateTime; }
     public static void setLastSlotScaleUpdateTime(long v) { lastSlotScaleUpdateTime = v; }
 
-    public static float getCurrentAnimatedHeight() { return currentAnimatedHeight; }
-    public static void setCurrentAnimatedHeight(float v) { currentAnimatedHeight = v; }
-    public static long getLastHeightUpdateTime() { return lastHeightUpdateTime; }
-    public static void setLastHeightUpdateTime(long v) { lastHeightUpdateTime = v; }
-
     // =========================================================================
     //  Prediction Methods
     // =========================================================================
@@ -448,8 +436,6 @@ public class BetterShulkerClient {
         lastHighlightRenderTime = 0L;
         java.util.Arrays.fill(slotScales, 1.0f);
         lastSlotScaleUpdateTime = 0L;
-        currentAnimatedHeight = -1f;
-        lastHeightUpdateTime = 0L;
 
         // Reset Category 5 Prediction state
         activeTransactions.clear();
