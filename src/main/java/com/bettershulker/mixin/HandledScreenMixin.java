@@ -169,6 +169,24 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
+    private record bettershulker$ActiveContainer(ItemStack stack, int slotId) {}
+
+    @Unique
+    private bettershulker$ActiveContainer bettershulker$getActiveContainer() {
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
+        if (containerStack.isEmpty()) {
+            ItemStack carried = bettershulker$self().getMenu().getCarried();
+            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
+                containerStack = this.hoveredSlot.getItem();
+            } else if (ContainerHelper.isContainer(carried)) {
+                containerStack = carried;
+            }
+        }
+        int slotId = this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack ? this.hoveredSlot.index : -1;
+        return new bettershulker$ActiveContainer(containerStack, slotId);
+    }
+
+    @Unique
     private void bettershulker$resetDragState() {
         bettershulker$isDragging = false;
         bettershulker$dragButton = -1;
@@ -943,18 +961,9 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private void bettershulker$processMultiSelectExtract() {
         var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
+        bettershulker$ActiveContainer active = bettershulker$getActiveContainer();
+        ItemStack containerStack = active.stack();
         if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
 
         NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
         java.util.Set<Integer> selectedSet = BetterShulkerClient.getSelectedSlotsSet();
@@ -979,7 +988,7 @@ public abstract class HandledScreenMixin extends Screen {
             int targetSlotIdx = bettershulker$findVirtualInventorySlot(self.getMenu().slots, shulkerStack, virtualInv);
             if (targetSlotIdx != -1) {
                 bettershulker$sendInteractPayload(
-                    containerSlotIndex, targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
+                    active.slotId(), targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
             }
         }
 
@@ -990,18 +999,9 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private void bettershulker$processSingleSlotExtract() {
         var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
+        bettershulker$ActiveContainer active = bettershulker$getActiveContainer();
+        ItemStack containerStack = active.stack();
         if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
 
         NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
         int targetIdx = bettershulker$getExtractionIndex(containerStack);
@@ -1020,31 +1020,20 @@ public abstract class HandledScreenMixin extends Screen {
         int targetSlotIdx = bettershulker$findVirtualInventorySlot(self.getMenu().slots, shulkerStack, virtualInv);
         if (targetSlotIdx != -1) {
             bettershulker$sendInteractPayload(
-                containerSlotIndex, targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
+                active.slotId(), targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
             bettershulker$playClientSound(shulkerStack, false);
         }
     }
 
     @Unique
     private void bettershulker$triggerRestockOrDeposit(boolean deposit) {
-        var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
-        if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
+        bettershulker$ActiveContainer active = bettershulker$getActiveContainer();
+        if (active.stack().isEmpty()) return;
 
         var actionType = deposit ? ContainerInteractPayload.InteractType.DEPOSIT : ContainerInteractPayload.InteractType.RESTOCK;
 
         bettershulker$sendInteractPayload(
-            containerSlotIndex, -1, actionType.toId(), -1);
+            active.slotId(), -1, actionType.toId(), -1);
     }
 
 
