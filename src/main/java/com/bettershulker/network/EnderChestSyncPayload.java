@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /** Server-to-client diff sync for ender chest contents. */
@@ -55,7 +56,7 @@ public record EnderChestSyncPayload(List<EnderChestDiff> diffs) implements Custo
                     buf.writeInt(bitmask);
 
                     List<EnderChestDiff> sortedDiffs = new ArrayList<>(diffs);
-                    sortedDiffs.sort(java.util.Comparator.comparingInt(EnderChestDiff::slotIndex));
+                    sortedDiffs.sort(Comparator.comparingInt(EnderChestDiff::slotIndex));
 
                     int index = 0;
                     while (index < sortedDiffs.size()) {

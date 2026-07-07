@@ -3,6 +3,8 @@ package com.bettershulker.util;
 import com.bettershulker.BetterShulkerConfig;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
@@ -301,14 +303,14 @@ public final class ContainerHelper {
      */
     private static String getCategoryKey(ItemStack stack) {
         var item = stack.getItem();
-        String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
+        String itemPath = BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
         if (containsAny(itemPath, "sword", "bow", "trident")) return "1_weapon";
         if (containsAny(itemPath, "helmet", "chestplate", "leggings", "boots")) return "2_armor";
         if (containsAny(itemPath, "pickaxe", "axe", "shovel", "hoe", "shears", "flint_and_steel", "brush",
                 "fishing_rod", "compass", "clock")) return "3_tool";
-        if (stack.has(net.minecraft.core.component.DataComponents.FOOD)) return "4_food";
-        if (item instanceof net.minecraft.world.item.BlockItem) return "5_block";
+        if (stack.has(DataComponents.FOOD)) return "4_food";
+        if (item instanceof BlockItem) return "5_block";
         return "6_other";
     }
 
@@ -427,7 +429,7 @@ public final class ContainerHelper {
             return isInsert ? SoundEvents.BUNDLE_INSERT : SoundEvents.BUNDLE_DROP_CONTENTS;
         }
         var item = stack.getItem();
-        String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
+        String itemPath = BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
         if (containsAny(itemPath, "diamond", "emerald", "nether_star", "amethyst_shard")) {
             return isInsert ? SoundEvents.AMETHYST_CLUSTER_PLACE : SoundEvents.AMETHYST_CLUSTER_HIT;
@@ -561,8 +563,8 @@ public final class ContainerHelper {
         } else {
             try {
                 String[] split = BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
-                var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
-                var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                var soundLoc = Identifier.fromNamespaceAndPath(split[0], split[1]);
+                var soundHolderOpt = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
                 if (soundHolderOpt.isPresent()) {
                     soundEvent = soundHolderOpt.get().value();
                 }

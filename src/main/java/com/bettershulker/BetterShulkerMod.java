@@ -7,6 +7,7 @@ import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -136,7 +137,7 @@ public class BetterShulkerMod {
     public static void handleContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
         int containerSlotId = payload.containerSlotId();
         int targetIndex = payload.targetIndex();
-        net.minecraft.world.inventory.AbstractContainerMenu menu = player.containerMenu;
+        AbstractContainerMenu menu = player.containerMenu;
 
         // -- Validate Slot Bounds
         if (containerSlotId != -1 && (containerSlotId < 0 || containerSlotId >= menu.slots.size())) {

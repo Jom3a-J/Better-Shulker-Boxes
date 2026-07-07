@@ -105,7 +105,7 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private boolean bettershulker$wigglePushed = false;
 
-    protected HandledScreenMixin(net.minecraft.network.chat.Component title) {
+    protected HandledScreenMixin(Component title) {
         super(title);
     }
 
