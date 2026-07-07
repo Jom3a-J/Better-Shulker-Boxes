@@ -129,36 +129,7 @@ public abstract class ItemMixin {
                 // Carried Ender Chest, right-click on stack -> Insert stack into Ender Chest
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
-                    var enderInv = serverPlayer.getEnderChestInventory();
-                    ItemStack invStack = slotStack.copy();
-
-                    // Auto-insert invStack into the ender chest inventory
-                    // First pass: merge with existing compatible stacks
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                        ItemStack existing = enderInv.getItem(i);
-                        if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
-                            int canFit = existing.getMaxStackSize() - existing.getCount();
-                            int toInsert = Math.min(canFit, invStack.getCount());
-                            if (toInsert > 0) {
-                                existing.grow(toInsert);
-                                invStack.shrink(toInsert);
-                            }
-                        }
-                        if (invStack.isEmpty()) break;
-                    }
-
-                    // Second pass: put into empty slots
-                    if (!invStack.isEmpty()) {
-                        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                            ItemStack existing = enderInv.getItem(i);
-                            if (existing.isEmpty()) {
-                                int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                                enderInv.setItem(i, invStack.copyWithCount(toInsert));
-                                invStack.shrink(toInsert);
-                            }
-                            if (invStack.isEmpty()) break;
-                        }
-                    }
+                    ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, slotStack.copy());
 
                     if (invStack.getCount() != slotStack.getCount()) {
                         slot.set(invStack);
@@ -238,36 +209,7 @@ public abstract class ItemMixin {
                 // Carried item right-clicked onto Ender Chest in slot -> Insert carried item into Ender Chest
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
-                    var enderInv = serverPlayer.getEnderChestInventory();
-                    ItemStack invStack = other.copy();
-
-                    // Auto-insert invStack into the ender chest inventory
-                    // First pass: merge with existing compatible stacks
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                        ItemStack existing = enderInv.getItem(i);
-                        if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
-                            int canFit = existing.getMaxStackSize() - existing.getCount();
-                            int toInsert = Math.min(canFit, invStack.getCount());
-                            if (toInsert > 0) {
-                                existing.grow(toInsert);
-                                invStack.shrink(toInsert);
-                            }
-                        }
-                        if (invStack.isEmpty()) break;
-                    }
-
-                    // Second pass: put into empty slots
-                    if (!invStack.isEmpty()) {
-                        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                            ItemStack existing = enderInv.getItem(i);
-                            if (existing.isEmpty()) {
-                                int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                                enderInv.setItem(i, invStack.copyWithCount(toInsert));
-                                invStack.shrink(toInsert);
-                            }
-                            if (invStack.isEmpty()) break;
-                        }
-                    }
+                    ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, other.copy());
 
                     if (invStack.getCount() != other.getCount()) {
                         slotAccess.set(invStack);
@@ -287,6 +229,29 @@ public abstract class ItemMixin {
     // =========================================================================
     //  Private Helpers
     // =========================================================================
+
+    @org.spongepowered.asm.mixin.Unique
+    private ItemStack bettershulker$insertIntoEnderChest(ServerPlayer player, ItemStack stack) {
+        var enderInv = player.getEnderChestInventory();
+        for (int i = 0; i < enderInv.getContainerSize() && !stack.isEmpty(); i++) {
+            ItemStack existing = enderInv.getItem(i);
+            if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, stack)) {
+                int toInsert = Math.min(existing.getMaxStackSize() - existing.getCount(), stack.getCount());
+                if (toInsert > 0) {
+                    existing.grow(toInsert);
+                    stack.shrink(toInsert);
+                }
+            }
+        }
+        for (int i = 0; i < enderInv.getContainerSize() && !stack.isEmpty(); i++) {
+            if (enderInv.getItem(i).isEmpty()) {
+                int toInsert = Math.min(stack.getMaxStackSize(), stack.getCount());
+                enderInv.setItem(i, stack.copyWithCount(toInsert));
+                stack.shrink(toInsert);
+            }
+        }
+        return stack;
+    }
 
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$playLevelSound(Player player, ItemStack stack, boolean isInsert) {
