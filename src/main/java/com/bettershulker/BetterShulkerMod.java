@@ -409,6 +409,22 @@ public class BetterShulkerMod {
     }
 
     // =========================================================================
+    private static NonNullList<ItemStack> copyEnderChestContents(ServerPlayer player) {
+        var enderInv = player.getEnderChestInventory();
+        NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
+        for (int i = 0; i < enderInv.getContainerSize(); i++) {
+            contents.set(i, enderInv.getItem(i));
+        }
+        return contents;
+    }
+
+    private static void applyEnderChestContents(ServerPlayer player, NonNullList<ItemStack> contents) {
+        var enderInv = player.getEnderChestInventory();
+        for (int i = 0; i < enderInv.getContainerSize() && i < contents.size(); i++) {
+            enderInv.setItem(i, contents.get(i));
+        }
+    }
+
     //  Ender Chest Operations
     // =========================================================================
 
@@ -446,11 +462,8 @@ public class BetterShulkerMod {
                 // Second pass: put into empty slots using smart-merge
                 if (!cursorStack.isEmpty()) {
                     while (cursorStack.getCount() > 0) {
-                        NonNullList<ItemStack> enderList = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                        for (int k = 0; k < enderInv.getContainerSize(); k++) {
-                            enderList.set(k, enderInv.getItem(k));
-                        }
-                        int bestSlot = com.bettershulker.util.ContainerHelper.findSmartMergeEmptySlot(enderList, cursorStack);
+                        NonNullList<ItemStack> enderList = copyEnderChestContents(player);
+                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, cursorStack);
                         if (bestSlot == -1) break;
 
                         int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
@@ -484,11 +497,8 @@ public class BetterShulkerMod {
 
                 // Second pass: put into empty slots using smart-merge
                 if (!inserted) {
-                    NonNullList<ItemStack> enderList = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                    for (int k = 0; k < enderInv.getContainerSize(); k++) {
-                        enderList.set(k, enderInv.getItem(k));
-                    }
-                    int bestSlot = com.bettershulker.util.ContainerHelper.findSmartMergeEmptySlot(enderList, singleItem);
+                    NonNullList<ItemStack> enderList = copyEnderChestContents(player);
+                    int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, singleItem);
                     if (bestSlot != -1) {
                         enderInv.setItem(bestSlot, singleItem);
                         inserted = true;
@@ -564,11 +574,8 @@ public class BetterShulkerMod {
                 // Second pass: put into empty slots using smart-merge
                 if (!invStack.isEmpty()) {
                     while (invStack.getCount() > 0) {
-                        NonNullList<ItemStack> enderList = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                        for (int k = 0; k < enderInv.getContainerSize(); k++) {
-                            enderList.set(k, enderInv.getItem(k));
-                        }
-                        int bestSlot = com.bettershulker.util.ContainerHelper.findSmartMergeEmptySlot(enderList, invStack);
+                        NonNullList<ItemStack> enderList = copyEnderChestContents(player);
+                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, invStack);
                         if (bestSlot == -1) break;
 
                         int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
@@ -635,19 +642,17 @@ public class BetterShulkerMod {
                 }
             }
             case RESTOCK -> {
-                NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                for (int i = 0; i < enderInv.getContainerSize(); i++) contents.set(i, enderInv.getItem(i));
+                NonNullList<ItemStack> contents = copyEnderChestContents(player);
                 success = ContainerHelper.restockContents(contents, player.containerMenu.slots);
                 if (success) {
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) enderInv.setItem(i, contents.get(i));
+                    applyEnderChestContents(player, contents);
                 }
             }
             case DEPOSIT -> {
-                NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                for (int i = 0; i < enderInv.getContainerSize(); i++) contents.set(i, enderInv.getItem(i));
+                NonNullList<ItemStack> contents = copyEnderChestContents(player);
                 success = ContainerHelper.depositContents(contents, player.containerMenu.slots, -2);
                 if (success) {
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) enderInv.setItem(i, contents.get(i));
+                    applyEnderChestContents(player, contents);
                     isInsert = true;
                 }
             }
