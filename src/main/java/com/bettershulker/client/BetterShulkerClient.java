@@ -5,18 +5,12 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
-import com.bettershulker.util.ContainerHelper;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.entity.player.Player;
 import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,7 +49,6 @@ public class BetterShulkerClient {
     private static KeyMapping scrollLeftKey = null;
     private static KeyMapping scrollRightKey = null;
     private static KeyMapping restockKey = null;
-    private static KeyMapping wirelessEnderChestKey = null;
     private static KeyMapping showFullTooltipKey = null;
 
     // =========================================================================
@@ -80,7 +73,6 @@ public class BetterShulkerClient {
     private static int lastMouseX = 0;
     private static int lastMouseY = 0;
     private static long lastEnderChestRequestTime = 0;
-    private static boolean wirelessEnderChestKeyWasDown = false;
     private static final long ENDER_CHEST_REQUEST_COOLDOWN_MS = 500;
 
     // =========================================================================
@@ -160,7 +152,6 @@ public class BetterShulkerClient {
             KeyMapping scrollLeft,
             KeyMapping scrollRight,
             KeyMapping restock,
-            KeyMapping wirelessEnderChest,
             KeyMapping showFullTooltip
     ) {
         settingsKey = settings;
@@ -172,7 +163,6 @@ public class BetterShulkerClient {
         scrollLeftKey = scrollLeft;
         scrollRightKey = scrollRight;
         restockKey = restock;
-        wirelessEnderChestKey = wirelessEnderChest;
         showFullTooltipKey = showFullTooltip;
     }
 
@@ -200,20 +190,6 @@ public class BetterShulkerClient {
                 } catch (Exception e) {
                     BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open settings screen", e);
                 }
-            }
-        }
-        if (consumeWirelessEnderChestKeyPress() && canOpenWirelessEnderChest(client.gui.screen()) && client.player != null) {
-            if (bettershulker$hasEnderChestInInventory(client.player)) {
-                try {
-                    client.setScreenAndShow(new WirelessEnderChestScreen());
-                } catch (Exception e) {
-                    BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
-                }
-            } else {
-                client.gui.hud.setOverlayMessage(
-                    Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
-                    false
-                );
             }
         }
     }
@@ -245,7 +221,7 @@ public class BetterShulkerClient {
         tooltipActive = active;
     }
 
-    /** Sends wireless/C2S ender chest sync payload request to server. */
+    /** Sends C2S ender chest sync payload request to server. */
     public static void requestEnderChestSync() {
         long now = System.currentTimeMillis();
         if (now - lastEnderChestRequestTime >= ENDER_CHEST_REQUEST_COOLDOWN_MS) {
@@ -351,33 +327,8 @@ public class BetterShulkerClient {
         return restockKey;
     }
 
-    public static KeyMapping getWirelessEnderChestKey() {
-        return wirelessEnderChestKey;
-    }
-
     public static KeyMapping getShowFullTooltipKey() {
         return showFullTooltipKey;
-    }
-
-    private static boolean consumeWirelessEnderChestKeyPress() {
-        if (wirelessEnderChestKey == null) {
-            wirelessEnderChestKeyWasDown = false;
-            return false;
-        }
-
-        boolean clicked = false;
-        while (wirelessEnderChestKey.consumeClick()) {
-            clicked = true;
-        }
-
-        boolean down = isKeyHeld(wirelessEnderChestKey);
-        boolean pressed = down && !wirelessEnderChestKeyWasDown;
-        wirelessEnderChestKeyWasDown = down;
-        return clicked || pressed;
-    }
-
-    private static boolean canOpenWirelessEnderChest(Screen currentScreen) {
-        return currentScreen == null || currentScreen instanceof AbstractContainerScreen<?>;
     }
 
     public static boolean isKeyHeld(KeyMapping key) {
@@ -457,7 +408,6 @@ public class BetterShulkerClient {
         selectedSlotIndex = 0;
         tooltipActive = false;
         lastEnderChestRequestTime = 0;
-        wirelessEnderChestKeyWasDown = false;
         hoveredTooltipSlotIndex = -1;
         activeContainerStack = ItemStack.EMPTY;
         filterItemStack = ItemStack.EMPTY;
@@ -477,14 +427,4 @@ public class BetterShulkerClient {
         activeRollbacks.clear();
     }
 
-    public static boolean bettershulker$hasEnderChestInInventory(Player player) {
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && ContainerHelper.isEnderChest(stack)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

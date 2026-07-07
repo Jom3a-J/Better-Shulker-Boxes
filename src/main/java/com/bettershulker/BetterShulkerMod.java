@@ -139,7 +139,7 @@ public class BetterShulkerMod {
         net.minecraft.world.inventory.AbstractContainerMenu menu = player.containerMenu;
 
         // -- Validate Slot Bounds
-        if (containerSlotId != -1 && containerSlotId != -2 && (containerSlotId < 0 || containerSlotId >= menu.slots.size())) {
+        if (containerSlotId != -1 && (containerSlotId < 0 || containerSlotId >= menu.slots.size())) {
             LOGGER.warn("[BetterShulker] Player {} sent invalid container slot ID: {}",
                     player.getName().getString(), containerSlotId);
             return;
@@ -168,28 +168,6 @@ public class BetterShulkerMod {
         }
 
         int inventorySlotId = payload.inventorySlotId();
-
-        // -- Wireless Ender Chest Bypass
-        if (containerSlotId == -2) {
-            // Security check: player must carry an Ender Chest item in their inventory to use wireless features!
-            boolean hasEnderChest = false;
-            var inv = player.getInventory();
-            for (int i = 0; i < inv.getContainerSize(); i++) {
-                ItemStack stack = inv.getItem(i);
-                if (!stack.isEmpty() && ContainerHelper.isEnderChest(stack)) {
-                    hasEnderChest = true;
-                    break;
-                }
-            }
-
-            if (hasEnderChest) {
-                handleEnderChestInteraction(player, targetIndex, action, inventorySlotId);
-            } else {
-                LOGGER.warn("[BetterShulker] Player {} tried to use wireless Ender Chest without carrying one in their inventory!", player.getName().getString());
-                resyncPlayer(player);
-            }
-            return;
-        }
 
         // -- Validate Container Item (Copy stack to guarantee client slot sync upon server-side component modification)
         ItemStack containerStack = containerSlotId == -1 ? menu.getCarried().copy() : menu.slots.get(containerSlotId).getItem().copy();

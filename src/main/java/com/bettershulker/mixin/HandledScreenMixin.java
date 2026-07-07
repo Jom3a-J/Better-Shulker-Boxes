@@ -1067,19 +1067,10 @@ public abstract class HandledScreenMixin extends Screen {
                 containerStack = carried;
             } else if (containerSlotId >= 0 && containerSlotId < self.getMenu().slots.size()) {
                 containerStack = self.getMenu().slots.get(containerSlotId).getItem();
-            } else if (containerSlotId == -2) {
-                for (Slot slot : self.getMenu().slots) {
-                    if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
-                        if (ContainerHelper.isEnderChest(slot.getItem())) {
-                            containerStack = slot.getItem();
-                            break;
-                        }
-                    }
-                }
             }
 
             NonNullList<ItemStack> ecContents = null;
-            if (containerStack.isEmpty() ? (containerSlotId == -2) : ContainerHelper.isEnderChest(containerStack)) {
+            if (ContainerHelper.isEnderChest(containerStack)) {
                 ecContents = BetterShulkerClient.getEnderChestContents();
             }
 
@@ -1090,7 +1081,7 @@ public abstract class HandledScreenMixin extends Screen {
             }
 
             ContainerInteractPayload.InteractType action = ContainerInteractPayload.InteractType.fromId(actionId);
-            boolean isEnder = containerStack.isEmpty() ? (containerSlotId == -2) : ContainerHelper.isEnderChest(containerStack);
+            boolean isEnder = ContainerHelper.isEnderChest(containerStack);
 
             if (isEnder) {
                 bettershulker$predictEnderChest(txId, targetIndex, action, inventorySlotId);
@@ -1393,7 +1384,7 @@ public abstract class HandledScreenMixin extends Screen {
                 ContainerHelper.restockContents(contents, self.getMenu().slots);
             }
             case DEPOSIT -> {
-                ContainerHelper.depositContents(contents, self.getMenu().slots, -2); // containerSlotId for Ender Chest prediction is -2
+                ContainerHelper.depositContents(contents, self.getMenu().slots, -2);
             }
         }
     }

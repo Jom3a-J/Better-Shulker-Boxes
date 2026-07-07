@@ -396,7 +396,6 @@ public final class BetterShulkerClothConfigScreen {
         category.addEntry(entry.fillKeybindingField(text("Selection Left"), BetterShulkerClient.getScrollLeftKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Selection Right"), BetterShulkerClient.getScrollRightKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Restock / Deposit"), BetterShulkerClient.getRestockKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Wireless Ender Chest"), BetterShulkerClient.getWirelessEnderChestKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Show Full Tooltip"), BetterShulkerClient.getShowFullTooltipKey()).build());
     }
 
