@@ -32,9 +32,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -505,9 +508,9 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private int bettershulker$clampScroll(int current, int delta, ItemStack containerStack) {
-        if (com.bettershulker.client.BetterShulkerClient.isCompactModeActive()) {
+        if (BetterShulkerClient.isCompactModeActive()) {
             NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
-            List<Integer> visibleIndices = new java.util.ArrayList<>();
+            List<Integer> visibleIndices = new ArrayList<>();
             for (int i = 0; i < contents.size(); i++) {
                 ItemStack stack = contents.get(i);
                 if (!stack.isEmpty()) {
@@ -533,7 +536,7 @@ public abstract class HandledScreenMixin extends Screen {
                     return countCompare != 0 ? countCompare : Integer.compare(a, b);
                 });
                 if (visibleIndices.size() > 5) {
-                    visibleIndices = new java.util.ArrayList<>(visibleIndices.subList(0, 5));
+                    visibleIndices = new ArrayList<>(visibleIndices.subList(0, 5));
                 }
             }
 
@@ -921,7 +924,7 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
-    private int bettershulker$findVirtualInventorySlot(NonNullList<Slot> slots, ItemStack stack, java.util.Map<Integer, ItemStack> virtualInv) {
+    private int bettershulker$findVirtualInventorySlot(NonNullList<Slot> slots, ItemStack stack, Map<Integer, ItemStack> virtualInv) {
         // First pass: try to merge with existing slots that have room
         for (Slot slot : slots) {
             if (!(slot.container instanceof Inventory)
@@ -967,10 +970,10 @@ public abstract class HandledScreenMixin extends Screen {
         if (containerStack.isEmpty()) return;
 
         NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
-        java.util.Set<Integer> selectedSet = BetterShulkerClient.getSelectedSlotsSet();
+        Set<Integer> selectedSet = BetterShulkerClient.getSelectedSlotsSet();
         
         // Build virtual inventory state map for player inventory slots
-        java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
+        Map<Integer, ItemStack> virtualInv = new HashMap<>();
         for (Slot slot : self.getMenu().slots) {
             if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                 virtualInv.put(slot.index, slot.getItem().copy());
@@ -1011,7 +1014,7 @@ public abstract class HandledScreenMixin extends Screen {
         if (shulkerStack.isEmpty()) return;
 
         // Build virtual inventory state map for player inventory slots
-        java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
+        Map<Integer, ItemStack> virtualInv = new HashMap<>();
         for (Slot slot : self.getMenu().slots) {
             if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                 virtualInv.put(slot.index, slot.getItem().copy());
@@ -1101,7 +1104,7 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private static void BetterShulkerMod$LOGGER$info(String msg) {
-        com.bettershulker.BetterShulkerMod.LOGGER.info("[BetterShulker-ClientPrediction] " + msg);
+        BetterShulkerMod.LOGGER.info("[BetterShulker-ClientPrediction] " + msg);
     }
 
     @Unique
@@ -1401,7 +1404,7 @@ public abstract class HandledScreenMixin extends Screen {
             var self = bettershulker$self();
             ItemStack carried = self.getMenu().getCarried();
             long now = System.currentTimeMillis();
-            java.util.List<BetterShulkerClient.PredictionTransaction> txs = BetterShulkerClient.getActiveTransactions();
+            List<BetterShulkerClient.PredictionTransaction> txs = BetterShulkerClient.getActiveTransactions();
 
             for (int idx = txs.size() - 1; idx >= 0; idx--) {
                 BetterShulkerClient.PredictionTransaction tx = txs.get(idx);
@@ -1421,7 +1424,7 @@ public abstract class HandledScreenMixin extends Screen {
                 }
 
                 if (!accepted) {
-                    for (java.util.Map.Entry<Integer, ItemStack> entry : tx.originalSlots.entrySet()) {
+                    for (Map.Entry<Integer, ItemStack> entry : tx.originalSlots.entrySet()) {
                         int slotId = entry.getKey();
                         ItemStack orig = entry.getValue();
                         if (slotId >= 0 && slotId < self.getMenu().slots.size()) {
@@ -1447,7 +1450,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$renderRollbackAnimations(GuiGraphicsExtractor graphics) {
         try {
             long now = System.currentTimeMillis();
-            java.util.List<BetterShulkerClient.RollbackAnimation> rollbacks = BetterShulkerClient.getActiveRollbacks();
+            List<BetterShulkerClient.RollbackAnimation> rollbacks = BetterShulkerClient.getActiveRollbacks();
             for (int idx = rollbacks.size() - 1; idx >= 0; idx--) {
                 BetterShulkerClient.RollbackAnimation anim = rollbacks.get(idx);
                 long elapsed = now - anim.startTime;

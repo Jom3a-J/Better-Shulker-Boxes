@@ -13,6 +13,8 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -22,6 +24,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Screen rendering wireless Ender Chest previews and handling actions.
@@ -164,7 +167,7 @@ public class WirelessEnderChestScreen extends Screen {
     // =========================================================================
 
     @Override
-    public boolean keyPressed(net.minecraft.client.input.KeyEvent keyEvent) {
+    public boolean keyPressed(KeyEvent keyEvent) {
         int keyCode = keyEvent.key();
 
         // 1. Close conditions
@@ -269,7 +272,7 @@ public class WirelessEnderChestScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean handled) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean handled) {
         int hoveredIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
         if (hoveredIdx >= 0) {
             NonNullList<ItemStack> contents = BetterShulkerClient.getEnderChestContents();
@@ -349,7 +352,7 @@ public class WirelessEnderChestScreen extends Screen {
 
     private int bettershulker$clampScroll(int current, int delta, NonNullList<ItemStack> contents) {
         if (BetterShulkerClient.isCompactModeActive()) {
-            List<Integer> visibleIndices = new java.util.ArrayList<>();
+            List<Integer> visibleIndices = new ArrayList<>();
             for (int i = 0; i < contents.size(); i++) {
                 ItemStack stack = contents.get(i);
                 if (!stack.isEmpty()) {

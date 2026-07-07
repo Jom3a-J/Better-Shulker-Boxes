@@ -5,12 +5,24 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
+import com.bettershulker.util.ContainerHelper;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.player.Player;
 import org.lwjgl.glfw.GLFW;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Better Shulker — Client-side entry point.
@@ -30,7 +42,7 @@ public class BetterShulkerClient {
     // =========================================================================
 
     private static final KeyMapping.Category CUSTOM_CATEGORY = KeyMapping.Category.register(
-            net.minecraft.resources.Identifier.fromNamespaceAndPath("bettershulker", "keys")
+            Identifier.fromNamespaceAndPath("bettershulker", "keys")
     );
     private static KeyMapping settingsKey = null;
     private static KeyMapping extractKey = null;
@@ -60,7 +72,7 @@ public class BetterShulkerClient {
     private static int hoveredTooltipSlotIndex = -1;
     private static ItemStack activeContainerStack = ItemStack.EMPTY;
     private static ItemStack filterItemStack = ItemStack.EMPTY;
-    private static final java.util.Set<Integer> selectedSlotsSet = new java.util.HashSet<>();
+    private static final Set<Integer> selectedSlotsSet = new HashSet<>();
 
     /** Cooldown tracking to limit ender chest sync request packets. */
     private static int lastMouseX = 0;
@@ -90,7 +102,7 @@ public class BetterShulkerClient {
         public final ItemStack originalContainer;
         public final int containerSlotId;
         public NonNullList<ItemStack> originalEnderChest = null;
-        public final java.util.Map<Integer, ItemStack> originalSlots = new java.util.HashMap<>();
+        public final Map<Integer, ItemStack> originalSlots = new HashMap<>();
 
         public PredictionTransaction(long id, ItemStack carried, ItemStack container, int containerSlotId, NonNullList<ItemStack> enderChest) {
             this.id = id;
@@ -125,8 +137,8 @@ public class BetterShulkerClient {
     }
 
     private static long nextTransactionId = 1L;
-    private static final java.util.List<PredictionTransaction> activeTransactions = new java.util.ArrayList<>();
-    private static final java.util.List<RollbackAnimation> activeRollbacks = new java.util.ArrayList<>();
+    private static final List<PredictionTransaction> activeTransactions = new ArrayList<>();
+    private static final List<RollbackAnimation> activeRollbacks = new ArrayList<>();
 
     // =========================================================================
     //  Loader-neutral Client Initialization Hooks
@@ -177,7 +189,7 @@ public class BetterShulkerClient {
         );
     }
 
-    public static void handleClientTick(net.minecraft.client.Minecraft client) {
+    public static void handleClientTick(Minecraft client) {
         while (settingsKey != null && settingsKey.consumeClick()) {
             if (client.gui.screen() != null || client.level != null) {
                 try {
@@ -270,7 +282,7 @@ public class BetterShulkerClient {
         filterItemStack = stack;
     }
 
-    public static java.util.Set<Integer> getSelectedSlotsSet() {
+    public static Set<Integer> getSelectedSlotsSet() {
         return selectedSlotsSet;
     }
 
@@ -349,9 +361,9 @@ public class BetterShulkerClient {
     public static boolean isKeyHeld(KeyMapping key) {
         if (key == null || key.isUnbound()) return false;
         try {
-            var boundKey = com.mojang.blaze3d.platform.InputConstants.getKey(key.saveString());
-            if (boundKey.getType() == com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM) {
-                return GLFW.glfwGetKey(net.minecraft.client.Minecraft.getInstance().getWindow().handle(), boundKey.getValue()) == GLFW.GLFW_PRESS;
+            var boundKey = InputConstants.getKey(key.saveString());
+            if (boundKey.getType() == InputConstants.Type.KEYSYM) {
+                return GLFW.glfwGetKey(Minecraft.getInstance().getWindow().handle(), boundKey.getValue()) == GLFW.GLFW_PRESS;
             }
         } catch (Exception e) {
             // fallback
@@ -399,11 +411,11 @@ public class BetterShulkerClient {
         }
     }
 
-    public static java.util.List<PredictionTransaction> getActiveTransactions() {
+    public static List<PredictionTransaction> getActiveTransactions() {
         return activeTransactions;
     }
 
-    public static java.util.List<RollbackAnimation> getActiveRollbacks() {
+    public static List<RollbackAnimation> getActiveRollbacks() {
         return activeRollbacks;
     }
 
@@ -434,7 +446,7 @@ public class BetterShulkerClient {
         currentSelectedCol = -1f;
         currentSelectedRow = -1f;
         lastHighlightRenderTime = 0L;
-        java.util.Arrays.fill(slotScales, 1.0f);
+        Arrays.fill(slotScales, 1.0f);
         lastSlotScaleUpdateTime = 0L;
 
         // Reset Category 5 Prediction state
@@ -442,11 +454,11 @@ public class BetterShulkerClient {
         activeRollbacks.clear();
     }
 
-    public static boolean bettershulker$hasEnderChestInInventory(net.minecraft.world.entity.player.Player player) {
+    public static boolean bettershulker$hasEnderChestInInventory(Player player) {
         var inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && com.bettershulker.util.ContainerHelper.isEnderChest(stack)) {
+            if (!stack.isEmpty() && ContainerHelper.isEnderChest(stack)) {
                 return true;
             }
         }

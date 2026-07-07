@@ -16,8 +16,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
+import java.util.ArrayList;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
 import static com.bettershulker.client.render.ThemeColorUtil.getTextColorForBackground;
@@ -141,8 +143,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private DisplayLayout buildDisplayLayout() {
-        List<Integer> slots = new java.util.ArrayList<>();
-        List<Integer> counts = new java.util.ArrayList<>();
+        List<Integer> slots = new ArrayList<>();
+        List<Integer> counts = new ArrayList<>();
         if (this.compactMode && this.isContainerEmpty) {
             return new DisplayLayout(slots, counts);
         } else if (this.compactMode) {
@@ -165,7 +167,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 }
             }
 
-            List<Integer> order = new java.util.ArrayList<>();
+            List<Integer> order = new ArrayList<>();
             for (int i = 0; i < slots.size(); i++) order.add(i);
             List<Integer> mergedSlots = slots;
             List<Integer> mergedCounts = counts;
@@ -174,8 +176,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 return countCompare != 0 ? countCompare : Integer.compare(mergedSlots.get(a), mergedSlots.get(b));
             });
 
-            List<Integer> sortedSlots = new java.util.ArrayList<>();
-            List<Integer> sortedCounts = new java.util.ArrayList<>();
+            List<Integer> sortedSlots = new ArrayList<>();
+            List<Integer> sortedCounts = new ArrayList<>();
             for (int i = 0; i < order.size() && i < COMPACT_MAX_SLOTS; i++) {
                 int index = order.get(i);
                 sortedSlots.add(mergedSlots.get(index));
@@ -807,7 +809,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             ItemStack hoveredStack = this.contents.get(hoveredSlot);
             if (!hoveredStack.isEmpty()) {
                 hoveredName = hoveredStack.getHoverName().getString();
-                context.setTooltipForNextFrame(font, List.of(hoveredStack.getHoverName()), java.util.Optional.empty(), mouseX, mouseY);
+                context.setTooltipForNextFrame(font, List.of(hoveredStack.getHoverName()), Optional.empty(), mouseX, mouseY);
             }
         }
 
@@ -824,7 +826,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                     int tooltipWidth = font.width(selectedStack.getHoverName()) + 12;
                     context.setTooltipForNextFrame(font,
                             List.of(selectedStack.getHoverName()),
-                            java.util.Optional.empty(),
+                            Optional.empty(),
                             mouseX - tooltipWidth - 12,
                             mouseY - 10);
                 }

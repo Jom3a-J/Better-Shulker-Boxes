@@ -8,6 +8,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -20,12 +21,12 @@ public final class BetterShulkerFabricMod implements ModInitializer {
 
         PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
             @Override
-            public void sendToServer(net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
+            public void sendToServer(CustomPacketPayload payload) {
                 throw new IllegalStateException("Cannot send serverbound Better Shulker payload from the physical server");
             }
 
             @Override
-            public void sendToPlayer(ServerPlayer player, net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
+            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
                 ServerPlayNetworking.send(player, payload);
             }
         });

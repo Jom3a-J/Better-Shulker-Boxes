@@ -9,12 +9,15 @@ import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.RenderPipelines;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
 
 import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
 import static com.bettershulker.client.render.ThemeColorUtil.getTextColorForBackground;
@@ -144,7 +147,7 @@ public final class BetterShulkerClothConfigScreen {
         graphics.fill(selectedX + 1, selectedY + 1, selectedX + 17, selectedY + 17, withAlpha(sel, 45));
     }
 
-    private static void drawSelectedNamePreview(GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font,
+    private static void drawSelectedNamePreview(GuiGraphicsExtractor graphics, Font font,
                                                 PreviewColors colors, int columnX, int columnW, int y, int nameText) {
         String name = "Diamond Pickaxe";
         int nameW = font.width(name) + 12;
@@ -398,8 +401,8 @@ public final class BetterShulkerClothConfigScreen {
     }
 
     private static ColorSliders addRgbSliders(ConfigCategory category, ConfigEntryBuilder entry, String label, int currentColor, int defaultColor,
-                                              java.util.function.IntSupplier currentSupplier,
-                                              java.util.function.IntConsumer saveConsumer) {
+                                              IntSupplier currentSupplier,
+                                              IntConsumer saveConsumer) {
         var sub = entry.startSubCategory(text(label));
         IntegerSliderEntry red = entry.startIntSlider(text("Red"), red(currentColor), 0, 255)
                 .setDefaultValue(red(defaultColor))

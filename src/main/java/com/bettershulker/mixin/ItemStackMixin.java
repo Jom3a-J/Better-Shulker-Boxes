@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -104,6 +105,6 @@ public abstract class ItemStackMixin {
         // Compact mode draws the selected item name with the preview component.
         // Replace the vanilla text list outright so immutable/wrapped lists cannot leave
         // the container name behind and visually merge it with the selected item name.
-        ci.setReturnValue(new java.util.ArrayList<>());
+        ci.setReturnValue(new ArrayList<>());
     }
 }

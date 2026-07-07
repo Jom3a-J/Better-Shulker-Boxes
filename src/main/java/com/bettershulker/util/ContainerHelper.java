@@ -1,5 +1,6 @@
 package com.bettershulker.util;
 
+import com.bettershulker.BetterShulkerConfig;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.BlockItem;
@@ -15,6 +16,9 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Central utility class for all container-related operations in Better Shulker.
@@ -339,7 +343,7 @@ public final class ContainerHelper {
      * @param toInsert the item stack we want to insert
      * @return the best empty slot index, or -1 if no empty slots exist
      */
-    public static int findSmartMergeEmptySlot(java.util.List<ItemStack> contents, ItemStack toInsert) {
+    public static int findSmartMergeEmptySlot(List<ItemStack> contents, ItemStack toInsert) {
         int bestSlot = -1;
         int bestSameItemDist = 999;
         int bestCategoryDist = 999;
@@ -511,7 +515,7 @@ public final class ContainerHelper {
      */
     public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<Slot> slots, int containerSlotId) {
         boolean success = false;
-        java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
+        Set<ItemStack> distinctTypes = new HashSet<>();
         for (ItemStack boxStack : contents) {
             if (!boxStack.isEmpty() && !containsSameItem(distinctTypes, boxStack)) {
                 distinctTypes.add(boxStack.copy());
@@ -552,11 +556,11 @@ public final class ContainerHelper {
         if (player == null || volume <= 0.0f) return;
 
         SoundEvent soundEvent = SoundEvents.ITEM_PICKUP;
-        if (com.bettershulker.BetterShulkerConfig.soundOption == com.bettershulker.BetterShulkerConfig.SoundOption.CONTEXTUAL) {
+        if (BetterShulkerConfig.soundOption == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
             soundEvent = getContextualSound(stack, isInsert);
         } else {
             try {
-                String[] split = com.bettershulker.BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
+                String[] split = BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
                 var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
                 var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
                 if (soundHolderOpt.isPresent()) {

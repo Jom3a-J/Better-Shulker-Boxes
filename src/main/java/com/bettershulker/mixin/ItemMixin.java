@@ -1,5 +1,6 @@
 package com.bettershulker.mixin;
 
+import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
@@ -220,7 +221,7 @@ public abstract class ItemMixin {
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$playLevelSound(Player player, ItemStack stack, boolean isInsert) {
         float volume = player.level().isClientSide()
-                ? com.bettershulker.BetterShulkerConfig.soundVolume
+                ? BetterShulkerConfig.soundVolume
                 : 0.3F;
         ContainerHelper.playInteractionSound(player, stack, isInsert, volume);
     }
