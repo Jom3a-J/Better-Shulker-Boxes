@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Mixin for Item to add native bundle-like slot click interactions for Shulker Boxes and Ender Chests.
- * Handles item insertion, extraction, and shulker box dyeing from within the inventory UI screen.
+ * Handles item insertion and extraction from within the inventory UI screen.
  */
 @Mixin(Item.class)
 public abstract class ItemMixin {
@@ -42,14 +42,7 @@ public abstract class ItemMixin {
             if (slotStack.isEmpty()) {
                 // Carried Shulker Box, right-click on empty slot -> Extract/dump first item
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
-                int extractionIndex = -1;
-                for (int i = 0; i < contents.size(); i++) {
-                    if (!contents.get(i).isEmpty()) {
-                        extractionIndex = i;
-                        break;
-                    }
-                }
-
+                int extractionIndex = bettershulker$firstOccupiedSlot(contents);
                 if (extractionIndex != -1) {
                     ItemStack extracted = ContainerHelper.tryExtract(contents, extractionIndex, false);
                     slot.set(extracted);
@@ -96,11 +89,8 @@ public abstract class ItemMixin {
                     // Client side: return true if we can extract, to prevent client-server mismatch
                     NonNullList<ItemStack> cached = bettershulker$getClientEnderChestContents();
                     if (cached != null) {
-                        for (ItemStack s : cached) {
-                            if (!s.isEmpty()) {
-                                ci.setReturnValue(true);
-                                break;
-                            }
+                        if (bettershulker$firstOccupiedSlot(cached) != -1) {
+                            ci.setReturnValue(true);
                         }
                     } else {
                         ci.setReturnValue(true);
@@ -172,6 +162,16 @@ public abstract class ItemMixin {
     // =========================================================================
     //  Private Helpers
     // =========================================================================
+
+    @org.spongepowered.asm.mixin.Unique
+    private int bettershulker$firstOccupiedSlot(NonNullList<ItemStack> contents) {
+        for (int i = 0; i < contents.size(); i++) {
+            if (!contents.get(i).isEmpty()) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     @org.spongepowered.asm.mixin.Unique
     private boolean bettershulker$canHandleContainerClick(ItemStack stack, Slot slot, ClickAction clickAction, Player player) {
