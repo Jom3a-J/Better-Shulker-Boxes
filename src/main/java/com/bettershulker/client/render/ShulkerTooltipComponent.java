@@ -69,6 +69,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final boolean compactMode;
     private final boolean resourcePackOverridesPanel;
     private final List<Integer> displaySlots;
+    private final List<Integer> displayCounts;
     private final int displayCols;
     private final int displayRows;
     private final int panelWidth;
@@ -82,6 +83,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final int multiSelectColor;
     private final int matchColor;
     private final int panelShadowColor;
+
+    private record DisplayLayout(List<Integer> slots, List<Integer> counts) {}
 
     public ShulkerTooltipComponent(ShulkerTooltipData data) {
         this.contents = data.contents();
@@ -101,7 +104,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         this.compactMode = BetterShulkerClient.isCompactModeActive();
         this.resourcePackOverridesPanel = hasResourcePackOverride(getPanelTexture())
                 || getPackShulkerPanelTexture() != null;
-        this.displaySlots = buildDisplaySlots();
+        DisplayLayout displayLayout = buildDisplayLayout();
+        this.displaySlots = displayLayout.slots();
+        this.displayCounts = displayLayout.counts();
         this.displayCols = this.compactMode
                 ? Math.min(COMPACT_MAX_SLOTS, Math.max(1, this.displaySlots.size()))
                 : GRID_COLS;
@@ -129,49 +134,56 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         this.panelShadowColor = palette.panelShadowColor;
     }
 
-    private List<Integer> buildDisplaySlots() {
+    private DisplayLayout buildDisplayLayout() {
         List<Integer> slots = new java.util.ArrayList<>();
+        List<Integer> counts = new java.util.ArrayList<>();
         if (this.compactMode && this.isContainerEmpty) {
-            return slots;
+            return new DisplayLayout(slots, counts);
         } else if (this.compactMode) {
             for (int i = 0; i < this.contents.size() && i < SLOT_COUNT; i++) {
                 ItemStack stack = this.contents.get(i);
                 if (stack.isEmpty()) continue;
-                boolean seen = false;
-                for (int existing : slots) {
-                    if (ItemStack.isSameItemSameComponents(this.contents.get(existing), stack)) {
-                        seen = true;
+
+                int existingIndex = -1;
+                for (int displayIndex = 0; displayIndex < slots.size(); displayIndex++) {
+                    if (ItemStack.isSameItemSameComponents(this.contents.get(slots.get(displayIndex)), stack)) {
+                        existingIndex = displayIndex;
                         break;
                     }
                 }
-                if (!seen) slots.add(i);
+                if (existingIndex >= 0) {
+                    counts.set(existingIndex, counts.get(existingIndex) + stack.getCount());
+                } else {
+                    slots.add(i);
+                    counts.add(stack.getCount());
+                }
             }
-            slots.sort((a, b) -> {
-                int countCompare = Integer.compare(countMergedItemsForSlot(b), countMergedItemsForSlot(a));
-                return countCompare != 0 ? countCompare : Integer.compare(a, b);
+
+            List<Integer> order = new java.util.ArrayList<>();
+            for (int i = 0; i < slots.size(); i++) order.add(i);
+            List<Integer> mergedSlots = slots;
+            List<Integer> mergedCounts = counts;
+            order.sort((a, b) -> {
+                int countCompare = Integer.compare(mergedCounts.get(b), mergedCounts.get(a));
+                return countCompare != 0 ? countCompare : Integer.compare(mergedSlots.get(a), mergedSlots.get(b));
             });
-            if (slots.size() > COMPACT_MAX_SLOTS) {
-                slots = new java.util.ArrayList<>(slots.subList(0, COMPACT_MAX_SLOTS));
+
+            List<Integer> sortedSlots = new java.util.ArrayList<>();
+            List<Integer> sortedCounts = new java.util.ArrayList<>();
+            for (int i = 0; i < order.size() && i < COMPACT_MAX_SLOTS; i++) {
+                int index = order.get(i);
+                sortedSlots.add(mergedSlots.get(index));
+                sortedCounts.add(mergedCounts.get(index));
             }
+            slots = sortedSlots;
+            counts = sortedCounts;
         } else {
             for (int i = 0; i < SLOT_COUNT; i++) {
                 slots.add(i);
+                counts.add(i < this.contents.size() ? this.contents.get(i).getCount() : 0);
             }
         }
-        return slots;
-    }
-
-    private int countMergedItemsForSlot(int actualSlot) {
-        if (actualSlot < 0 || actualSlot >= this.contents.size()) return 0;
-        ItemStack displayStack = this.contents.get(actualSlot);
-        if (displayStack.isEmpty()) return 0;
-        int total = 0;
-        for (ItemStack stack : this.contents) {
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(displayStack, stack)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
+        return new DisplayLayout(slots, counts);
     }
 
     @Override
@@ -660,7 +672,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 int itemY = slotY + (this.compactMode ? getCompactItemOffset() : 1);
                 context.item(stack, itemX, itemY);
                 if (this.compactMode) {
-                    int totalCount = getGroupedItemCount(i);
+                    int totalCount = getDisplayItemCount(displayPos);
                     if (totalCount > 1) {
                         drawCompactItemCount(font, context, itemX, itemY, totalCount);
                     } else {
@@ -710,20 +722,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(slotX + size, slotY, slotX + size + 1, slotY + size, hot);
     }
 
-    private int getGroupedItemCount(int actualSlot) {
-        if (actualSlot < 0 || actualSlot >= this.contents.size()) return 0;
-        ItemStack displayStack = this.contents.get(actualSlot);
-        if (displayStack.isEmpty()) return 0;
-        int total = 0;
-        if (this.compactMode) {
-            for (ItemStack stack : this.contents) {
-                if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(displayStack, stack)) {
-                    total += stack.getCount();
-                }
-            }
-            return total;
-        }
-        return displayStack.getCount();
+    private int getDisplayItemCount(int displayPos) {
+        if (displayPos < 0 || displayPos >= this.displayCounts.size()) return 0;
+        return this.displayCounts.get(displayPos);
     }
 
     private void drawCompactItemCount(Font font, GuiGraphicsExtractor context, int itemX, int itemY, int count) {
