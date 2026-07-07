@@ -1,6 +1,6 @@
 package com.bettershulker.mixin;
 
-import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 
@@ -21,10 +21,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Mixin for Item to add native bundle-like slot click interactions for Shulker Boxes and Ender Chests.
@@ -54,22 +50,9 @@ public abstract class ItemMixin {
             return;
         }
 
-        if (!player.level().isClientSide()) {
-            if (!(player instanceof ServerPlayer)) {
-                return;
-            }
-            UUID uuid = player.getUUID();
-            long currentTick = player.level().getGameTime();
-            long lastTick = com.bettershulker.BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
-            if (lastTick != currentTick) {
-                com.bettershulker.BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
-                com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
-            }
-            int count = com.bettershulker.BetterShulkerMod.interactionCountsThisTick.get(uuid);
-            if (count >= com.bettershulker.BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
-                return;
-            }
-            com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
+        if (!player.level().isClientSide() && (!(player instanceof ServerPlayer serverPlayer)
+                || !BetterShulkerMod.consumeInteraction(serverPlayer))) {
+            return;
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
@@ -124,7 +107,7 @@ public abstract class ItemMixin {
                         slot.set(extracted);
 
                         // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        PlatformNetworking.sendToPlayer(serverPlayer, BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
                         bettershulker$playLevelSound(player, extracted, false);
                         ci.setReturnValue(true);
                     }
@@ -181,7 +164,7 @@ public abstract class ItemMixin {
                         slot.set(invStack);
 
                         // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        PlatformNetworking.sendToPlayer(serverPlayer, BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
                         bettershulker$playLevelSound(player, invStack, true);
                         ci.setReturnValue(true);
                     }
@@ -209,22 +192,9 @@ public abstract class ItemMixin {
             return;
         }
 
-        if (!player.level().isClientSide()) {
-            if (!(player instanceof ServerPlayer)) {
-                return;
-            }
-            UUID uuid = player.getUUID();
-            long currentTick = player.level().getGameTime();
-            long lastTick = com.bettershulker.BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
-            if (lastTick != currentTick) {
-                com.bettershulker.BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
-                com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
-            }
-            int count = com.bettershulker.BetterShulkerMod.interactionCountsThisTick.get(uuid);
-            if (count >= com.bettershulker.BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
-                return;
-            }
-            com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
+        if (!player.level().isClientSide() && (!(player instanceof ServerPlayer serverPlayer)
+                || !BetterShulkerMod.consumeInteraction(serverPlayer))) {
+            return;
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
@@ -303,7 +273,7 @@ public abstract class ItemMixin {
                         slotAccess.set(invStack);
 
                         // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        PlatformNetworking.sendToPlayer(serverPlayer, BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
                         bettershulker$playLevelSound(player, other, true);
                         ci.setReturnValue(true);
                     }

@@ -38,17 +38,17 @@ public class BetterShulkerMod {
     private static final Map<UUID, NonNullList<ItemStack>> lastSyncedEnderChest = new HashMap<>();
     
     /** Keeps track of the last game tick an interaction was processed per player UUID. */
-    public static final Map<UUID, Long> lastInteractionTick = new java.util.HashMap<>();
+    private static final Map<UUID, Long> lastInteractionTick = new java.util.HashMap<>();
     
     /** Rate-limiting count of interactions processed in the current tick per player. */
-    public static final Map<UUID, Integer> interactionCountsThisTick = new java.util.HashMap<>();
+    private static final Map<UUID, Integer> interactionCountsThisTick = new java.util.HashMap<>();
     
     /**
      * Maximum allowed container interactions per single game tick (exploit protection).
      * Multi-select extraction can legitimately send up to one packet per shulker slot,
      * so this must be high enough for a full 27-slot batch while still bounding spam.
      */
-    public static final int MAX_INTERACTIONS_PER_TICK = 32;
+    private static final int MAX_INTERACTIONS_PER_TICK = 32;
 
     // =========================================================================
     //  Shared Cache / Validation Utilities
@@ -72,6 +72,49 @@ public class BetterShulkerMod {
             }
         }
         return false;
+    }
+
+    public static boolean consumeInteraction(ServerPlayer player) {
+        long currentTick = player.level().getGameTime();
+        UUID uuid = player.getUUID();
+
+        long lastTick = lastInteractionTick.getOrDefault(uuid, -1L);
+        if (lastTick != currentTick) {
+            lastInteractionTick.put(uuid, currentTick);
+            interactionCountsThisTick.put(uuid, 0);
+        }
+
+        int count = interactionCountsThisTick.get(uuid);
+        if (count >= MAX_INTERACTIONS_PER_TICK) {
+            return false;
+        }
+        interactionCountsThisTick.put(uuid, count + 1);
+        return true;
+    }
+
+    public static void handleEnderChestSyncRequest(ServerPlayer player) {
+        if (!hasEnderChestInInventory(player)) {
+            LOGGER.warn(
+                    "[BetterShulker] Player {} requested ender chest sync without carrying one in their inventory!",
+                    player.getName().getString()
+            );
+            return;
+        }
+
+        resetEnderChestSync(player.getUUID());
+        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
+        LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
+    }
+
+    public static void handleRateLimitedContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
+        if (!consumeInteraction(player)) {
+            LOGGER.warn(
+                    "[BetterShulker] Player {} exceeded interaction rate limit, dropping packet",
+                    player.getName().getString()
+            );
+            return;
+        }
+        handleContainerInteraction(player, payload);
     }
 
     //  Interaction Logic Handler & Validation

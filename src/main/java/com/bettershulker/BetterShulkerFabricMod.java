@@ -10,8 +10,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.UUID;
-
 /**
  * Fabric common/server entrypoint. Keeps Fabric networking/event APIs out of shared logic.
  */
@@ -60,19 +58,7 @@ public final class BetterShulkerFabricMod implements ModInitializer {
                 EnderChestRequestPayload.TYPE,
                 (payload, context) -> {
                     ServerPlayer player = context.player();
-                    context.player().level().getServer().execute(() -> {
-                        if (!BetterShulkerMod.hasEnderChestInInventory(player)) {
-                            BetterShulkerMod.LOGGER.warn(
-                                    "[BetterShulker] Player {} requested ender chest sync without carrying one in their inventory!",
-                                    player.getName().getString()
-                            );
-                            return;
-                        }
-
-                        BetterShulkerMod.resetEnderChestSync(player.getUUID());
-                        PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
-                        BetterShulkerMod.LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
-                    });
+                    context.player().level().getServer().execute(() -> BetterShulkerMod.handleEnderChestSyncRequest(player));
                 }
         );
     }
@@ -82,28 +68,7 @@ public final class BetterShulkerFabricMod implements ModInitializer {
                 ContainerInteractPayload.TYPE,
                 (payload, context) -> {
                     ServerPlayer player = context.player();
-                    player.level().getServer().execute(() -> {
-                        long currentTick = player.level().getGameTime();
-                        UUID uuid = player.getUUID();
-
-                        long lastTick = BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
-                        if (lastTick != currentTick) {
-                            BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
-                            BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
-                        }
-
-                        int count = BetterShulkerMod.interactionCountsThisTick.get(uuid);
-                        if (count >= BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
-                            BetterShulkerMod.LOGGER.warn(
-                                    "[BetterShulker] Player {} exceeded interaction rate limit, dropping packet",
-                                    player.getName().getString()
-                            );
-                            return;
-                        }
-                        BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
-
-                        BetterShulkerMod.handleContainerInteraction(player, payload);
-                    });
+                    player.level().getServer().execute(() -> BetterShulkerMod.handleRateLimitedContainerInteraction(player, payload));
                 }
         );
     }
