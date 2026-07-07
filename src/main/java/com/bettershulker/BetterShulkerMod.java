@@ -24,7 +24,7 @@ import java.util.HashMap;
  * Responsibilities:
  * Loader-specific entrypoints register networking/events and call into this shared validation layer.
  *
- * Minecraft 26.1 is unobfuscated — all names use Mojang official mappings.
+ * Minecraft 26.2 is unobfuscated — all names use Mojang official mappings.
  */
 public class BetterShulkerMod {
 
@@ -39,10 +39,10 @@ public class BetterShulkerMod {
     private static final Map<UUID, NonNullList<ItemStack>> lastSyncedEnderChest = new HashMap<>();
     
     /** Keeps track of the last game tick an interaction was processed per player UUID. */
-    private static final Map<UUID, Long> lastInteractionTick = new java.util.HashMap<>();
+    private static final Map<UUID, Long> lastInteractionTick = new HashMap<>();
     
     /** Rate-limiting count of interactions processed in the current tick per player. */
-    private static final Map<UUID, Integer> interactionCountsThisTick = new java.util.HashMap<>();
+    private static final Map<UUID, Integer> interactionCountsThisTick = new HashMap<>();
     
     /**
      * Maximum allowed container interactions per single game tick (exploit protection).
