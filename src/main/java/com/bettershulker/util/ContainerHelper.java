@@ -314,6 +314,15 @@ public final class ContainerHelper {
         return false;
     }
 
+    private static boolean containsSameItem(Iterable<ItemStack> stacks, ItemStack target) {
+        for (ItemStack stack : stacks) {
+            if (ItemStack.isSameItemSameComponents(stack, target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // =========================================================================
     //  Smart-Merge Proximity Heuristic
     // =========================================================================
@@ -503,17 +512,8 @@ public final class ContainerHelper {
         boolean success = false;
         java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
         for (ItemStack boxStack : contents) {
-            if (!boxStack.isEmpty()) {
-                boolean exists = false;
-                for (ItemStack t : distinctTypes) {
-                    if (ItemStack.isSameItemSameComponents(t, boxStack)) {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists) {
-                    distinctTypes.add(boxStack.copy());
-                }
+            if (!boxStack.isEmpty() && !containsSameItem(distinctTypes, boxStack)) {
+                distinctTypes.add(boxStack.copy());
             }
         }
 
@@ -525,14 +525,7 @@ public final class ContainerHelper {
                     ItemStack invStack = slot.getItem();
                     if (invStack.isEmpty()) continue;
 
-                    boolean matches = false;
-                    for (ItemStack t : distinctTypes) {
-                        if (ItemStack.isSameItemSameComponents(t, invStack)) {
-                            matches = true;
-                            break;
-                        }
-                    }
-                    if (matches) {
+                    if (containsSameItem(distinctTypes, invStack)) {
                         int originalCount = invStack.getCount();
                         ItemStack remainder = tryInsert(contents, invStack.copy(), false);
                         slot.set(remainder);
