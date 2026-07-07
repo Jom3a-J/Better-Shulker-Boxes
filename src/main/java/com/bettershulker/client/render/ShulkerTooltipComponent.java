@@ -268,7 +268,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         // Tiny theme-colored fill strip at the bottom. Hide it in resource-pack mode so the
         // resource pack owns the panel pixels without extra light lines/artifacts.
-        if (!resourcePackMode && !this.compactMode) {
+        if (!resourcePackMode && !this.compactMode && !this.isEnderChest) {
             drawFillStrip(context, panelX, panelY + getPanelHeight() - 2);
         }
     }
