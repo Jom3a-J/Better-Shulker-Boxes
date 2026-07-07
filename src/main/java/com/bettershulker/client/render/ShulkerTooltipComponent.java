@@ -250,6 +250,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         if (!this.compactMode) {
             drawThemeOverlay(context, panelX, panelY);
             drawEnderChestAccents(context, panelX, panelY);
+            drawEnderChestAnimation(context, panelX, panelY, now);
         }
 
         int hoveredSlot = updateHoveredSlot(panelX, panelY);
@@ -548,8 +549,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int strongAccent = withAlpha(ENDER_ACCENT_COLOR, 215);
         int soft = withAlpha(ENDER_ACCENT_COLOR, 42);
         int purple = withAlpha(ENDER_PURPLE_COLOR, 75);
-        int bottomTint = withAlpha(ENDER_ACCENT_COLOR, 80);
-        int bottomLine = withAlpha(ENDER_ACCENT_COLOR, 190);
+        int bottomTint = withAlpha(ENDER_ACCENT_COLOR, 34);
         int capHeight = 7;
         int capY = panelY + getPanelHeight() - capHeight;
 
@@ -561,7 +561,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(panelX + PANEL_WIDTH / 2 - 12, panelY + 5, panelX + PANEL_WIDTH / 2 + 12, panelY + 6, purple);
 
         // Reuse the normal shulker panel's bottom cap pixels so the Ender Chest bottom edge
-        // has the same shape/thickness, then add a subtle Ender accent over that cap.
+        // has the same shape/thickness, then add only a faint Ender tint over that cap.
         context.blit(RenderPipelines.GUI_TEXTURED,
                 SHULKER_PANEL_TEXTURE,
                 panelX,
@@ -574,7 +574,33 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 256,
                 0xFFFFFFFF);
         context.fill(panelX + 7, capY + 1, panelX + PANEL_WIDTH - 7, capY + capHeight - 2, bottomTint);
-        context.fill(panelX + 8, capY + capHeight - 2, panelX + PANEL_WIDTH - 8, capY + capHeight - 1, bottomLine);
+    }
+
+    private void drawEnderChestAnimation(GuiGraphicsExtractor context, int panelX, int panelY, long now) {
+        if (!this.isEnderChest || this.resourcePackOverridesPanel || isGlassTheme()
+                || !BetterShulkerConfig.hoverAnimationsEnabled) {
+            return;
+        }
+
+        float pulse = (float) Math.sin(now / 420.0) * 0.5f + 0.5f;
+        int glowAlpha = 32 + Math.round(38 * pulse);
+        int purpleGlow = withAlpha(ENDER_PURPLE_COLOR, 28 + Math.round(30 * (1.0f - pulse)));
+        int panelBottom = panelY + getPanelHeight();
+
+        // Slow Ender pulse along the top cap only; keep the shulker-matched bottom cap clean.
+        context.fill(panelX + 10, panelY + 7, panelX + PANEL_WIDTH - 10, panelY + 8, purpleGlow);
+
+        // Tiny deterministic portal motes around the border for identity without distracting from items.
+        for (int i = 0; i < 7; i++) {
+            double t = (now / 1000.0) + i * 0.73;
+            int x = panelX + 12 + Math.floorMod((int) (i * 29 + now / 80), PANEL_WIDTH - 24);
+            int y = (i % 2 == 0)
+                    ? panelY + 6 + (int) (Math.sin(t) * 2.0)
+                    : panelBottom - 9 + (int) (Math.cos(t) * 2.0);
+            int alpha = 75 + (int) (55 * (Math.sin(t * 1.7) * 0.5 + 0.5));
+            int color = (i % 3 == 0) ? withAlpha(ENDER_PURPLE_COLOR, alpha) : withAlpha(ENDER_ACCENT_COLOR, alpha);
+            context.fill(x, y, x + 1, y + 1, color);
+        }
     }
 
     private void drawThemeOverlay(GuiGraphicsExtractor context, int panelX, int panelY) {
