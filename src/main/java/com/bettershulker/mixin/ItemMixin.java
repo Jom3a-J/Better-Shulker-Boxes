@@ -38,20 +38,7 @@ public abstract class ItemMixin {
      */
     @Inject(method = "overrideStackedOnOther", at = @At("HEAD"), cancellable = true)
     private void bettershulker$overrideStackedOnOther(ItemStack stack, Slot slot, ClickAction clickAction, Player player, CallbackInfoReturnable<Boolean> ci) {
-        if (clickAction != ClickAction.SECONDARY) {
-            return;
-        }
-
-        if (!ContainerHelper.isContainer(stack)) {
-            return;
-        }
-
-        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-            return;
-        }
-
-        if (!player.level().isClientSide() && (!(player instanceof ServerPlayer serverPlayer)
-                || !BetterShulkerMod.consumeInteraction(serverPlayer))) {
+        if (!bettershulker$canHandleContainerClick(stack, slot, clickAction, player)) {
             return;
         }
 
@@ -149,20 +136,7 @@ public abstract class ItemMixin {
      */
     @Inject(method = "overrideOtherStackedOnMe", at = @At("HEAD"), cancellable = true)
     private void bettershulker$overrideOtherStackedOnMe(ItemStack stack, ItemStack other, Slot slot, ClickAction clickAction, Player player, SlotAccess slotAccess, CallbackInfoReturnable<Boolean> ci) {
-        if (clickAction != ClickAction.SECONDARY) {
-            return;
-        }
-
-        if (!ContainerHelper.isContainer(stack)) {
-            return;
-        }
-
-        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-            return;
-        }
-
-        if (!player.level().isClientSide() && (!(player instanceof ServerPlayer serverPlayer)
-                || !BetterShulkerMod.consumeInteraction(serverPlayer))) {
+        if (!bettershulker$canHandleContainerClick(stack, slot, clickAction, player)) {
             return;
         }
 
@@ -226,6 +200,21 @@ public abstract class ItemMixin {
     // =========================================================================
     //  Private Helpers
     // =========================================================================
+
+    @org.spongepowered.asm.mixin.Unique
+    private boolean bettershulker$canHandleContainerClick(ItemStack stack, Slot slot, ClickAction clickAction, Player player) {
+        if (clickAction != ClickAction.SECONDARY) {
+            return false;
+        }
+        if (!ContainerHelper.isContainer(stack)) {
+            return false;
+        }
+        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+            return false;
+        }
+        return player.level().isClientSide()
+                || (player instanceof ServerPlayer serverPlayer && BetterShulkerMod.consumeInteraction(serverPlayer));
+    }
 
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$syncEnderChest(ServerPlayer player) {
