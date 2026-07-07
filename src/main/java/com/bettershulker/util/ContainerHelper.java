@@ -298,36 +298,20 @@ public final class ContainerHelper {
         var item = stack.getItem();
         String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
-        if (itemPath.contains("sword")
-                || itemPath.contains("bow")
-                || itemPath.contains("trident")) {
-            return "1_weapon";
-        }
-        if (itemPath.contains("helmet")
-                || itemPath.contains("chestplate")
-                || itemPath.contains("leggings")
-                || itemPath.contains("boots")) {
-            return "2_armor";
-        }
-        if (itemPath.contains("pickaxe")
-                || itemPath.contains("axe")
-                || itemPath.contains("shovel")
-                || itemPath.contains("hoe")
-                || itemPath.contains("shears")
-                || itemPath.contains("flint_and_steel")
-                || itemPath.contains("brush")
-                || itemPath.contains("fishing_rod")
-                || itemPath.contains("compass")
-                || itemPath.contains("clock")) {
-            return "3_tool";
-        }
-        if (stack.has(net.minecraft.core.component.DataComponents.FOOD)) {
-            return "4_food";
-        }
-        if (item instanceof net.minecraft.world.item.BlockItem) {
-            return "5_block";
-        }
+        if (containsAny(itemPath, "sword", "bow", "trident")) return "1_weapon";
+        if (containsAny(itemPath, "helmet", "chestplate", "leggings", "boots")) return "2_armor";
+        if (containsAny(itemPath, "pickaxe", "axe", "shovel", "hoe", "shears", "flint_and_steel", "brush",
+                "fishing_rod", "compass", "clock")) return "3_tool";
+        if (stack.has(net.minecraft.core.component.DataComponents.FOOD)) return "4_food";
+        if (item instanceof net.minecraft.world.item.BlockItem) return "5_block";
         return "6_other";
+    }
+
+    private static boolean containsAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) return true;
+        }
+        return false;
     }
 
     // =========================================================================
@@ -439,151 +423,43 @@ public final class ContainerHelper {
         var item = stack.getItem();
         String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
-        // 1. Valuables & Gems
-        if (itemPath.contains("diamond")
-                || itemPath.contains("emerald")
-                || itemPath.contains("nether_star")
-                || itemPath.contains("amethyst_shard")) {
+        if (containsAny(itemPath, "diamond", "emerald", "nether_star", "amethyst_shard")) {
             return isInsert ? SoundEvents.AMETHYST_CLUSTER_PLACE : SoundEvents.AMETHYST_CLUSTER_HIT;
         }
-
-        // 2. Magic & Cosmic
-        if (itemPath.contains("ender")
-                || itemPath.contains("eye")
-                || itemPath.contains("totem")
-                || itemPath.contains("echo_shard")
-                || itemPath.contains("beacon")
-                || itemPath.contains("nether_brick")
-                || itemPath.contains("quartz")) {
+        if (containsAny(itemPath, "ender", "eye", "totem", "echo_shard", "beacon", "nether_brick", "quartz")) {
             return isInsert ? SoundEvents.AMETHYST_BLOCK_CHIME : SoundEvents.AMETHYST_BLOCK_HIT;
         }
-
-        // 3. Glass & Crystals
-        if (itemPath.contains("glass")
-                || itemPath.contains("glowstone")
-                || itemPath.contains("lantern")
-                || itemPath.contains("spyglass")
-                || itemPath.contains("amethyst_cluster")
-                || itemPath.contains("amethyst_bud")) {
+        if (containsAny(itemPath, "glass", "glowstone", "lantern", "spyglass", "amethyst_cluster", "amethyst_bud")) {
             return isInsert ? SoundEvents.GLASS_PLACE : SoundEvents.GLASS_HIT;
         }
-
-        // 4. Liquids & Fluids (Potions, Splash Potions, Buckets of Fluid, Bottles)
-        if (itemPath.contains("potion")
-                || itemPath.contains("bottle")
-                || itemPath.contains("bucket_of")
-                || itemPath.contains("milk_bucket")
-                || itemPath.contains("honey_bottle")
-                || itemPath.contains("dragon_breath")) {
+        if (containsAny(itemPath, "potion", "bottle", "bucket_of", "milk_bucket", "honey_bottle", "dragon_breath")) {
             return isInsert ? SoundEvents.BOTTLE_FILL : SoundEvents.BOTTLE_EMPTY;
         }
-
-        // 5. Weapons, Combat & Armor
-        if (itemPath.contains("sword")
-                || itemPath.contains("bow")
-                || itemPath.contains("crossbow")
-                || itemPath.contains("shield")
-                || itemPath.contains("trident")
-                || itemPath.contains("helmet")
-                || itemPath.contains("chestplate")
-                || itemPath.contains("leggings")
-                || itemPath.contains("boots")
-                || itemPath.contains("arrow")
-                || itemPath.contains("horse_armor")) {
+        if (containsAny(itemPath, "sword", "bow", "crossbow", "shield", "trident", "helmet", "chestplate",
+                "leggings", "boots", "arrow", "horse_armor")) {
             return isInsert ? SoundEvents.ARMOR_EQUIP_IRON.value() : SoundEvents.ARMOR_EQUIP_CHAIN.value();
         }
-
-        // 6. Metals & Ingots
-        if (itemPath.contains("iron")
-                || itemPath.contains("gold")
-                || itemPath.contains("netherite")
-                || itemPath.contains("copper")
-                || itemPath.contains("metal")
-                || itemPath.contains("chain")
-                || itemPath.contains("bucket")
-                || itemPath.contains("anvil")
-                || itemPath.contains("rail")
-                || itemPath.contains("minecart")) {
+        if (containsAny(itemPath, "iron", "gold", "netherite", "copper", "metal", "chain", "bucket", "anvil",
+                "rail", "minecart")) {
             return isInsert ? SoundEvents.METAL_PLACE : SoundEvents.METAL_HIT;
         }
-
-        // 7. Heavy Blocks & Stone
-        if (itemPath.contains("stone")
-                || itemPath.contains("cobblestone")
-                || itemPath.contains("obsidian")
-                || itemPath.contains("deepslate")
-                || itemPath.contains("brick")
-                || itemPath.contains("granite")
-                || itemPath.contains("diorite")
-                || itemPath.contains("andesite")
-                || itemPath.contains("sandstone")
-                || itemPath.contains("basalt")
-                || itemPath.contains("ore")) {
+        if (containsAny(itemPath, "stone", "cobblestone", "obsidian", "deepslate", "brick", "granite", "diorite",
+                "andesite", "sandstone", "basalt", "ore")) {
             return isInsert ? SoundEvents.STONE_PLACE : SoundEvents.STONE_HIT;
         }
-
-        // 8. Wood & Timber
-        if (itemPath.contains("wood")
-                || itemPath.contains("plank")
-                || itemPath.contains("log")
-                || itemPath.contains("stick")
-                || itemPath.contains("door")
-                || itemPath.contains("fence")
-                || itemPath.contains("chest")
-                || itemPath.contains("sign")
-                || itemPath.contains("boat")
-                || itemPath.contains("sapling")
-                || itemPath.contains("crafting_table")) {
+        if (containsAny(itemPath, "wood", "plank", "log", "stick", "door", "fence", "chest", "sign", "boat",
+                "sapling", "crafting_table")) {
             return isInsert ? SoundEvents.WOOD_PLACE : SoundEvents.WOOD_HIT;
         }
-
-        // 9. Ground & Earth (Sand, Gravel, Dirt, Snow)
-        if (itemPath.contains("sand")
-                || itemPath.contains("gravel")
-                || itemPath.contains("dirt")
-                || itemPath.contains("clay")
-                || itemPath.contains("snow")
-                || itemPath.contains("mud")
-                || itemPath.contains("soul_sand")
-                || itemPath.contains("mycelium")
-                || itemPath.contains("podzol")) {
+        if (containsAny(itemPath, "sand", "gravel", "dirt", "clay", "snow", "mud", "soul_sand", "mycelium", "podzol")) {
             return isInsert ? SoundEvents.SAND_PLACE : SoundEvents.SAND_HIT;
         }
-
-        // 10. Soft & Organic & Food
-        if (itemPath.contains("seed")
-                || itemPath.contains("crop")
-                || itemPath.contains("wheat")
-                || itemPath.contains("carrot")
-                || itemPath.contains("potato")
-                || itemPath.contains("apple")
-                || itemPath.contains("food")
-                || itemPath.contains("leaf")
-                || itemPath.contains("leaves")
-                || itemPath.contains("paper")
-                || itemPath.contains("wool")
-                || itemPath.contains("leather")
-                || itemPath.contains("feather")
-                || itemPath.contains("egg")
-                || itemPath.contains("string")
-                || itemPath.contains("flower")
-                || itemPath.contains("grass")
-                || itemPath.contains("sugar_cane")
-                || itemPath.contains("bamboo")
-                || itemPath.contains("bread")
-                || itemPath.contains("cookie")
-                || itemPath.contains("beef")
-                || itemPath.contains("pork")
-                || itemPath.contains("chicken")
-                || itemPath.contains("mutton")
-                || itemPath.contains("rabbit")
-                || itemPath.contains("fish")
-                || itemPath.contains("stew")) {
+        if (containsAny(itemPath, "seed", "crop", "wheat", "carrot", "potato", "apple", "food", "leaf", "leaves",
+                "paper", "wool", "leather", "feather", "egg", "string", "flower", "grass", "sugar_cane",
+                "bamboo", "bread", "cookie", "beef", "pork", "chicken", "mutton", "rabbit", "fish", "stew")) {
             return isInsert ? SoundEvents.BUNDLE_INSERT : SoundEvents.BUNDLE_DROP_CONTENTS;
         }
-
-        // 11. Fallback
-        return isInsert ? SoundEvents.ITEM_PICKUP : SoundEvents.ITEM_PICKUP;
+        return SoundEvents.ITEM_PICKUP;
     }
 
     // =========================================================================
