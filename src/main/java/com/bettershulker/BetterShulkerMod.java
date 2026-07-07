@@ -276,10 +276,8 @@ public class BetterShulkerMod {
                     soundStack = extracted;
                     if (inventorySlotId >= 0 && inventorySlotId < player.containerMenu.slots.size()) {
                         // Extract to specific inventory slot (merge)
-                        Slot invSlot = player.containerMenu.slots.get(inventorySlotId);
-                        if (!(invSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                            LOGGER.warn("[BetterShulker] Player {} tried slot extraction on a non-player-inventory slot: {}",
-                                    player.getName().getString(), inventorySlotId);
+                        Slot invSlot = getPlayerInventorySlot(player, inventorySlotId, "slot extraction");
+                        if (invSlot == null) {
                             contents.set(targetIndex, extracted);
                             return;
                         }
@@ -348,13 +346,8 @@ public class BetterShulkerMod {
                         }
                     }
                 } else {
-                    if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                    net.minecraft.world.inventory.Slot invSlot = player.containerMenu.slots.get(inventorySlotId);
-                    if (!(invSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                        LOGGER.warn("[BetterShulker] Player {} tried slot sweep extraction on a non-player-inventory slot: {}",
-                                player.getName().getString(), inventorySlotId);
-                        return;
-                    }
+                    Slot invSlot = getPlayerInventorySlot(player, inventorySlotId, "slot sweep extraction");
+                    if (invSlot == null) return;
                     ItemStack invStack = invSlot.getItem();
                     if (invStack.isEmpty()) {
                         ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
