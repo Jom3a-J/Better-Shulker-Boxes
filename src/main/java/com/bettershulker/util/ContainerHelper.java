@@ -13,6 +13,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.Slot;
 
 /**
  * Central utility class for all container-related operations in Better Shulker.
@@ -83,6 +84,11 @@ public final class ContainerHelper {
      */
     public static boolean isContainer(ItemStack stack) {
         return isShulkerBox(stack) || isEnderChest(stack);
+    }
+
+    public static boolean isPlayerInventorySlot(Slot slot, int slotLimit) {
+        return slot.container instanceof net.minecraft.world.entity.player.Inventory
+                && slot.getContainerSlot() < slotLimit;
     }
 
     // =========================================================================
@@ -590,7 +596,7 @@ public final class ContainerHelper {
     public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots) {
         boolean success = false;
         for (net.minecraft.world.inventory.Slot slot : slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 9) {
+            if (isPlayerInventorySlot(slot, 9)) {
                 ItemStack hotbarStack = slot.getItem();
                 if (hotbarStack.isEmpty()) continue;
                 int maxStack = hotbarStack.getMaxStackSize();
@@ -645,7 +651,7 @@ public final class ContainerHelper {
 
         if (!distinctTypes.isEmpty()) {
             for (net.minecraft.world.inventory.Slot slot : slots) {
-                if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+                if (isPlayerInventorySlot(slot, 36)) {
                     if (slot.index == containerSlotId) continue;
 
                     ItemStack invStack = slot.getItem();

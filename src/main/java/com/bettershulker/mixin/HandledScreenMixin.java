@@ -971,7 +971,7 @@ public abstract class HandledScreenMixin extends Screen {
         // Build virtual inventory state map for player inventory slots
         java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
         for (Slot slot : self.getMenu().slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+            if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                 virtualInv.put(slot.index, slot.getItem().copy());
             }
         }
@@ -1012,7 +1012,7 @@ public abstract class HandledScreenMixin extends Screen {
         // Build virtual inventory state map for player inventory slots
         java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
         for (Slot slot : self.getMenu().slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+            if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                 virtualInv.put(slot.index, slot.getItem().copy());
             }
         }
@@ -1065,7 +1065,7 @@ public abstract class HandledScreenMixin extends Screen {
                 containerStack = self.getMenu().slots.get(containerSlotId).getItem();
             } else if (containerSlotId == -2) {
                 for (Slot slot : self.getMenu().slots) {
-                    if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+                    if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                         if (ContainerHelper.isEnderChest(slot.getItem())) {
                             containerStack = slot.getItem();
                             break;
