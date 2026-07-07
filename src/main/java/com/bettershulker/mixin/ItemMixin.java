@@ -106,8 +106,7 @@ public abstract class ItemMixin {
                         ItemStack extracted = enderInv.removeItemNoUpdate(extractionIndex);
                         slot.set(extracted);
 
-                        // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, extracted, false);
                         ci.setReturnValue(true);
                     }
@@ -134,8 +133,7 @@ public abstract class ItemMixin {
                     if (invStack.getCount() != slotStack.getCount()) {
                         slot.set(invStack);
 
-                        // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, invStack, true);
                         ci.setReturnValue(true);
                     }
@@ -214,8 +212,7 @@ public abstract class ItemMixin {
                     if (invStack.getCount() != other.getCount()) {
                         slotAccess.set(invStack);
 
-                        // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, other, true);
                         ci.setReturnValue(true);
                     }
@@ -229,6 +226,11 @@ public abstract class ItemMixin {
     // =========================================================================
     //  Private Helpers
     // =========================================================================
+
+    @org.spongepowered.asm.mixin.Unique
+    private void bettershulker$syncEnderChest(ServerPlayer player) {
+        PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
+    }
 
     @org.spongepowered.asm.mixin.Unique
     private ItemStack bettershulker$insertIntoEnderChest(ServerPlayer player, ItemStack stack) {
