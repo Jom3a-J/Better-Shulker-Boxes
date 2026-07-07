@@ -415,6 +415,11 @@ public class BetterShulkerMod {
                 && target.getCount() < target.getMaxStackSize();
     }
 
+    private static boolean hasStackChanged(ItemStack current, ItemStack previous) {
+        return !ItemStack.isSameItemSameComponents(current, previous)
+                || current.getCount() != previous.getCount();
+    }
+
     private static NonNullList<ItemStack> copyEnderChestContents(ServerPlayer player) {
         var enderInv = player.getEnderChestInventory();
         NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
@@ -688,8 +693,7 @@ public class BetterShulkerMod {
             ItemStack currentStack = enderInv.getItem(i);
             ItemStack lastStack = lastState.get(i);
 
-            // Compare stacks
-            if (isFullSync || !ItemStack.isSameItemSameComponents(currentStack, lastStack) || currentStack.getCount() != lastStack.getCount()) {
+            if (isFullSync || hasStackChanged(currentStack, lastStack)) {
                 diffs.add(new EnderChestSyncPayload.EnderChestDiff(i, currentStack.copy()));
                 lastState.set(i, currentStack.copy());
             }
