@@ -285,8 +285,7 @@ public class BetterShulkerMod {
                         if (invStack.isEmpty()) {
                             invSlot.set(extracted);
                             success = true;
-                        } else if (ItemStack.isSameItemSameComponents(invStack, extracted)
-                                && invStack.getCount() < invStack.getMaxStackSize()) {
+                        } else if (canMergeInto(invStack, extracted)) {
                             invStack.grow(1);
                             success = true;
                         } else {
@@ -297,8 +296,7 @@ public class BetterShulkerMod {
                     } else if (cursorStack.isEmpty()) {
                         player.containerMenu.setCarried(extracted);
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(cursorStack, extracted)
-                            && cursorStack.getCount() < cursorStack.getMaxStackSize()) {
+                    } else if (canMergeInto(cursorStack, extracted)) {
                         cursorStack.grow(1);
                         success = true;
                     } else {
@@ -333,7 +331,7 @@ public class BetterShulkerMod {
                         ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
                         player.containerMenu.setCarried(extracted);
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(cursorStack, shulkerStack)) {
+                    } else if (canMergeInto(cursorStack, shulkerStack)) {
                         int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
                         if (canFit > 0) {
                             ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
@@ -353,7 +351,7 @@ public class BetterShulkerMod {
                         ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
                         invSlot.set(extracted);
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(invStack, shulkerStack)) {
+                    } else if (canMergeInto(invStack, shulkerStack)) {
                         int canFit = invStack.getMaxStackSize() - invStack.getCount();
                         if (canFit > 0) {
                             ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
@@ -411,6 +409,12 @@ public class BetterShulkerMod {
         return slot;
     }
 
+    private static boolean canMergeInto(ItemStack target, ItemStack source) {
+        return !target.isEmpty()
+                && ItemStack.isSameItemSameComponents(target, source)
+                && target.getCount() < target.getMaxStackSize();
+    }
+
     private static NonNullList<ItemStack> copyEnderChestContents(ServerPlayer player) {
         var enderInv = player.getEnderChestInventory();
         NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
@@ -450,7 +454,7 @@ public class BetterShulkerMod {
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, cursorStack)) {
+                    if (canMergeInto(existing, cursorStack)) {
                         int canFit = existing.getMaxStackSize() - existing.getCount();
                         int toInsert = Math.min(canFit, cursorStack.getCount());
                         if (toInsert > 0) {
@@ -488,12 +492,10 @@ public class BetterShulkerMod {
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, singleItem)) {
-                        if (existing.getCount() < existing.getMaxStackSize()) {
-                            existing.grow(1);
-                            inserted = true;
-                            break;
-                        }
+                    if (canMergeInto(existing, singleItem)) {
+                        existing.grow(1);
+                        inserted = true;
+                        break;
                     }
                 }
 
@@ -536,8 +538,7 @@ public class BetterShulkerMod {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
                     }
                     success = true;
-                } else if (ItemStack.isSameItemSameComponents(cursorStack, extracted)
-                        && cursorStack.getCount() < cursorStack.getMaxStackSize()) {
+                } else if (canMergeInto(cursorStack, extracted)) {
                     cursorStack.grow(1);
                     slotStack.shrink(1);
                     if (slotStack.isEmpty()) {
@@ -557,7 +558,7 @@ public class BetterShulkerMod {
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
+                    if (canMergeInto(existing, invStack)) {
                         int canFit = existing.getMaxStackSize() - existing.getCount();
                         int toInsert = Math.min(canFit, invStack.getCount());
                         if (toInsert > 0) {
@@ -599,7 +600,7 @@ public class BetterShulkerMod {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
                         player.containerMenu.setCarried(shulkerStack.copy());
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(cursorStack, shulkerStack)) {
+                    } else if (canMergeInto(cursorStack, shulkerStack)) {
                         int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
                         int toAdd = Math.min(canFit, shulkerStack.getCount());
                         if (toAdd > 0) {
@@ -619,7 +620,7 @@ public class BetterShulkerMod {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
                         invSlot.set(shulkerStack.copy());
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(invStack, shulkerStack)) {
+                    } else if (canMergeInto(invStack, shulkerStack)) {
                         int canFit = invStack.getMaxStackSize() - invStack.getCount();
                         int toAdd = Math.min(canFit, shulkerStack.getCount());
                         if (toAdd > 0) {
