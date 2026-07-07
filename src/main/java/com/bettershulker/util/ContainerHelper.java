@@ -401,14 +401,6 @@ public final class ContainerHelper {
         return bestSlot;
     }
 
-    /**
-     * Maps DyeColor to the corresponding Shulker Box block/item.
-     */
-    public static net.minecraft.world.item.Item getShulkerBoxByColor(DyeColor color) {
-        if (color == null) return Items.SHULKER_BOX;
-        return Items.DYED_SHULKER_BOX.pick(color);
-    }
-
     // =========================================================================
     //  Contextual Sound Selection
     // =========================================================================
