@@ -12,6 +12,5 @@ pluginManagement {
 
 rootProject.name = 'better-shulker'
 
-include 'common'
 include 'fabric'
 include 'neoforge'

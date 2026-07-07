@@ -42,7 +42,6 @@ configurations {
 }
 
 dependencies {
-    implementation project(':common')
     implementation "net.neoforged:neoforge:${rootProject.neo_version}"
     implementation "me.shedaniel.cloth:cloth-config-neoforge:${rootProject.cloth_config_version}"
 }
@@ -62,10 +61,6 @@ tasks.withType(ProcessResources).configureEach {
     filesMatching(['META-INF/neoforge.mods.toml']) {
         expand replaceProperties
     }
-}
-
-jar {
-    from(project(':common').sourceSets.main.output)
 }
 
 tasks.withType(JavaCompile).configureEach {

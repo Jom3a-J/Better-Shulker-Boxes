@@ -34,7 +34,6 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
-    implementation project(':common')
     minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
@@ -49,6 +48,3 @@ processResources {
     }
 }
 
-jar {
-    from(project(':common').sourceSets.main.output)
-}
