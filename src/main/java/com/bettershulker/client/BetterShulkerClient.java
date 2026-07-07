@@ -9,6 +9,8 @@ import com.bettershulker.util.ContainerHelper;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.ChatFormatting;
@@ -78,6 +80,7 @@ public class BetterShulkerClient {
     private static int lastMouseX = 0;
     private static int lastMouseY = 0;
     private static long lastEnderChestRequestTime = 0;
+    private static boolean wirelessEnderChestKeyWasDown = false;
     private static final long ENDER_CHEST_REQUEST_COOLDOWN_MS = 500;
 
     // =========================================================================
@@ -199,20 +202,18 @@ public class BetterShulkerClient {
                 }
             }
         }
-        while (wirelessEnderChestKey != null && wirelessEnderChestKey.consumeClick()) {
-            if (client.gui.screen() == null && client.player != null) {
-                if (bettershulker$hasEnderChestInInventory(client.player)) {
-                    try {
-                        client.setScreenAndShow(new WirelessEnderChestScreen());
-                    } catch (Exception e) {
-                        BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
-                    }
-                } else {
-                    client.gui.hud.setOverlayMessage(
-                        Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
-                        false
-                    );
+        if (consumeWirelessEnderChestKeyPress() && canOpenWirelessEnderChest(client.gui.screen()) && client.player != null) {
+            if (bettershulker$hasEnderChestInInventory(client.player)) {
+                try {
+                    client.setScreenAndShow(new WirelessEnderChestScreen());
+                } catch (Exception e) {
+                    BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
                 }
+            } else {
+                client.gui.hud.setOverlayMessage(
+                    Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
+                    false
+                );
             }
         }
     }
@@ -358,6 +359,27 @@ public class BetterShulkerClient {
         return showFullTooltipKey;
     }
 
+    private static boolean consumeWirelessEnderChestKeyPress() {
+        if (wirelessEnderChestKey == null) {
+            wirelessEnderChestKeyWasDown = false;
+            return false;
+        }
+
+        boolean clicked = false;
+        while (wirelessEnderChestKey.consumeClick()) {
+            clicked = true;
+        }
+
+        boolean down = isKeyHeld(wirelessEnderChestKey);
+        boolean pressed = down && !wirelessEnderChestKeyWasDown;
+        wirelessEnderChestKeyWasDown = down;
+        return clicked || pressed;
+    }
+
+    private static boolean canOpenWirelessEnderChest(Screen currentScreen) {
+        return currentScreen == null || currentScreen instanceof AbstractContainerScreen<?>;
+    }
+
     public static boolean isKeyHeld(KeyMapping key) {
         if (key == null || key.isUnbound()) return false;
         try {
@@ -435,6 +457,7 @@ public class BetterShulkerClient {
         selectedSlotIndex = 0;
         tooltipActive = false;
         lastEnderChestRequestTime = 0;
+        wirelessEnderChestKeyWasDown = false;
         hoveredTooltipSlotIndex = -1;
         activeContainerStack = ItemStack.EMPTY;
         filterItemStack = ItemStack.EMPTY;
