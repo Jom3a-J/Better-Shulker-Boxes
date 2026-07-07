@@ -63,6 +63,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private static final Identifier SHULKER_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
     private static final Identifier GENERIC_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
+    private static final int ENDER_ACCENT_COLOR = 0xFF00E6C8;
+    private static final int ENDER_PURPLE_COLOR = 0xFF34104E;
+    private static final int ENDER_DARK_COLOR = 0xFF06120F;
 
     /** Crop selected so vanilla shulker slots line up at y=7 inside our compact preview. */
     private static final float PANEL_TEXTURE_U = 0.0F;
@@ -246,6 +249,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
         if (!this.compactMode) {
             drawThemeOverlay(context, panelX, panelY);
+            drawEnderChestAccents(context, panelX, panelY);
         }
 
         int hoveredSlot = updateHoveredSlot(panelX, panelY);
@@ -533,6 +537,23 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private void drawEnderChestAccents(GuiGraphicsExtractor context, int panelX, int panelY) {
+        if (!this.isEnderChest || this.resourcePackOverridesPanel || isGlassTheme()) {
+            return;
+        }
+
+        int accent = withAlpha(ENDER_ACCENT_COLOR, 165);
+        int soft = withAlpha(ENDER_ACCENT_COLOR, 42);
+        int purple = withAlpha(ENDER_PURPLE_COLOR, 75);
+        context.fill(panelX + 5, panelY + 4, panelX + PANEL_WIDTH - 5, panelY + 5, soft);
+        context.fill(panelX + 5, panelY + PANEL_HEIGHT - 5, panelX + PANEL_WIDTH - 5, panelY + PANEL_HEIGHT - 4, soft);
+        context.fill(panelX + 4, panelY + 5, panelX + 5, panelY + PANEL_HEIGHT - 5, soft);
+        context.fill(panelX + PANEL_WIDTH - 5, panelY + 5, panelX + PANEL_WIDTH - 4, panelY + PANEL_HEIGHT - 5, soft);
+        context.fill(panelX + 8, panelY + 6, panelX + 22, panelY + 7, accent);
+        context.fill(panelX + PANEL_WIDTH - 22, panelY + 6, panelX + PANEL_WIDTH - 8, panelY + 7, accent);
+        context.fill(panelX + PANEL_WIDTH / 2 - 12, panelY + 5, panelX + PANEL_WIDTH / 2 + 12, panelY + 6, purple);
     }
 
     private void drawThemeOverlay(GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -1059,7 +1080,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             select = 0xFFFFD700;
         }
 
-        switch (BetterShulkerConfig.getTooltipTheme()) {
+        BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
+        switch (theme) {
             case ORIGINAL -> {
                 // Keep container/ender derived defaults.
             }
@@ -1123,6 +1145,15 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 match = 0xFFA0FFA0;
                 shadow = 0x80FFFFFF;
             }
+        }
+
+        if (this.isEnderChest && theme != BetterShulkerConfig.TooltipTheme.CUSTOM) {
+            baseBorder = blendColor(baseBorder, ENDER_ACCENT_COLOR, 0.48f);
+            baseTint = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.35f), 112);
+            badgeBg = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.45f), 230);
+            select = ENDER_ACCENT_COLOR;
+            multi = 0xFFB35CFF;
+            match = 0xFF50FFB8;
         }
 
         return new ThemePalette(baseBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);
