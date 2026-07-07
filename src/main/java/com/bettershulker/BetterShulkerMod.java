@@ -6,6 +6,7 @@ import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -401,7 +402,7 @@ public class BetterShulkerMod {
         }
 
         Slot slot = player.containerMenu.slots.get(slotId);
-        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+        if (!(slot.container instanceof Inventory)) {
             LOGGER.warn("[BetterShulker] Player {} tried {} on a non-player-inventory slot: {}",
                     player.getName().getString(), actionDescription, slotId);
             return null;

@@ -12,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 
@@ -87,7 +88,7 @@ public final class ContainerHelper {
     }
 
     public static boolean isPlayerInventorySlot(Slot slot, int slotLimit) {
-        return slot.container instanceof net.minecraft.world.entity.player.Inventory
+        return slot.container instanceof Inventory
                 && slot.getContainerSlot() < slotLimit;
     }
 
@@ -470,9 +471,9 @@ public final class ContainerHelper {
      * Pulls items from the player's hotbar slots and merges them into the container contents.
      * Returns true if any changes were made.
      */
-    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots) {
+    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<Slot> slots) {
         boolean success = false;
-        for (net.minecraft.world.inventory.Slot slot : slots) {
+        for (Slot slot : slots) {
             if (isPlayerInventorySlot(slot, 9)) {
                 ItemStack hotbarStack = slot.getItem();
                 if (hotbarStack.isEmpty()) continue;
@@ -508,7 +509,7 @@ public final class ContainerHelper {
      * Deposits items from player's inventory slots (0..35) that match item types already in the container.
      * Returns true if any changes were made.
      */
-    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots, int containerSlotId) {
+    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<Slot> slots, int containerSlotId) {
         boolean success = false;
         java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
         for (ItemStack boxStack : contents) {
@@ -518,7 +519,7 @@ public final class ContainerHelper {
         }
 
         if (!distinctTypes.isEmpty()) {
-            for (net.minecraft.world.inventory.Slot slot : slots) {
+            for (Slot slot : slots) {
                 if (isPlayerInventorySlot(slot, 36)) {
                     if (slot.index == containerSlotId) continue;
 

@@ -7,6 +7,7 @@ import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickAction;
 import net.minecraft.world.inventory.Slot;
@@ -181,7 +182,7 @@ public abstract class ItemMixin {
         if (!ContainerHelper.isContainer(stack)) {
             return false;
         }
-        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+        if (!(slot.container instanceof Inventory)) {
             return false;
         }
         return player.level().isClientSide()

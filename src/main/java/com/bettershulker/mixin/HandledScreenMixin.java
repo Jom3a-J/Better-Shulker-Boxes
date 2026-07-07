@@ -19,6 +19,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
@@ -923,7 +924,7 @@ public abstract class HandledScreenMixin extends Screen {
     private int bettershulker$findVirtualInventorySlot(NonNullList<Slot> slots, ItemStack stack, java.util.Map<Integer, ItemStack> virtualInv) {
         // First pass: try to merge with existing slots that have room
         for (Slot slot : slots) {
-            if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)
+            if (!(slot.container instanceof Inventory)
                 || slot.getContainerSlot() >= 36) continue;
             
             ItemStack virtualStack = virtualInv.get(slot.index);
@@ -945,7 +946,7 @@ public abstract class HandledScreenMixin extends Screen {
 
         // Second pass: put into the first empty slot
         for (Slot slot : slots) {
-            if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)
+            if (!(slot.container instanceof Inventory)
                 || slot.getContainerSlot() >= 36) continue;
             
             ItemStack virtualStack = virtualInv.get(slot.index);
@@ -1175,7 +1176,7 @@ public abstract class HandledScreenMixin extends Screen {
             case SWEEP_INSERT -> {
                 if (inventorySlotId < 0 || inventorySlotId >= self.getMenu().slots.size()) return;
                 Slot targetSlot = self.getMenu().slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) return;
+                if (!(targetSlot.container instanceof Inventory)) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 ItemStack remainder = ContainerHelper.tryInsert(contents, invStack.copy(), false);
@@ -1320,7 +1321,7 @@ public abstract class HandledScreenMixin extends Screen {
             case SWEEP_INSERT -> {
                 if (inventorySlotId < 0 || inventorySlotId >= self.getMenu().slots.size()) return;
                 Slot targetSlot = self.getMenu().slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) return;
+                if (!(targetSlot.container instanceof Inventory)) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 for (int i = 0; i < contents.size(); i++) {
