@@ -12,11 +12,6 @@ import net.minecraft.world.inventory.ClickAction;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.DyeColor;
-
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -142,30 +137,7 @@ public abstract class ItemMixin {
 
         if (ContainerHelper.isShulkerBox(stack)) {
             if (!other.isEmpty()) {
-                // 1. If carried item is a Dye, perform dyeing instead of insertion!
-                DyeColor dyeColor = other.get(DataComponents.DYE);
-                if (dyeColor != null) {
-                    DyeColor currentColor = ContainerHelper.getShulkerColor(stack);
-                    if (currentColor != dyeColor) {
-                        // Create a dyed shulker box preserving the count
-                        ItemStack newShulker = new ItemStack(ContainerHelper.getShulkerBoxByColor(dyeColor), stack.getCount());
-                        newShulker.applyComponents(stack.getComponents());
-
-                        // Set the slot stack to the new dyed shulker box
-                        slot.set(newShulker);
-
-                        // Consume exactly 1 dye from the cursor stack
-                        other.shrink(1);
-
-                        // Play a satisfying dye sound!
-                        player.level().playSound(player, player.getX(), player.getY(), player.getZ(), SoundEvents.DYE_USE, SoundSource.PLAYERS, 1.0F, 1.0F);
-
-                        ci.setReturnValue(true);
-                        return;
-                    }
-                }
-
-                // 2. Otherwise, insert carried item into Shulker Box (vanilla bundle style)
+                // Insert carried item into Shulker Box (vanilla bundle style)
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
                 int originalCount = other.getCount();
                 ItemStack remainder = ContainerHelper.tryInsert(contents, other, false);
