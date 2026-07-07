@@ -311,13 +311,8 @@ public class BetterShulkerMod {
                 }
             }
             case SWEEP_INSERT -> {
-                if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                net.minecraft.world.inventory.Slot targetSlot = player.containerMenu.slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                    LOGGER.warn("[BetterShulker] Player {} tried SWEEP_INSERT on a non-player-inventory slot: {}",
-                            player.getName().getString(), inventorySlotId);
-                    return;
-                }
+                Slot targetSlot = getPlayerInventorySlot(player, inventorySlotId, "SWEEP_INSERT");
+                if (targetSlot == null) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 int originalCount = invStack.getCount();
@@ -409,6 +404,20 @@ public class BetterShulkerMod {
     }
 
     // =========================================================================
+    private static Slot getPlayerInventorySlot(ServerPlayer player, int slotId, String actionDescription) {
+        if (slotId < 0 || slotId >= player.containerMenu.slots.size()) {
+            return null;
+        }
+
+        Slot slot = player.containerMenu.slots.get(slotId);
+        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
+            LOGGER.warn("[BetterShulker] Player {} tried {} on a non-player-inventory slot: {}",
+                    player.getName().getString(), actionDescription, slotId);
+            return null;
+        }
+        return slot;
+    }
+
     private static NonNullList<ItemStack> copyEnderChestContents(ServerPlayer player) {
         var enderInv = player.getEnderChestInventory();
         NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
@@ -545,13 +554,8 @@ public class BetterShulkerMod {
                 }
             }
             case SWEEP_INSERT -> {
-                if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                net.minecraft.world.inventory.Slot targetSlot = player.containerMenu.slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                    LOGGER.warn("[BetterShulker] Player {} tried SWEEP_INSERT on a non-player-inventory slot: {}",
-                            player.getName().getString(), inventorySlotId);
-                    return;
-                }
+                Slot targetSlot = getPlayerInventorySlot(player, inventorySlotId, "SWEEP_INSERT");
+                if (targetSlot == null) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 int originalCount = invStack.getCount();
@@ -615,13 +619,8 @@ public class BetterShulkerMod {
                         }
                     }
                 } else {
-                    if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                    net.minecraft.world.inventory.Slot invSlot = player.containerMenu.slots.get(inventorySlotId);
-                    if (!(invSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                        LOGGER.warn("[BetterShulker] Player {} tried ender chest slot sweep extraction on a non-player-inventory slot: {}",
-                                player.getName().getString(), inventorySlotId);
-                        return;
-                    }
+                    Slot invSlot = getPlayerInventorySlot(player, inventorySlotId, "ender chest slot sweep extraction");
+                    if (invSlot == null) return;
                     ItemStack invStack = invSlot.getItem();
                     if (invStack.isEmpty()) {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
