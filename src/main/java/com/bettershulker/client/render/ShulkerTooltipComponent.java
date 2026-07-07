@@ -545,15 +545,36 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
 
         int accent = withAlpha(ENDER_ACCENT_COLOR, 165);
+        int strongAccent = withAlpha(ENDER_ACCENT_COLOR, 215);
         int soft = withAlpha(ENDER_ACCENT_COLOR, 42);
         int purple = withAlpha(ENDER_PURPLE_COLOR, 75);
+        int bottomTint = withAlpha(ENDER_ACCENT_COLOR, 80);
+        int bottomLine = withAlpha(ENDER_ACCENT_COLOR, 190);
+        int capHeight = 7;
+        int capY = panelY + getPanelHeight() - capHeight;
+
         context.fill(panelX + 5, panelY + 4, panelX + PANEL_WIDTH - 5, panelY + 5, soft);
-        context.fill(panelX + 5, panelY + PANEL_HEIGHT - 5, panelX + PANEL_WIDTH - 5, panelY + PANEL_HEIGHT - 4, soft);
-        context.fill(panelX + 4, panelY + 5, panelX + 5, panelY + PANEL_HEIGHT - 5, soft);
-        context.fill(panelX + PANEL_WIDTH - 5, panelY + 5, panelX + PANEL_WIDTH - 4, panelY + PANEL_HEIGHT - 5, soft);
+        context.fill(panelX + 4, panelY + 5, panelX + 5, panelY + getPanelHeight() - 5, soft);
+        context.fill(panelX + PANEL_WIDTH - 5, panelY + 5, panelX + PANEL_WIDTH - 4, panelY + getPanelHeight() - 5, soft);
         context.fill(panelX + 8, panelY + 6, panelX + 22, panelY + 7, accent);
         context.fill(panelX + PANEL_WIDTH - 22, panelY + 6, panelX + PANEL_WIDTH - 8, panelY + 7, accent);
         context.fill(panelX + PANEL_WIDTH / 2 - 12, panelY + 5, panelX + PANEL_WIDTH / 2 + 12, panelY + 6, purple);
+
+        // Reuse the normal shulker panel's bottom cap pixels so the Ender Chest bottom edge
+        // has the same shape/thickness, then add a subtle Ender accent over that cap.
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                SHULKER_PANEL_TEXTURE,
+                panelX,
+                capY,
+                PANEL_TEXTURE_U,
+                PANEL_TEXTURE_V + PANEL_HEIGHT - capHeight,
+                PANEL_WIDTH,
+                capHeight,
+                256,
+                256,
+                0xFFFFFFFF);
+        context.fill(panelX + 7, capY + 1, panelX + PANEL_WIDTH - 7, capY + capHeight - 2, bottomTint);
+        context.fill(panelX + 8, capY + capHeight - 2, panelX + PANEL_WIDTH - 8, capY + capHeight - 1, bottomLine);
     }
 
     private void drawThemeOverlay(GuiGraphicsExtractor context, int panelX, int panelY) {
