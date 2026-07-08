@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
-import static com.bettershulker.client.render.ThemeColorUtil.getTextColorForBackground;
 import static com.bettershulker.client.render.ThemeColorUtil.normalizeOverlayAlpha;
 import static com.bettershulker.client.render.ThemeColorUtil.opaqueOrDefault;
 import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
@@ -37,8 +36,6 @@ import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
 public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private static final int SLOT_SIZE = 18;
-    private static final int COMPACT_SLOT_SIZE = 20;
-    private static final int COMPACT_ITEM_OFFSET = 2;
     private static final int GRID_COLS = 9;
     private static final int GRID_ROWS = 3;
     private static final int COMPACT_MAX_SLOTS = 5;
@@ -400,20 +397,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return blendColor(themeBase, containerColor, boxInfluence);
     }
 
-    private int getCompactPanelBorderColor() {
-        BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
-        int containerColor = getCompactContainerColor();
-        if (containerColor == 0 || theme == BetterShulkerConfig.TooltipTheme.HIGH_CONTRAST
-                || theme == BetterShulkerConfig.TooltipTheme.GLASS) {
-            return this.borderColor;
-        }
-        float boxInfluence = theme == BetterShulkerConfig.TooltipTheme.ORIGINAL ? 0.10f : 0.06f;
-        if (theme == BetterShulkerConfig.TooltipTheme.CUSTOM) {
-            boxInfluence = 0.04f;
-        }
-        return blendColor(this.borderColor, containerColor, boxInfluence);
-    }
-
     private int getCompactContainerColor() {
         if (this.isEnderChest) {
             return blendColor(ENDER_PURPLE_COLOR, ENDER_ACCENT_COLOR, 0.18f);
@@ -500,6 +483,44 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int softHighlight = withAlpha(blendColor(this.borderColor, 0xFFFFFFFF, 0.45f), 28);
         context.fill(panelX + 3, panelY + 3, panelX + w - 3, panelY + 5, softHighlight);
         context.fill(panelX + 3, panelY + 5, panelX + 5, panelY + h - 3, softHighlight);
+
+        if (this.isEnderChest) {
+            drawCompactEnderChestBottomCap(context, panelX, panelY);
+        }
+    }
+
+    private void drawCompactEnderChestBottomCap(GuiGraphicsExtractor context, int panelX, int panelY) {
+        int capHeight = 7;
+        int capY = panelY + getPanelHeight() - capHeight;
+        int leftW = SLOT_START_X;
+        int rightSourceX = SLOT_START_X + GRID_COLS * SLOT_SIZE;
+        int rightW = PANEL_WIDTH - rightSourceX;
+        int slotsW = this.displayCols * SLOT_SIZE;
+        int sourceY = Math.round(PANEL_TEXTURE_V) + PANEL_HEIGHT - capHeight;
+
+        blitCompactCapSlice(context, panelX, capY, 0, sourceY, leftW, capHeight);
+        blitCompactCapSlice(context, panelX + leftW, capY, SLOT_START_X, sourceY, slotsW, capHeight);
+        blitCompactCapSlice(context, panelX + leftW + slotsW, capY, rightSourceX, sourceY, rightW, capHeight);
+
+        int tint = withAlpha(ENDER_ACCENT_COLOR, 28);
+        context.fill(panelX + 7, capY + 1, panelX + getPanelWidth() - 7, capY + capHeight - 2, tint);
+        int rim = withAlpha(blendColor(ENDER_ACCENT_COLOR, this.panelShadowColor, 0.75f), 190);
+        context.fill(panelX + 6, capY + capHeight - 2, panelX + getPanelWidth() - 6, capY + capHeight - 1, rim);
+    }
+
+    private void blitCompactCapSlice(GuiGraphicsExtractor context, int x, int y, int u, int v, int w, int h) {
+        if (w <= 0 || h <= 0) return;
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                SHULKER_PANEL_TEXTURE,
+                x,
+                y,
+                (float) u,
+                (float) v,
+                w,
+                h,
+                256,
+                256,
+                0xFFFFFFFF);
     }
 
     private void drawGlassCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY, int w, int h, int compactBase) {
@@ -517,121 +538,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         drawRectFrame(context, panelX + 1, panelY + 1, w - 2, h - 2, edge);
     }
 
-    private void drawMiniFullCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY, int w, int h,
-                                          int baseColor, int borderColor) {
-        boolean glass = isGlassTheme();
-        if (glass) {
-            drawGlassCompactPanel(context, panelX, panelY, w, h, baseColor);
-            return;
-        }
-
-        int outer = blendColor(borderColor, this.panelShadowColor, 0.68f);
-        int face = blendColor(baseColor, this.panelShadowColor, 0.10f);
-        int body = withAlpha(borderColor, 34);
-        int highlight = withAlpha(blendColor(borderColor, 0xFFFFFFFF, 0.45f), 30);
-        int bottomShadow = withAlpha(blendColor(borderColor, this.panelShadowColor, 0.62f), 225);
-
-        // Mini full-tooltip shell: same dark rim + themed face/body as the full preview,
-        // only cropped around compact content instead of using the old compact box style.
-        context.fill(panelX, panelY, panelX + w, panelY + h, outer);
-        context.fill(panelX + 2, panelY + 2, panelX + w - 2, panelY + h - 1, face);
-        context.fill(panelX + 4, panelY + 4, panelX + w - 4, panelY + h - 4, body);
-        context.fill(panelX + 3, panelY + 3, panelX + w - 3, panelY + 5, highlight);
-        context.fill(panelX + 3, panelY + 5, panelX + 5, panelY + h - 3, highlight);
-        context.fill(panelX + 1, panelY + h - 2, panelX + w - 1, panelY + h, bottomShadow);
-        context.fill(panelX + w - 2, panelY + 2, panelX + w, panelY + h - 1, bottomShadow);
-        drawRectFrame(context, panelX + 1, panelY + 1, w - 2, h - 2, withAlpha(borderColor, 235));
-
-        drawMiniFullCompactTray(context, panelX, panelY, baseColor, borderColor);
-    }
-
-    private int getMiniFullTrayX(int panelX) {
-        return panelX + COMPACT_SLOT_START_X - 4;
-    }
-
-    private int getMiniFullTrayY(int panelY) {
-        return panelY + COMPACT_SLOT_START_Y - 4;
-    }
-
-    private int getMiniFullTrayWidth() {
-        return this.displayCols * COMPACT_SLOT_SIZE + 8;
-    }
-
-    private int getMiniFullTrayHeight() {
-        return this.displayRows * COMPACT_SLOT_SIZE + 8;
-    }
-
-    private void drawMiniFullCompactTray(GuiGraphicsExtractor context, int panelX, int panelY,
-                                         int baseColor, int borderColor) {
-        int trayX = getMiniFullTrayX(panelX);
-        int trayY = getMiniFullTrayY(panelY);
-        int trayW = getMiniFullTrayWidth();
-        int trayH = getMiniFullTrayHeight();
-        int rim = blendColor(0xFFD8D2DB, baseColor, 0.10f);
-        int rimDark = blendColor(0xFF5C5562, borderColor, 0.16f);
-        int trayFace = blendColor(baseColor, 0xFFFFFFFF, 0.07f);
-
-        context.fill(trayX, trayY, trayX + trayW, trayY + trayH, rimDark);
-        context.fill(trayX + 1, trayY + 1, trayX + trayW - 1, trayY + trayH - 1, rim);
-        context.fill(trayX + 4, trayY + 4, trayX + trayW - 4, trayY + trayH - 6, trayFace);
-        context.fill(trayX + 4, trayY + trayH - 6, trayX + trayW - 4, trayY + trayH - 3,
-                blendColor(0xFF8F8794, baseColor, 0.20f));
-    }
-
-    private void drawMiniFullCompactTrayBevel(GuiGraphicsExtractor context, int panelX, int panelY,
-                                              int baseColor, int borderColor) {
-        if (isGlassTheme()) return;
-        int trayX = getMiniFullTrayX(panelX);
-        int trayY = getMiniFullTrayY(panelY);
-        int trayW = getMiniFullTrayWidth();
-        int trayH = getMiniFullTrayHeight();
-        int rimDark = blendColor(0xFF5C5562, borderColor, 0.16f);
-
-        context.fill(trayX + 1, trayY + 1, trayX + trayW - 1, trayY + 3, 0xF2FFFFFF);
-        context.fill(trayX + 1, trayY + 3, trayX + 3, trayY + trayH - 1, 0xD8FFFFFF);
-        context.fill(trayX + 3, trayY + trayH - 4, trayX + trayW - 1, trayY + trayH - 1, withAlpha(rimDark, 230));
-        context.fill(trayX + trayW - 4, trayY + 3, trayX + trayW - 1, trayY + trayH - 2, withAlpha(rimDark, 220));
-        context.fill(trayX + 5, trayY + trayH - 5, trayX + trayW - 18, trayY + trayH - 3,
-                withAlpha(this.selectionColor, 230));
-    }
-
-    private void drawMiniFullCompactSlotCell(GuiGraphicsExtractor context, int slotX, int slotY, int baseColor,
-                                             int borderColor, int displayPos) {
-        if (isGlassTheme()) {
-            drawCompactSlotBackground(context, slotX, slotY, baseColor, borderColor);
-            return;
-        }
-        int size = COMPACT_SLOT_SIZE;
-        int face = blendColor(baseColor, borderColor, 0.07f);
-        int grid = blendColor(borderColor, this.panelShadowColor, 0.45f);
-        context.fill(slotX, slotY, slotX + size, slotY + size - 2, withAlpha(face, 246));
-        context.fill(slotX, slotY, slotX + 1, slotY + size - 2, withAlpha(grid, 180));
-        context.fill(slotX, slotY, slotX + size, slotY + 1, withAlpha(grid, 150));
-        if ((displayPos % this.displayCols) == this.displayCols - 1) {
-            context.fill(slotX + size - 1, slotY, slotX + size, slotY + size - 2, withAlpha(grid, 180));
-        }
-        if (displayPos / this.displayCols == this.displayRows - 1) {
-            context.fill(slotX, slotY + size - 2, slotX + size, slotY + size, withAlpha(grid, 180));
-        }
-    }
-
-    private void drawCompactSlotBackground(GuiGraphicsExtractor context, int slotX, int slotY, int baseColor, int borderColor) {
-        boolean lightBase = getTextColorForBackground(baseColor) == 0xFF373737;
-        int outer = withAlpha(blendColor(borderColor, baseColor, 0.32f), 216);
-        int inner = lightBase
-                ? withAlpha(blendColor(baseColor, 0xFFFFFFFF, 0.12f), 238)
-                : withAlpha(blendColor(baseColor, borderColor, 0.10f), 238);
-        int high = lightBase ? 0x80FFFFFF : withAlpha(blendColor(borderColor, 0xFFFFFFFF, 0.45f), 70);
-        int low = lightBase ? 0x44000000 : 0x70000000;
-        int size = COMPACT_SLOT_SIZE;
-        context.fill(slotX, slotY, slotX + size, slotY + size, outer);
-        context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, inner);
-        context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + 2, high);
-        context.fill(slotX + 1, slotY + 2, slotX + 2, slotY + size - 1, high);
-        context.fill(slotX + 1, slotY + size - 2, slotX + size - 1, slotY + size - 1, low);
-        context.fill(slotX + size - 2, slotY + 2, slotX + size - 1, slotY + size - 1, low);
-    }
-
     private String getCompactFullHintText() {
         String keyName = "V";
         if (BetterShulkerClient.getShowFullTooltipKey() != null) {
@@ -641,28 +547,15 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 keyName = "V";
             }
         }
-        return keyName + ": View full contents";
+        return keyName + ": Full contents";
     }
 
     private void drawCompactFullHint(Font font, GuiGraphicsExtractor context, int x, int y, int width) {
         String hint = getCompactFullHintText();
-        if (!this.resourcePackOverridesPanel) {
-            int barW = Math.max(getPanelWidth(), font.width(hint) + 12);
-            int barX = x + (width - barW) / 2;
-            int border = getCompactPanelBorderColor();
-            int bg = blendColor(border, this.panelShadowColor, 0.78f);
-            context.fill(barX, y, barX + barW, y + COMPACT_HINT_HEIGHT, bg);
-            context.fill(barX, y, barX + 1, y + COMPACT_HINT_HEIGHT, withAlpha(border, 170));
-            context.fill(barX + barW - 1, y, barX + barW, y + COMPACT_HINT_HEIGHT,
-                    withAlpha(blendColor(border, this.panelShadowColor, 0.55f), 210));
-            context.fill(barX, y, barX + barW, y + 1, withAlpha(border, 155));
-            context.fill(barX, y + COMPACT_HINT_HEIGHT - 1, barX + barW, y + COMPACT_HINT_HEIGHT,
-                    withAlpha(this.panelShadowColor, 225));
-        }
         int textX = x + Math.max(4, (width - font.width(hint)) / 2);
         int textY = y + 3;
         context.text(font, Component.literal(hint), textX + 1, textY + 1, 0xAA000000);
-        context.text(font, Component.literal(hint), textX, textY, withAlpha(this.textColor, 210));
+        context.text(font, Component.literal(hint), textX, textY, 0xFFFFD700);
     }
 
     private int getPanelWidth() {

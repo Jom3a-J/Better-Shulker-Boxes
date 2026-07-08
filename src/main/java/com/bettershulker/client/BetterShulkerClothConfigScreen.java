@@ -93,12 +93,11 @@ public final class BetterShulkerClothConfigScreen {
         int nameY = panelY + fullH + 14;
         drawSelectedNamePreview(graphics, font, colors, x, w, nameY, nameText);
 
-        int compactW = 14 + 5 * 20;
-        int compactH = 14 + 20;
+        int compactW = 14 + 5 * 18;
+        int compactH = 14 + 18;
         int compactX = x + (w - compactW) / 2;
         int compactY = nameY + 34;
-        drawCompactThemePreview(graphics, colors, compactX, compactY, compactW, compactH, sel);
-        graphics.text(font, text("64"), compactX + 9, compactY + 18, 0xFFFFFFFF);
+        drawCompactThemePreview(graphics, font, colors, compactX, compactY, compactW, compactH, sel);
     }
 
     private static void drawFullThemePreviewPanel(GuiGraphicsExtractor graphics, PreviewColors colors,
@@ -168,36 +167,94 @@ public final class BetterShulkerClothConfigScreen {
         graphics.text(font, text(name), nameX + 6, y + 3, nameText);
     }
 
-    private static void drawCompactThemePreview(GuiGraphicsExtractor graphics, PreviewColors colors,
+    private static void drawCompactThemePreview(GuiGraphicsExtractor graphics, Font font, PreviewColors colors,
                                                 int x, int y, int panelW, int panelH, int sel) {
         int compactBase = colors.compactBase();
         boolean glass = colors.glassCompact();
-        int bg = glass ? withAlpha(compactBase, 170) : blendColor(compactBase, 0xFF000000, 0.16f);
-        int face = glass ? withAlpha(blendColor(compactBase, 0xFFFFFFFF, 0.18f), 92)
-                : blendColor(compactBase, 0xFFFFFFFF, 0.10f);
-        int edge = withAlpha(colors.border(), 245);
-        int light = withAlpha(blendColor(colors.border(), 0xFFFFFFFF, 0.50f), 120);
-        int shadow = withAlpha(blendColor(colors.border(), 0xFF000000, 0.55f), 170);
 
-        // Match ShulkerTooltipComponent.drawCompactPanel for the compact preview.
-        graphics.fill(x, y, x + panelW, y + panelH, bg);
-        graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, face);
-        graphics.fill(x, y, x + panelW, y + 1, light);
-        graphics.fill(x, y + 1, x + 1, y + panelH, light);
-        graphics.fill(x, y + panelH - 1, x + panelW, y + panelH, shadow);
-        graphics.fill(x + panelW - 1, y, x + panelW, y + panelH, shadow);
-        drawStaticFrame(graphics, x + 1, y + 1, panelW - 2, panelH - 2, edge);
+        if (colors.usesVanillaPanelTexture() && !glass) {
+            // Match ShulkerTooltipComponent's compact path: recompose the normal full tooltip
+            // panel texture into compact width, then apply the same full-tooltip overlay.
+            int leftW = 8;
+            int rightSourceX = 8 + 9 * 18;
+            int rightW = 176 - rightSourceX;
+            int slotsW = 5 * 18;
+            int topH = 7 + 18;
+            int bottomH = panelH - topH;
+            int bottomSourceY = 7 + 3 * 18;
 
-        for (int i = 0; i < 5; i++) {
-            int sx = x + 7 + i * 20;
-            int sy = y + 7;
-            drawCompactSlotPreview(graphics, sx, sy, compactBase, colors.border());
+            blitPreviewPanelSlice(graphics, x, y, 0, 0, leftW, topH);
+            blitPreviewPanelSlice(graphics, x + leftW, y, 8, 0, slotsW, topH);
+            blitPreviewPanelSlice(graphics, x + leftW + slotsW, y, rightSourceX, 0, rightW, topH);
+            if (bottomH > 0) {
+                int bottomY = y + topH;
+                blitPreviewPanelSlice(graphics, x, bottomY, 0, bottomSourceY, leftW, bottomH);
+                blitPreviewPanelSlice(graphics, x + leftW, bottomY, 8, bottomSourceY, slotsW, bottomH);
+                blitPreviewPanelSlice(graphics, x + leftW + slotsW, bottomY, rightSourceX, bottomSourceY, rightW, bottomH);
+            }
+
+            graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, colors.fullTint());
+            graphics.fill(x + 7, y + 6, x + panelW - 7, y + panelH - 6, withAlpha(colors.border(), 34));
+            for (int i = 0; i < 5; i++) {
+                int sx = x + 8 + i * 18;
+                int sy = y + 7;
+                graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, withAlpha(colors.border(), 26));
+            }
+            int softHighlight = withAlpha(blendColor(colors.border(), 0xFFFFFFFF, 0.45f), 28);
+            graphics.fill(x + 3, y + 3, x + panelW - 3, y + 5, softHighlight);
+            graphics.fill(x + 3, y + 5, x + 5, y + panelH - 3, softHighlight);
+        } else {
+            int bg = glass ? withAlpha(compactBase, 170) : blendColor(compactBase, 0xFF000000, 0.16f);
+            int face = glass ? withAlpha(blendColor(compactBase, 0xFFFFFFFF, 0.18f), 92)
+                    : blendColor(compactBase, 0xFFFFFFFF, 0.10f);
+            int edge = withAlpha(colors.border(), 245);
+            int light = withAlpha(blendColor(colors.border(), 0xFFFFFFFF, 0.50f), 120);
+            int shadow = withAlpha(blendColor(colors.border(), 0xFF000000, 0.55f), 170);
+            graphics.fill(x, y, x + panelW, y + panelH, bg);
+            graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, face);
+            graphics.fill(x, y, x + panelW, y + 1, light);
+            graphics.fill(x, y + 1, x + 1, y + panelH, light);
+            graphics.fill(x, y + panelH - 1, x + panelW, y + panelH, shadow);
+            graphics.fill(x + panelW - 1, y, x + panelW, y + panelH, shadow);
+            drawStaticFrame(graphics, x + 1, y + 1, panelW - 2, panelH - 2, edge);
+            for (int i = 0; i < 5; i++) {
+                drawCompactSlotPreview(graphics, x + 8 + i * 18, y + 7, compactBase, colors.border(), 18);
+            }
         }
-        drawStaticFrame(graphics, x + 7 + 20, y + 7, 20, 20, sel);
-        graphics.fill(x + 7 + 21, y + 8, x + 7 + 39, y + 26, withAlpha(sel, 45));
+
+        int[] itemColors = {0xFF9A6A34, 0xFFC08A54, 0xFF51391D, 0xFF15D96A, 0xFF8B5A3B};
+        for (int i = 0; i < 5; i++) {
+            int itemX = x + 9 + i * 18;
+            int itemY = y + 8;
+            graphics.fill(itemX + 2, itemY + 2, itemX + 15, itemY + 15, itemColors[i]);
+            String count = i == 0 ? "28" : "64";
+            graphics.text(font, text(count), itemX + 15 - font.width(count), itemY + 9, 0xFFFFFFFF);
+        }
+        drawStaticFrame(graphics, x + 8, y + 7, 18, 18, sel);
+        graphics.fill(x + 9, y + 8, x + 25, y + 24, withAlpha(sel, 45));
+
+        String hint = "V: Full contents";
+        int hintX = x + Math.max(4, (panelW - font.width(hint)) / 2);
+        graphics.text(font, text(hint), hintX + 1, y + panelH + 3 + 1, 0xAA000000);
+        graphics.text(font, text(hint), hintX, y + panelH + 3, 0xFFFFD700);
     }
 
-    private static void drawCompactSlotPreview(GuiGraphicsExtractor graphics, int slotX, int slotY, int baseColor, int borderColor) {
+    private static void blitPreviewPanelSlice(GuiGraphicsExtractor graphics, int x, int y, int u, int v, int w, int h) {
+        if (w <= 0 || h <= 0) return;
+        graphics.blit(RenderPipelines.GUI_TEXTURED,
+                PREVIEW_SHULKER_PANEL_TEXTURE,
+                x,
+                y,
+                PREVIEW_PANEL_TEXTURE_U + u,
+                PREVIEW_PANEL_TEXTURE_V + v,
+                w,
+                h,
+                256,
+                256,
+                0xFFFFFFFF);
+    }
+
+    private static void drawCompactSlotPreview(GuiGraphicsExtractor graphics, int slotX, int slotY, int baseColor, int borderColor, int size) {
         boolean lightBase = getTextColorForBackground(baseColor) == 0xFF373737;
         int outer = withAlpha(blendColor(borderColor, baseColor, 0.35f), 210);
         int inner = lightBase
@@ -205,7 +262,6 @@ public final class BetterShulkerClothConfigScreen {
                 : withAlpha(blendColor(baseColor, 0xFF000000, 0.50f), 238);
         int high = lightBase ? 0x80FFFFFF : 0x45FFFFFF;
         int low = lightBase ? 0x44000000 : 0x70000000;
-        int size = 20;
         graphics.fill(slotX, slotY, slotX + size, slotY + size, outer);
         graphics.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, inner);
         graphics.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + 2, high);
