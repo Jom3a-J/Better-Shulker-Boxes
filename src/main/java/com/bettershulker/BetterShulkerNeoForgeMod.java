@@ -15,8 +15,6 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
-import java.util.UUID;
-
 /**
  * NeoForge common/server entrypoint.
  */
@@ -56,17 +54,7 @@ public final class BetterShulkerNeoForgeMod {
         if (!(context.player() instanceof ServerPlayer player)) {
             return;
         }
-        if (!BetterShulkerMod.hasEnderChestInInventory(player)) {
-            BetterShulkerMod.LOGGER.warn(
-                    "[BetterShulker] Player {} requested ender chest sync without carrying one in their inventory!",
-                    player.getName().getString()
-            );
-            return;
-        }
-
-        BetterShulkerMod.resetEnderChestSync(player.getUUID());
-        PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
-        BetterShulkerMod.LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
+        BetterShulkerMod.handleEnderChestSyncRequest(player);
     }
 
     private void handleContainerInteract(ContainerInteractPayload payload, IPayloadContext context) {
@@ -74,25 +62,6 @@ public final class BetterShulkerNeoForgeMod {
             return;
         }
 
-        long currentTick = player.level().getGameTime();
-        UUID uuid = player.getUUID();
-
-        long lastTick = BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
-        if (lastTick != currentTick) {
-            BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
-            BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
-        }
-
-        int count = BetterShulkerMod.interactionCountsThisTick.get(uuid);
-        if (count >= BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
-            BetterShulkerMod.LOGGER.warn(
-                    "[BetterShulker] Player {} exceeded interaction rate limit, dropping packet",
-                    player.getName().getString()
-            );
-            return;
-        }
-        BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
-
-        BetterShulkerMod.handleContainerInteraction(player, payload);
+        BetterShulkerMod.handleRateLimitedContainerInteraction(player, payload);
     }
 }

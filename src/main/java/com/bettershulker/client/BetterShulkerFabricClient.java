@@ -64,7 +64,6 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
                 registerKey("key.bettershulker.scroll_left", GLFW.GLFW_KEY_LEFT),
                 registerKey("key.bettershulker.scroll_right", GLFW.GLFW_KEY_RIGHT),
                 registerKey("key.bettershulker.restock", GLFW.GLFW_KEY_R),
-                registerKey("key.bettershulker.wireless_ender", GLFW.GLFW_KEY_O),
                 registerKey("key.bettershulker.show_full_tooltip", GLFW.GLFW_KEY_V)
         );
 

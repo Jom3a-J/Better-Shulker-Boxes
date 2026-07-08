@@ -6,6 +6,8 @@ import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -23,7 +25,7 @@ import java.util.HashMap;
  * Responsibilities:
  * Loader-specific entrypoints register networking/events and call into this shared validation layer.
  *
- * Minecraft 26.1 is unobfuscated — all names use Mojang official mappings.
+ * Minecraft 26.2 is unobfuscated — all names use Mojang official mappings.
  */
 public class BetterShulkerMod {
 
@@ -38,17 +40,17 @@ public class BetterShulkerMod {
     private static final Map<UUID, NonNullList<ItemStack>> lastSyncedEnderChest = new HashMap<>();
     
     /** Keeps track of the last game tick an interaction was processed per player UUID. */
-    public static final Map<UUID, Long> lastInteractionTick = new java.util.HashMap<>();
+    private static final Map<UUID, Long> lastInteractionTick = new HashMap<>();
     
     /** Rate-limiting count of interactions processed in the current tick per player. */
-    public static final Map<UUID, Integer> interactionCountsThisTick = new java.util.HashMap<>();
+    private static final Map<UUID, Integer> interactionCountsThisTick = new HashMap<>();
     
     /**
      * Maximum allowed container interactions per single game tick (exploit protection).
      * Multi-select extraction can legitimately send up to one packet per shulker slot,
      * so this must be high enough for a full 27-slot batch while still bounding spam.
      */
-    public static final int MAX_INTERACTIONS_PER_TICK = 32;
+    private static final int MAX_INTERACTIONS_PER_TICK = 32;
 
     // =========================================================================
     //  Shared Cache / Validation Utilities
@@ -74,6 +76,49 @@ public class BetterShulkerMod {
         return false;
     }
 
+    public static boolean consumeInteraction(ServerPlayer player) {
+        long currentTick = player.level().getGameTime();
+        UUID uuid = player.getUUID();
+
+        long lastTick = lastInteractionTick.getOrDefault(uuid, -1L);
+        if (lastTick != currentTick) {
+            lastInteractionTick.put(uuid, currentTick);
+            interactionCountsThisTick.put(uuid, 0);
+        }
+
+        int count = interactionCountsThisTick.get(uuid);
+        if (count >= MAX_INTERACTIONS_PER_TICK) {
+            return false;
+        }
+        interactionCountsThisTick.put(uuid, count + 1);
+        return true;
+    }
+
+    public static void handleEnderChestSyncRequest(ServerPlayer player) {
+        if (!hasEnderChestInInventory(player)) {
+            LOGGER.warn(
+                    "[BetterShulker] Player {} requested ender chest sync without carrying one in their inventory!",
+                    player.getName().getString()
+            );
+            return;
+        }
+
+        resetEnderChestSync(player.getUUID());
+        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
+        LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
+    }
+
+    public static void handleRateLimitedContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
+        if (!consumeInteraction(player)) {
+            LOGGER.warn(
+                    "[BetterShulker] Player {} exceeded interaction rate limit, dropping packet",
+                    player.getName().getString()
+            );
+            return;
+        }
+        handleContainerInteraction(player, payload);
+    }
+
     //  Interaction Logic Handler & Validation
     // =========================================================================
 
@@ -92,10 +137,10 @@ public class BetterShulkerMod {
     public static void handleContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
         int containerSlotId = payload.containerSlotId();
         int targetIndex = payload.targetIndex();
-        net.minecraft.world.inventory.AbstractContainerMenu menu = player.containerMenu;
+        AbstractContainerMenu menu = player.containerMenu;
 
         // -- Validate Slot Bounds
-        if (containerSlotId != -1 && containerSlotId != -2 && (containerSlotId < 0 || containerSlotId >= menu.slots.size())) {
+        if (containerSlotId != -1 && (containerSlotId < 0 || containerSlotId >= menu.slots.size())) {
             LOGGER.warn("[BetterShulker] Player {} sent invalid container slot ID: {}",
                     player.getName().getString(), containerSlotId);
             return;
@@ -124,28 +169,6 @@ public class BetterShulkerMod {
         }
 
         int inventorySlotId = payload.inventorySlotId();
-
-        // -- Wireless Ender Chest Bypass
-        if (containerSlotId == -2) {
-            // Security check: player must carry an Ender Chest item in their inventory to use wireless features!
-            boolean hasEnderChest = false;
-            var inv = player.getInventory();
-            for (int i = 0; i < inv.getContainerSize(); i++) {
-                ItemStack stack = inv.getItem(i);
-                if (!stack.isEmpty() && ContainerHelper.isEnderChest(stack)) {
-                    hasEnderChest = true;
-                    break;
-                }
-            }
-
-            if (hasEnderChest) {
-                handleEnderChestInteraction(player, targetIndex, action, inventorySlotId);
-            } else {
-                LOGGER.warn("[BetterShulker] Player {} tried to use wireless Ender Chest without carrying one in their inventory!", player.getName().getString());
-                resyncPlayer(player);
-            }
-            return;
-        }
 
         // -- Validate Container Item (Copy stack to guarantee client slot sync upon server-side component modification)
         ItemStack containerStack = containerSlotId == -1 ? menu.getCarried().copy() : menu.slots.get(containerSlotId).getItem().copy();
@@ -233,10 +256,8 @@ public class BetterShulkerMod {
                     soundStack = extracted;
                     if (inventorySlotId >= 0 && inventorySlotId < player.containerMenu.slots.size()) {
                         // Extract to specific inventory slot (merge)
-                        Slot invSlot = player.containerMenu.slots.get(inventorySlotId);
-                        if (!(invSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                            LOGGER.warn("[BetterShulker] Player {} tried slot extraction on a non-player-inventory slot: {}",
-                                    player.getName().getString(), inventorySlotId);
+                        Slot invSlot = getPlayerInventorySlot(player, inventorySlotId, "slot extraction");
+                        if (invSlot == null) {
                             contents.set(targetIndex, extracted);
                             return;
                         }
@@ -244,8 +265,7 @@ public class BetterShulkerMod {
                         if (invStack.isEmpty()) {
                             invSlot.set(extracted);
                             success = true;
-                        } else if (ItemStack.isSameItemSameComponents(invStack, extracted)
-                                && invStack.getCount() < invStack.getMaxStackSize()) {
+                        } else if (canMergeInto(invStack, extracted)) {
                             invStack.grow(1);
                             success = true;
                         } else {
@@ -256,8 +276,7 @@ public class BetterShulkerMod {
                     } else if (cursorStack.isEmpty()) {
                         player.containerMenu.setCarried(extracted);
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(cursorStack, extracted)
-                            && cursorStack.getCount() < cursorStack.getMaxStackSize()) {
+                    } else if (canMergeInto(cursorStack, extracted)) {
                         cursorStack.grow(1);
                         success = true;
                     } else {
@@ -268,13 +287,8 @@ public class BetterShulkerMod {
                 }
             }
             case SWEEP_INSERT -> {
-                if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                net.minecraft.world.inventory.Slot targetSlot = player.containerMenu.slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                    LOGGER.warn("[BetterShulker] Player {} tried SWEEP_INSERT on a non-player-inventory slot: {}",
-                            player.getName().getString(), inventorySlotId);
-                    return;
-                }
+                Slot targetSlot = getPlayerInventorySlot(player, inventorySlotId, "SWEEP_INSERT");
+                if (targetSlot == null) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 int originalCount = invStack.getCount();
@@ -297,7 +311,7 @@ public class BetterShulkerMod {
                         ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
                         player.containerMenu.setCarried(extracted);
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(cursorStack, shulkerStack)) {
+                    } else if (canMergeInto(cursorStack, shulkerStack)) {
                         int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
                         if (canFit > 0) {
                             ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
@@ -310,19 +324,14 @@ public class BetterShulkerMod {
                         }
                     }
                 } else {
-                    if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                    net.minecraft.world.inventory.Slot invSlot = player.containerMenu.slots.get(inventorySlotId);
-                    if (!(invSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                        LOGGER.warn("[BetterShulker] Player {} tried slot sweep extraction on a non-player-inventory slot: {}",
-                                player.getName().getString(), inventorySlotId);
-                        return;
-                    }
+                    Slot invSlot = getPlayerInventorySlot(player, inventorySlotId, "slot sweep extraction");
+                    if (invSlot == null) return;
                     ItemStack invStack = invSlot.getItem();
                     if (invStack.isEmpty()) {
                         ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
                         invSlot.set(extracted);
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(invStack, shulkerStack)) {
+                    } else if (canMergeInto(invStack, shulkerStack)) {
                         int canFit = invStack.getMaxStackSize() - invStack.getCount();
                         if (canFit > 0) {
                             ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
@@ -366,6 +375,47 @@ public class BetterShulkerMod {
     }
 
     // =========================================================================
+    private static Slot getPlayerInventorySlot(ServerPlayer player, int slotId, String actionDescription) {
+        if (slotId < 0 || slotId >= player.containerMenu.slots.size()) {
+            return null;
+        }
+
+        Slot slot = player.containerMenu.slots.get(slotId);
+        if (!(slot.container instanceof Inventory)) {
+            LOGGER.warn("[BetterShulker] Player {} tried {} on a non-player-inventory slot: {}",
+                    player.getName().getString(), actionDescription, slotId);
+            return null;
+        }
+        return slot;
+    }
+
+    private static boolean canMergeInto(ItemStack target, ItemStack source) {
+        return !target.isEmpty()
+                && ItemStack.isSameItemSameComponents(target, source)
+                && target.getCount() < target.getMaxStackSize();
+    }
+
+    private static boolean hasStackChanged(ItemStack current, ItemStack previous) {
+        return !ItemStack.isSameItemSameComponents(current, previous)
+                || current.getCount() != previous.getCount();
+    }
+
+    private static NonNullList<ItemStack> copyEnderChestContents(ServerPlayer player) {
+        var enderInv = player.getEnderChestInventory();
+        NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
+        for (int i = 0; i < enderInv.getContainerSize(); i++) {
+            contents.set(i, enderInv.getItem(i));
+        }
+        return contents;
+    }
+
+    private static void applyEnderChestContents(ServerPlayer player, NonNullList<ItemStack> contents) {
+        var enderInv = player.getEnderChestInventory();
+        for (int i = 0; i < enderInv.getContainerSize() && i < contents.size(); i++) {
+            enderInv.setItem(i, contents.get(i));
+        }
+    }
+
     //  Ender Chest Operations
     // =========================================================================
 
@@ -389,7 +439,7 @@ public class BetterShulkerMod {
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, cursorStack)) {
+                    if (canMergeInto(existing, cursorStack)) {
                         int canFit = existing.getMaxStackSize() - existing.getCount();
                         int toInsert = Math.min(canFit, cursorStack.getCount());
                         if (toInsert > 0) {
@@ -403,11 +453,8 @@ public class BetterShulkerMod {
                 // Second pass: put into empty slots using smart-merge
                 if (!cursorStack.isEmpty()) {
                     while (cursorStack.getCount() > 0) {
-                        NonNullList<ItemStack> enderList = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                        for (int k = 0; k < enderInv.getContainerSize(); k++) {
-                            enderList.set(k, enderInv.getItem(k));
-                        }
-                        int bestSlot = com.bettershulker.util.ContainerHelper.findSmartMergeEmptySlot(enderList, cursorStack);
+                        NonNullList<ItemStack> enderList = copyEnderChestContents(player);
+                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, cursorStack);
                         if (bestSlot == -1) break;
 
                         int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
@@ -430,22 +477,17 @@ public class BetterShulkerMod {
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, singleItem)) {
-                        if (existing.getCount() < existing.getMaxStackSize()) {
-                            existing.grow(1);
-                            inserted = true;
-                            break;
-                        }
+                    if (canMergeInto(existing, singleItem)) {
+                        existing.grow(1);
+                        inserted = true;
+                        break;
                     }
                 }
 
                 // Second pass: put into empty slots using smart-merge
                 if (!inserted) {
-                    NonNullList<ItemStack> enderList = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                    for (int k = 0; k < enderInv.getContainerSize(); k++) {
-                        enderList.set(k, enderInv.getItem(k));
-                    }
-                    int bestSlot = com.bettershulker.util.ContainerHelper.findSmartMergeEmptySlot(enderList, singleItem);
+                    NonNullList<ItemStack> enderList = copyEnderChestContents(player);
+                    int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, singleItem);
                     if (bestSlot != -1) {
                         enderInv.setItem(bestSlot, singleItem);
                         inserted = true;
@@ -481,8 +523,7 @@ public class BetterShulkerMod {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
                     }
                     success = true;
-                } else if (ItemStack.isSameItemSameComponents(cursorStack, extracted)
-                        && cursorStack.getCount() < cursorStack.getMaxStackSize()) {
+                } else if (canMergeInto(cursorStack, extracted)) {
                     cursorStack.grow(1);
                     slotStack.shrink(1);
                     if (slotStack.isEmpty()) {
@@ -492,13 +533,8 @@ public class BetterShulkerMod {
                 }
             }
             case SWEEP_INSERT -> {
-                if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                net.minecraft.world.inventory.Slot targetSlot = player.containerMenu.slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                    LOGGER.warn("[BetterShulker] Player {} tried SWEEP_INSERT on a non-player-inventory slot: {}",
-                            player.getName().getString(), inventorySlotId);
-                    return;
-                }
+                Slot targetSlot = getPlayerInventorySlot(player, inventorySlotId, "SWEEP_INSERT");
+                if (targetSlot == null) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 int originalCount = invStack.getCount();
@@ -507,7 +543,7 @@ public class BetterShulkerMod {
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
+                    if (canMergeInto(existing, invStack)) {
                         int canFit = existing.getMaxStackSize() - existing.getCount();
                         int toInsert = Math.min(canFit, invStack.getCount());
                         if (toInsert > 0) {
@@ -521,11 +557,8 @@ public class BetterShulkerMod {
                 // Second pass: put into empty slots using smart-merge
                 if (!invStack.isEmpty()) {
                     while (invStack.getCount() > 0) {
-                        NonNullList<ItemStack> enderList = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                        for (int k = 0; k < enderInv.getContainerSize(); k++) {
-                            enderList.set(k, enderInv.getItem(k));
-                        }
-                        int bestSlot = com.bettershulker.util.ContainerHelper.findSmartMergeEmptySlot(enderList, invStack);
+                        NonNullList<ItemStack> enderList = copyEnderChestContents(player);
+                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, invStack);
                         if (bestSlot == -1) break;
 
                         int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
@@ -552,7 +585,7 @@ public class BetterShulkerMod {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
                         player.containerMenu.setCarried(shulkerStack.copy());
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(cursorStack, shulkerStack)) {
+                    } else if (canMergeInto(cursorStack, shulkerStack)) {
                         int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
                         int toAdd = Math.min(canFit, shulkerStack.getCount());
                         if (toAdd > 0) {
@@ -565,19 +598,14 @@ public class BetterShulkerMod {
                         }
                     }
                 } else {
-                    if (inventorySlotId < 0 || inventorySlotId >= player.containerMenu.slots.size()) return;
-                    net.minecraft.world.inventory.Slot invSlot = player.containerMenu.slots.get(inventorySlotId);
-                    if (!(invSlot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-                        LOGGER.warn("[BetterShulker] Player {} tried ender chest slot sweep extraction on a non-player-inventory slot: {}",
-                                player.getName().getString(), inventorySlotId);
-                        return;
-                    }
+                    Slot invSlot = getPlayerInventorySlot(player, inventorySlotId, "ender chest slot sweep extraction");
+                    if (invSlot == null) return;
                     ItemStack invStack = invSlot.getItem();
                     if (invStack.isEmpty()) {
                         enderInv.setItem(targetIndex, ItemStack.EMPTY);
                         invSlot.set(shulkerStack.copy());
                         success = true;
-                    } else if (ItemStack.isSameItemSameComponents(invStack, shulkerStack)) {
+                    } else if (canMergeInto(invStack, shulkerStack)) {
                         int canFit = invStack.getMaxStackSize() - invStack.getCount();
                         int toAdd = Math.min(canFit, shulkerStack.getCount());
                         if (toAdd > 0) {
@@ -592,19 +620,17 @@ public class BetterShulkerMod {
                 }
             }
             case RESTOCK -> {
-                NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                for (int i = 0; i < enderInv.getContainerSize(); i++) contents.set(i, enderInv.getItem(i));
+                NonNullList<ItemStack> contents = copyEnderChestContents(player);
                 success = ContainerHelper.restockContents(contents, player.containerMenu.slots);
                 if (success) {
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) enderInv.setItem(i, contents.get(i));
+                    applyEnderChestContents(player, contents);
                 }
             }
             case DEPOSIT -> {
-                NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-                for (int i = 0; i < enderInv.getContainerSize(); i++) contents.set(i, enderInv.getItem(i));
+                NonNullList<ItemStack> contents = copyEnderChestContents(player);
                 success = ContainerHelper.depositContents(contents, player.containerMenu.slots, -2);
                 if (success) {
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) enderInv.setItem(i, contents.get(i));
+                    applyEnderChestContents(player, contents);
                     isInsert = true;
                 }
             }
@@ -647,8 +673,7 @@ public class BetterShulkerMod {
             ItemStack currentStack = enderInv.getItem(i);
             ItemStack lastStack = lastState.get(i);
 
-            // Compare stacks
-            if (isFullSync || !ItemStack.isSameItemSameComponents(currentStack, lastStack) || currentStack.getCount() != lastStack.getCount()) {
+            if (isFullSync || hasStackChanged(currentStack, lastStack)) {
                 diffs.add(new EnderChestSyncPayload.EnderChestDiff(i, currentStack.copy()));
                 lastState.set(i, currentStack.copy());
             }

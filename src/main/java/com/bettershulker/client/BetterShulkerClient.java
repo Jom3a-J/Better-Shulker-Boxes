@@ -5,12 +5,20 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Better Shulker — Client-side entry point.
@@ -30,7 +38,7 @@ public class BetterShulkerClient {
     // =========================================================================
 
     private static final KeyMapping.Category CUSTOM_CATEGORY = KeyMapping.Category.register(
-            net.minecraft.resources.Identifier.fromNamespaceAndPath("bettershulker", "keys")
+            Identifier.fromNamespaceAndPath("bettershulker", "keys")
     );
     private static KeyMapping settingsKey = null;
     private static KeyMapping extractKey = null;
@@ -41,7 +49,6 @@ public class BetterShulkerClient {
     private static KeyMapping scrollLeftKey = null;
     private static KeyMapping scrollRightKey = null;
     private static KeyMapping restockKey = null;
-    private static KeyMapping wirelessEnderChestKey = null;
     private static KeyMapping showFullTooltipKey = null;
 
     // =========================================================================
@@ -60,7 +67,7 @@ public class BetterShulkerClient {
     private static int hoveredTooltipSlotIndex = -1;
     private static ItemStack activeContainerStack = ItemStack.EMPTY;
     private static ItemStack filterItemStack = ItemStack.EMPTY;
-    private static final java.util.Set<Integer> selectedSlotsSet = new java.util.HashSet<>();
+    private static final Set<Integer> selectedSlotsSet = new HashSet<>();
 
     /** Cooldown tracking to limit ender chest sync request packets. */
     private static int lastMouseX = 0;
@@ -78,9 +85,6 @@ public class BetterShulkerClient {
 
     private static final float[] slotScales = new float[27];
     private static long lastSlotScaleUpdateTime = 0L;
-    
-    private static float currentAnimatedHeight = -1f;
-    private static long lastHeightUpdateTime = 0L;
 
     // =========================================================================
     //  Prediction & Rollbacks State Classes
@@ -93,7 +97,7 @@ public class BetterShulkerClient {
         public final ItemStack originalContainer;
         public final int containerSlotId;
         public NonNullList<ItemStack> originalEnderChest = null;
-        public final java.util.Map<Integer, ItemStack> originalSlots = new java.util.HashMap<>();
+        public final Map<Integer, ItemStack> originalSlots = new HashMap<>();
 
         public PredictionTransaction(long id, ItemStack carried, ItemStack container, int containerSlotId, NonNullList<ItemStack> enderChest) {
             this.id = id;
@@ -128,8 +132,8 @@ public class BetterShulkerClient {
     }
 
     private static long nextTransactionId = 1L;
-    private static final java.util.List<PredictionTransaction> activeTransactions = new java.util.ArrayList<>();
-    private static final java.util.List<RollbackAnimation> activeRollbacks = new java.util.ArrayList<>();
+    private static final List<PredictionTransaction> activeTransactions = new ArrayList<>();
+    private static final List<RollbackAnimation> activeRollbacks = new ArrayList<>();
 
     // =========================================================================
     //  Loader-neutral Client Initialization Hooks
@@ -148,7 +152,6 @@ public class BetterShulkerClient {
             KeyMapping scrollLeft,
             KeyMapping scrollRight,
             KeyMapping restock,
-            KeyMapping wirelessEnderChest,
             KeyMapping showFullTooltip
     ) {
         settingsKey = settings;
@@ -160,7 +163,6 @@ public class BetterShulkerClient {
         scrollLeftKey = scrollLeft;
         scrollRightKey = scrollRight;
         restockKey = restock;
-        wirelessEnderChestKey = wirelessEnderChest;
         showFullTooltipKey = showFullTooltip;
     }
 
@@ -180,29 +182,13 @@ public class BetterShulkerClient {
         );
     }
 
-    public static void handleClientTick(net.minecraft.client.Minecraft client) {
+    public static void handleClientTick(Minecraft client) {
         while (settingsKey != null && settingsKey.consumeClick()) {
             if (client.gui.screen() != null || client.level != null) {
                 try {
                     client.setScreenAndShow(BetterShulkerClothConfigScreen.create(client.gui.screen()));
                 } catch (Exception e) {
                     BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open settings screen", e);
-                }
-            }
-        }
-        while (wirelessEnderChestKey != null && wirelessEnderChestKey.consumeClick()) {
-            if (client.gui.screen() == null && client.player != null) {
-                if (bettershulker$hasEnderChestInInventory(client.player)) {
-                    try {
-                        client.setScreenAndShow(new WirelessEnderChestScreen());
-                    } catch (Exception e) {
-                        BetterShulkerMod.LOGGER.error("[BetterShulker] Failed to open wireless ender chest screen", e);
-                    }
-                } else {
-                    client.gui.hud.setOverlayMessage(
-                        Component.literal("Requires an Ender Chest in your inventory!").withStyle(ChatFormatting.RED),
-                        false
-                    );
                 }
             }
         }
@@ -233,13 +219,9 @@ public class BetterShulkerClient {
 
     public static void setTooltipActive(boolean active) {
         tooltipActive = active;
-        if (!active) {
-            currentAnimatedHeight = -1f;
-            lastHeightUpdateTime = 0L;
-        }
     }
 
-    /** Sends wireless/C2S ender chest sync payload request to server. */
+    /** Sends C2S ender chest sync payload request to server. */
     public static void requestEnderChestSync() {
         long now = System.currentTimeMillis();
         if (now - lastEnderChestRequestTime >= ENDER_CHEST_REQUEST_COOLDOWN_MS) {
@@ -277,7 +259,7 @@ public class BetterShulkerClient {
         filterItemStack = stack;
     }
 
-    public static java.util.Set<Integer> getSelectedSlotsSet() {
+    public static Set<Integer> getSelectedSlotsSet() {
         return selectedSlotsSet;
     }
 
@@ -345,10 +327,6 @@ public class BetterShulkerClient {
         return restockKey;
     }
 
-    public static KeyMapping getWirelessEnderChestKey() {
-        return wirelessEnderChestKey;
-    }
-
     public static KeyMapping getShowFullTooltipKey() {
         return showFullTooltipKey;
     }
@@ -356,9 +334,9 @@ public class BetterShulkerClient {
     public static boolean isKeyHeld(KeyMapping key) {
         if (key == null || key.isUnbound()) return false;
         try {
-            var boundKey = com.mojang.blaze3d.platform.InputConstants.getKey(key.saveString());
-            if (boundKey.getType() == com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM) {
-                return GLFW.glfwGetKey(net.minecraft.client.Minecraft.getInstance().getWindow().handle(), boundKey.getValue()) == GLFW.GLFW_PRESS;
+            var boundKey = InputConstants.getKey(key.saveString());
+            if (boundKey.getType() == InputConstants.Type.KEYSYM) {
+                return GLFW.glfwGetKey(Minecraft.getInstance().getWindow().handle(), boundKey.getValue()) == GLFW.GLFW_PRESS;
             }
         } catch (Exception e) {
             // fallback
@@ -387,11 +365,6 @@ public class BetterShulkerClient {
     public static long getLastSlotScaleUpdateTime() { return lastSlotScaleUpdateTime; }
     public static void setLastSlotScaleUpdateTime(long v) { lastSlotScaleUpdateTime = v; }
 
-    public static float getCurrentAnimatedHeight() { return currentAnimatedHeight; }
-    public static void setCurrentAnimatedHeight(float v) { currentAnimatedHeight = v; }
-    public static long getLastHeightUpdateTime() { return lastHeightUpdateTime; }
-    public static void setLastHeightUpdateTime(long v) { lastHeightUpdateTime = v; }
-
     // =========================================================================
     //  Prediction Methods
     // =========================================================================
@@ -411,11 +384,11 @@ public class BetterShulkerClient {
         }
     }
 
-    public static java.util.List<PredictionTransaction> getActiveTransactions() {
+    public static List<PredictionTransaction> getActiveTransactions() {
         return activeTransactions;
     }
 
-    public static java.util.List<RollbackAnimation> getActiveRollbacks() {
+    public static List<RollbackAnimation> getActiveRollbacks() {
         return activeRollbacks;
     }
 
@@ -446,24 +419,12 @@ public class BetterShulkerClient {
         currentSelectedCol = -1f;
         currentSelectedRow = -1f;
         lastHighlightRenderTime = 0L;
-        java.util.Arrays.fill(slotScales, 1.0f);
+        Arrays.fill(slotScales, 1.0f);
         lastSlotScaleUpdateTime = 0L;
-        currentAnimatedHeight = -1f;
-        lastHeightUpdateTime = 0L;
 
         // Reset Category 5 Prediction state
         activeTransactions.clear();
         activeRollbacks.clear();
     }
 
-    public static boolean bettershulker$hasEnderChestInInventory(net.minecraft.world.entity.player.Player player) {
-        var inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            ItemStack stack = inv.getItem(i);
-            if (!stack.isEmpty() && com.bettershulker.util.ContainerHelper.isEnderChest(stack)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

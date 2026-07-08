@@ -9,12 +9,20 @@ import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.RenderPipelines;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
+
+import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
+import static com.bettershulker.client.render.ThemeColorUtil.getTextColorForBackground;
+import static com.bettershulker.client.render.ThemeColorUtil.normalizeOverlayAlpha;
+import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
 
 /**
  * Cloth Config-powered settings screen for Better Shulker Boxes.
@@ -85,12 +93,11 @@ public final class BetterShulkerClothConfigScreen {
         int nameY = panelY + fullH + 14;
         drawSelectedNamePreview(graphics, font, colors, x, w, nameY, nameText);
 
-        int compactW = 14 + 5 * 20;
-        int compactH = 14 + 20;
+        int compactW = 14 + 5 * 18;
+        int compactH = 14 + 18;
         int compactX = x + (w - compactW) / 2;
         int compactY = nameY + 34;
-        drawCompactThemePreview(graphics, colors, compactX, compactY, compactW, compactH, sel);
-        graphics.text(font, text("64"), compactX + 9, compactY + 18, 0xFFFFFFFF);
+        drawCompactThemePreview(graphics, font, colors, compactX, compactY, compactW, compactH, sel);
     }
 
     private static void drawFullThemePreviewPanel(GuiGraphicsExtractor graphics, PreviewColors colors,
@@ -109,15 +116,15 @@ public final class BetterShulkerClothConfigScreen {
                     0xFFFFFFFF);
             // Match ShulkerTooltipComponent.drawThemeOverlay for the actual full tooltip.
             graphics.fill(panelX + 2, panelY + 2, panelX + fullW - 2, panelY + fullH - 2, colors.fullTint());
-            graphics.fill(panelX + 7, panelY + 6, panelX + fullW - 7, panelY + 62, withAlphaStatic(colors.border(), 34));
+            graphics.fill(panelX + 7, panelY + 6, panelX + fullW - 7, panelY + 62, withAlpha(colors.border(), 34));
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 9; col++) {
                     int sx = panelX + 8 + col * 18;
                     int sy = panelY + 7 + row * 18;
-                    graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, withAlphaStatic(colors.border(), 26));
+                    graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, withAlpha(colors.border(), 26));
                 }
             }
-            int softHighlight = withAlphaStatic(blendColorStatic(colors.border(), 0xFFFFFFFF, 0.45f), 28);
+            int softHighlight = withAlpha(blendColor(colors.border(), 0xFFFFFFFF, 0.45f), 28);
             graphics.fill(panelX + 3, panelY + 3, panelX + fullW - 3, panelY + 5, softHighlight);
             graphics.fill(panelX + 3, panelY + 5, panelX + 5, panelY + fullH - 3, softHighlight);
         } else {
@@ -127,7 +134,7 @@ public final class BetterShulkerClothConfigScreen {
                 for (int col = 0; col < 9; col++) {
                     int sx = panelX + 8 + col * 18;
                     int sy = panelY + 7 + row * 18;
-                    graphics.fill(sx, sy, sx + 18, sy + 18, withAlphaStatic(colors.border(), 105));
+                    graphics.fill(sx, sy, sx + 18, sy + 18, withAlpha(colors.border(), 105));
                     graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, 0xAA101010);
                 }
             }
@@ -136,10 +143,10 @@ public final class BetterShulkerClothConfigScreen {
         int selectedX = panelX + 8 + 3 * 18;
         int selectedY = panelY + 7 + 1 * 18;
         drawStaticFrame(graphics, selectedX, selectedY, 18, 18, sel);
-        graphics.fill(selectedX + 1, selectedY + 1, selectedX + 17, selectedY + 17, withAlphaStatic(sel, 45));
+        graphics.fill(selectedX + 1, selectedY + 1, selectedX + 17, selectedY + 17, withAlpha(sel, 45));
     }
 
-    private static void drawSelectedNamePreview(GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font,
+    private static void drawSelectedNamePreview(GuiGraphicsExtractor graphics, Font font,
                                                 PreviewColors colors, int columnX, int columnW, int y, int nameText) {
         String name = "Diamond Pickaxe";
         int nameW = font.width(name) + 12;
@@ -147,10 +154,10 @@ public final class BetterShulkerClothConfigScreen {
 
         // Match the actual selected-name tab better: it is rendered as a vanilla-style tooltip,
         // with the theme only tinting the bridge/border and the configured name text color.
-        int outer = withAlphaStatic(colors.nameBorder(), 230);
-        int inner = blendColorStatic(colors.nameBackground(), 0xFF000000, 0.28f);
-        int high = withAlphaStatic(blendColorStatic(colors.nameBorder(), 0xFFFFFFFF, 0.45f), 105);
-        int low = withAlphaStatic(blendColorStatic(colors.nameBorder(), 0xFF000000, 0.55f), 150);
+        int outer = withAlpha(colors.nameBorder(), 230);
+        int inner = blendColor(colors.nameBackground(), 0xFF000000, 0.28f);
+        int high = withAlpha(blendColor(colors.nameBorder(), 0xFFFFFFFF, 0.45f), 105);
+        int low = withAlpha(blendColor(colors.nameBorder(), 0xFF000000, 0.55f), 150);
         graphics.fill(nameX, y, nameX + nameW, y + 14, outer);
         graphics.fill(nameX + 1, y + 1, nameX + nameW - 1, y + 13, inner);
         graphics.fill(nameX + 1, y + 1, nameX + nameW - 1, y + 2, high);
@@ -160,44 +167,101 @@ public final class BetterShulkerClothConfigScreen {
         graphics.text(font, text(name), nameX + 6, y + 3, nameText);
     }
 
-    private static void drawCompactThemePreview(GuiGraphicsExtractor graphics, PreviewColors colors,
+    private static void drawCompactThemePreview(GuiGraphicsExtractor graphics, Font font, PreviewColors colors,
                                                 int x, int y, int panelW, int panelH, int sel) {
         int compactBase = colors.compactBase();
         boolean glass = colors.glassCompact();
-        int bg = glass ? withAlphaStatic(compactBase, 170) : blendColorStatic(compactBase, 0xFF000000, 0.16f);
-        int face = glass ? withAlphaStatic(blendColorStatic(compactBase, 0xFFFFFFFF, 0.18f), 92)
-                : blendColorStatic(compactBase, 0xFFFFFFFF, 0.10f);
-        int edge = withAlphaStatic(colors.border(), 245);
-        int light = withAlphaStatic(blendColorStatic(colors.border(), 0xFFFFFFFF, 0.50f), 120);
-        int shadow = withAlphaStatic(blendColorStatic(colors.border(), 0xFF000000, 0.55f), 170);
 
-        // Match ShulkerTooltipComponent.drawCompactPanel for the compact preview.
-        graphics.fill(x, y, x + panelW, y + panelH, bg);
-        graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, face);
-        graphics.fill(x, y, x + panelW, y + 1, light);
-        graphics.fill(x, y + 1, x + 1, y + panelH, light);
-        graphics.fill(x, y + panelH - 1, x + panelW, y + panelH, shadow);
-        graphics.fill(x + panelW - 1, y, x + panelW, y + panelH, shadow);
-        drawStaticFrame(graphics, x + 1, y + 1, panelW - 2, panelH - 2, edge);
+        if (colors.usesVanillaPanelTexture() && !glass) {
+            // Match ShulkerTooltipComponent's compact path: recompose the normal full tooltip
+            // panel texture into compact width, then apply the same full-tooltip overlay.
+            int leftW = 8;
+            int rightSourceX = 8 + 9 * 18;
+            int rightW = 176 - rightSourceX;
+            int slotsW = 5 * 18;
+            int topH = 7 + 18;
+            int bottomH = panelH - topH;
+            int bottomSourceY = 7 + 3 * 18;
 
-        for (int i = 0; i < 5; i++) {
-            int sx = x + 7 + i * 20;
-            int sy = y + 7;
-            drawCompactSlotPreview(graphics, sx, sy, compactBase, colors.border());
+            blitPreviewPanelSlice(graphics, x, y, 0, 0, leftW, topH);
+            blitPreviewPanelSlice(graphics, x + leftW, y, 8, 0, slotsW, topH);
+            blitPreviewPanelSlice(graphics, x + leftW + slotsW, y, rightSourceX, 0, rightW, topH);
+            if (bottomH > 0) {
+                int bottomY = y + topH;
+                blitPreviewPanelSlice(graphics, x, bottomY, 0, bottomSourceY, leftW, bottomH);
+                blitPreviewPanelSlice(graphics, x + leftW, bottomY, 8, bottomSourceY, slotsW, bottomH);
+                blitPreviewPanelSlice(graphics, x + leftW + slotsW, bottomY, rightSourceX, bottomSourceY, rightW, bottomH);
+            }
+
+            graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, colors.fullTint());
+            graphics.fill(x + 7, y + 6, x + panelW - 7, y + panelH - 6, withAlpha(colors.border(), 34));
+            for (int i = 0; i < 5; i++) {
+                int sx = x + 8 + i * 18;
+                int sy = y + 7;
+                graphics.fill(sx + 1, sy + 1, sx + 17, sy + 17, withAlpha(colors.border(), 26));
+            }
+            int softHighlight = withAlpha(blendColor(colors.border(), 0xFFFFFFFF, 0.45f), 28);
+            graphics.fill(x + 3, y + 3, x + panelW - 3, y + 5, softHighlight);
+            graphics.fill(x + 3, y + 5, x + 5, y + panelH - 3, softHighlight);
+        } else {
+            int bg = glass ? withAlpha(compactBase, 170) : blendColor(compactBase, 0xFF000000, 0.16f);
+            int face = glass ? withAlpha(blendColor(compactBase, 0xFFFFFFFF, 0.18f), 92)
+                    : blendColor(compactBase, 0xFFFFFFFF, 0.10f);
+            int edge = withAlpha(colors.border(), 245);
+            int light = withAlpha(blendColor(colors.border(), 0xFFFFFFFF, 0.50f), 120);
+            int shadow = withAlpha(blendColor(colors.border(), 0xFF000000, 0.55f), 170);
+            graphics.fill(x, y, x + panelW, y + panelH, bg);
+            graphics.fill(x + 2, y + 2, x + panelW - 2, y + panelH - 2, face);
+            graphics.fill(x, y, x + panelW, y + 1, light);
+            graphics.fill(x, y + 1, x + 1, y + panelH, light);
+            graphics.fill(x, y + panelH - 1, x + panelW, y + panelH, shadow);
+            graphics.fill(x + panelW - 1, y, x + panelW, y + panelH, shadow);
+            drawStaticFrame(graphics, x + 1, y + 1, panelW - 2, panelH - 2, edge);
+            for (int i = 0; i < 5; i++) {
+                drawCompactSlotPreview(graphics, x + 8 + i * 18, y + 7, compactBase, colors.border(), 18);
+            }
         }
-        drawStaticFrame(graphics, x + 7 + 20, y + 7, 20, 20, sel);
-        graphics.fill(x + 7 + 21, y + 8, x + 7 + 39, y + 26, withAlphaStatic(sel, 45));
+
+        int[] itemColors = {0xFF9A6A34, 0xFFC08A54, 0xFF51391D, 0xFF15D96A, 0xFF8B5A3B};
+        for (int i = 0; i < 5; i++) {
+            int itemX = x + 9 + i * 18;
+            int itemY = y + 8;
+            graphics.fill(itemX + 2, itemY + 2, itemX + 15, itemY + 15, itemColors[i]);
+            String count = i == 0 ? "28" : "64";
+            graphics.text(font, text(count), itemX + 15 - font.width(count), itemY + 9, 0xFFFFFFFF);
+        }
+        drawStaticFrame(graphics, x + 8, y + 7, 18, 18, sel);
+        graphics.fill(x + 9, y + 8, x + 25, y + 24, withAlpha(sel, 45));
+
+        String hint = "V: Full contents";
+        int hintX = x + Math.max(4, (panelW - font.width(hint)) / 2);
+        graphics.text(font, text(hint), hintX + 1, y + panelH + 3 + 1, 0xAA000000);
+        graphics.text(font, text(hint), hintX, y + panelH + 3, 0xFFFFD700);
     }
 
-    private static void drawCompactSlotPreview(GuiGraphicsExtractor graphics, int slotX, int slotY, int baseColor, int borderColor) {
-        boolean lightBase = getTextColorForBackgroundStatic(baseColor) == 0xFF373737;
-        int outer = withAlphaStatic(blendColorStatic(borderColor, baseColor, 0.35f), 210);
+    private static void blitPreviewPanelSlice(GuiGraphicsExtractor graphics, int x, int y, int u, int v, int w, int h) {
+        if (w <= 0 || h <= 0) return;
+        graphics.blit(RenderPipelines.GUI_TEXTURED,
+                PREVIEW_SHULKER_PANEL_TEXTURE,
+                x,
+                y,
+                PREVIEW_PANEL_TEXTURE_U + u,
+                PREVIEW_PANEL_TEXTURE_V + v,
+                w,
+                h,
+                256,
+                256,
+                0xFFFFFFFF);
+    }
+
+    private static void drawCompactSlotPreview(GuiGraphicsExtractor graphics, int slotX, int slotY, int baseColor, int borderColor, int size) {
+        boolean lightBase = getTextColorForBackground(baseColor) == 0xFF373737;
+        int outer = withAlpha(blendColor(borderColor, baseColor, 0.35f), 210);
         int inner = lightBase
-                ? withAlphaStatic(blendColorStatic(baseColor, 0xFFFFFFFF, 0.12f), 238)
-                : withAlphaStatic(blendColorStatic(baseColor, 0xFF000000, 0.50f), 238);
+                ? withAlpha(blendColor(baseColor, 0xFFFFFFFF, 0.12f), 238)
+                : withAlpha(blendColor(baseColor, 0xFF000000, 0.50f), 238);
         int high = lightBase ? 0x80FFFFFF : 0x45FFFFFF;
         int low = lightBase ? 0x44000000 : 0x70000000;
-        int size = 20;
         graphics.fill(slotX, slotY, slotX + size, slotY + size, outer);
         graphics.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, inner);
         graphics.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + 2, high);
@@ -226,7 +290,7 @@ public final class BetterShulkerClothConfigScreen {
                     state.nameBorder.color(),
                     state.selection.color(),
                     nameText,
-                    normalizePreviewOverlayAlpha(state.background.color(), 112),
+                    normalizeOverlayAlpha(state.background.color(), 112),
                     true,
                     0xFF000000 | (state.background.color() & 0x00FFFFFF),
                     false
@@ -283,37 +347,6 @@ public final class BetterShulkerClothConfigScreen {
         graphics.fill(x, y + h - 1, x + w, y + h, color);
         graphics.fill(x, y + 1, x + 1, y + h - 1, color);
         graphics.fill(x + w - 1, y + 1, x + w, y + h - 1, color);
-    }
-
-    private static int withAlphaStatic(int color, int alpha) {
-        return (Math.max(0, Math.min(255, alpha)) << 24) | (color & 0x00FFFFFF);
-    }
-
-    private static int normalizePreviewOverlayAlpha(int color, int fallbackAlpha) {
-        int alpha = (color >>> 24) & 0xFF;
-        if (alpha == 0 || alpha == 255) alpha = fallbackAlpha;
-        return (alpha << 24) | (color & 0x00FFFFFF);
-    }
-
-    private static int getTextColorForBackgroundStatic(int color) {
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-        double luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-        return luminance > 0.65 ? 0xFF373737 : 0xFFFFFFFF;
-    }
-
-    private static int blendColorStatic(int colorA, int colorB, float factor) {
-        int rA = (colorA >> 16) & 0xFF;
-        int gA = (colorA >> 8) & 0xFF;
-        int bA = colorA & 0xFF;
-        int rB = (colorB >> 16) & 0xFF;
-        int gB = (colorB >> 8) & 0xFF;
-        int bB = colorB & 0xFF;
-        int r = Math.round(rA + (rB - rA) * factor);
-        int g = Math.round(gA + (gB - gA) * factor);
-        int b = Math.round(bA + (bB - bA) * factor);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     private static void addGeneralCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {
@@ -419,13 +452,12 @@ public final class BetterShulkerClothConfigScreen {
         category.addEntry(entry.fillKeybindingField(text("Selection Left"), BetterShulkerClient.getScrollLeftKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Selection Right"), BetterShulkerClient.getScrollRightKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Restock / Deposit"), BetterShulkerClient.getRestockKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Wireless Ender Chest"), BetterShulkerClient.getWirelessEnderChestKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Show Full Tooltip"), BetterShulkerClient.getShowFullTooltipKey()).build());
     }
 
     private static ColorSliders addRgbSliders(ConfigCategory category, ConfigEntryBuilder entry, String label, int currentColor, int defaultColor,
-                                              java.util.function.IntSupplier currentSupplier,
-                                              java.util.function.IntConsumer saveConsumer) {
+                                              IntSupplier currentSupplier,
+                                              IntConsumer saveConsumer) {
         var sub = entry.startSubCategory(text(label));
         IntegerSliderEntry red = entry.startIntSlider(text("Red"), red(currentColor), 0, 255)
                 .setDefaultValue(red(defaultColor))

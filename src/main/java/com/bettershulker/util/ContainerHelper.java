@@ -1,7 +1,10 @@
 package com.bettershulker.util;
 
+import com.bettershulker.BetterShulkerConfig;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
@@ -12,7 +15,12 @@ import org.jetbrains.annotations.Nullable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.Slot;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Central utility class for all container-related operations in Better Shulker.
@@ -83,6 +91,11 @@ public final class ContainerHelper {
      */
     public static boolean isContainer(ItemStack stack) {
         return isShulkerBox(stack) || isEnderChest(stack);
+    }
+
+    public static boolean isPlayerInventorySlot(Slot slot, int slotLimit) {
+        return slot.container instanceof Inventory
+                && slot.getContainerSlot() < slotLimit;
     }
 
     // =========================================================================
@@ -290,38 +303,31 @@ public final class ContainerHelper {
      */
     private static String getCategoryKey(ItemStack stack) {
         var item = stack.getItem();
-        String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
+        String itemPath = BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
-        if (itemPath.contains("sword")
-                || itemPath.contains("bow")
-                || itemPath.contains("trident")) {
-            return "1_weapon";
-        }
-        if (itemPath.contains("helmet")
-                || itemPath.contains("chestplate")
-                || itemPath.contains("leggings")
-                || itemPath.contains("boots")) {
-            return "2_armor";
-        }
-        if (itemPath.contains("pickaxe")
-                || itemPath.contains("axe")
-                || itemPath.contains("shovel")
-                || itemPath.contains("hoe")
-                || itemPath.contains("shears")
-                || itemPath.contains("flint_and_steel")
-                || itemPath.contains("brush")
-                || itemPath.contains("fishing_rod")
-                || itemPath.contains("compass")
-                || itemPath.contains("clock")) {
-            return "3_tool";
-        }
-        if (stack.has(net.minecraft.core.component.DataComponents.FOOD)) {
-            return "4_food";
-        }
-        if (item instanceof net.minecraft.world.item.BlockItem) {
-            return "5_block";
-        }
+        if (containsAny(itemPath, "sword", "bow", "trident")) return "1_weapon";
+        if (containsAny(itemPath, "helmet", "chestplate", "leggings", "boots")) return "2_armor";
+        if (containsAny(itemPath, "pickaxe", "axe", "shovel", "hoe", "shears", "flint_and_steel", "brush",
+                "fishing_rod", "compass", "clock")) return "3_tool";
+        if (stack.has(DataComponents.FOOD)) return "4_food";
+        if (item instanceof BlockItem) return "5_block";
         return "6_other";
+    }
+
+    private static boolean containsAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) return true;
+        }
+        return false;
+    }
+
+    private static boolean containsSameItem(Iterable<ItemStack> stacks, ItemStack target) {
+        for (ItemStack stack : stacks) {
+            if (ItemStack.isSameItemSameComponents(stack, target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // =========================================================================
@@ -339,7 +345,7 @@ public final class ContainerHelper {
      * @param toInsert the item stack we want to insert
      * @return the best empty slot index, or -1 if no empty slots exist
      */
-    public static int findSmartMergeEmptySlot(java.util.List<ItemStack> contents, ItemStack toInsert) {
+    public static int findSmartMergeEmptySlot(List<ItemStack> contents, ItemStack toInsert) {
         int bestSlot = -1;
         int bestSameItemDist = 999;
         int bestCategoryDist = 999;
@@ -411,14 +417,6 @@ public final class ContainerHelper {
         return bestSlot;
     }
 
-    /**
-     * Maps DyeColor to the corresponding Shulker Box block/item.
-     */
-    public static net.minecraft.world.item.Item getShulkerBoxByColor(DyeColor color) {
-        if (color == null) return Items.SHULKER_BOX;
-        return Items.DYED_SHULKER_BOX.pick(color);
-    }
-
     // =========================================================================
     //  Contextual Sound Selection
     // =========================================================================
@@ -431,153 +429,45 @@ public final class ContainerHelper {
             return isInsert ? SoundEvents.BUNDLE_INSERT : SoundEvents.BUNDLE_DROP_CONTENTS;
         }
         var item = stack.getItem();
-        String itemPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
+        String itemPath = BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase();
 
-        // 1. Valuables & Gems
-        if (itemPath.contains("diamond")
-                || itemPath.contains("emerald")
-                || itemPath.contains("nether_star")
-                || itemPath.contains("amethyst_shard")) {
+        if (containsAny(itemPath, "diamond", "emerald", "nether_star", "amethyst_shard")) {
             return isInsert ? SoundEvents.AMETHYST_CLUSTER_PLACE : SoundEvents.AMETHYST_CLUSTER_HIT;
         }
-
-        // 2. Magic & Cosmic
-        if (itemPath.contains("ender")
-                || itemPath.contains("eye")
-                || itemPath.contains("totem")
-                || itemPath.contains("echo_shard")
-                || itemPath.contains("beacon")
-                || itemPath.contains("nether_brick")
-                || itemPath.contains("quartz")) {
+        if (containsAny(itemPath, "ender", "eye", "totem", "echo_shard", "beacon", "nether_brick", "quartz")) {
             return isInsert ? SoundEvents.AMETHYST_BLOCK_CHIME : SoundEvents.AMETHYST_BLOCK_HIT;
         }
-
-        // 3. Glass & Crystals
-        if (itemPath.contains("glass")
-                || itemPath.contains("glowstone")
-                || itemPath.contains("lantern")
-                || itemPath.contains("spyglass")
-                || itemPath.contains("amethyst_cluster")
-                || itemPath.contains("amethyst_bud")) {
+        if (containsAny(itemPath, "glass", "glowstone", "lantern", "spyglass", "amethyst_cluster", "amethyst_bud")) {
             return isInsert ? SoundEvents.GLASS_PLACE : SoundEvents.GLASS_HIT;
         }
-
-        // 4. Liquids & Fluids (Potions, Splash Potions, Buckets of Fluid, Bottles)
-        if (itemPath.contains("potion")
-                || itemPath.contains("bottle")
-                || itemPath.contains("bucket_of")
-                || itemPath.contains("milk_bucket")
-                || itemPath.contains("honey_bottle")
-                || itemPath.contains("dragon_breath")) {
+        if (containsAny(itemPath, "potion", "bottle", "bucket_of", "milk_bucket", "honey_bottle", "dragon_breath")) {
             return isInsert ? SoundEvents.BOTTLE_FILL : SoundEvents.BOTTLE_EMPTY;
         }
-
-        // 5. Weapons, Combat & Armor
-        if (itemPath.contains("sword")
-                || itemPath.contains("bow")
-                || itemPath.contains("crossbow")
-                || itemPath.contains("shield")
-                || itemPath.contains("trident")
-                || itemPath.contains("helmet")
-                || itemPath.contains("chestplate")
-                || itemPath.contains("leggings")
-                || itemPath.contains("boots")
-                || itemPath.contains("arrow")
-                || itemPath.contains("horse_armor")) {
+        if (containsAny(itemPath, "sword", "bow", "crossbow", "shield", "trident", "helmet", "chestplate",
+                "leggings", "boots", "arrow", "horse_armor")) {
             return isInsert ? SoundEvents.ARMOR_EQUIP_IRON.value() : SoundEvents.ARMOR_EQUIP_CHAIN.value();
         }
-
-        // 6. Metals & Ingots
-        if (itemPath.contains("iron")
-                || itemPath.contains("gold")
-                || itemPath.contains("netherite")
-                || itemPath.contains("copper")
-                || itemPath.contains("metal")
-                || itemPath.contains("chain")
-                || itemPath.contains("bucket")
-                || itemPath.contains("anvil")
-                || itemPath.contains("rail")
-                || itemPath.contains("minecart")) {
+        if (containsAny(itemPath, "iron", "gold", "netherite", "copper", "metal", "chain", "bucket", "anvil",
+                "rail", "minecart")) {
             return isInsert ? SoundEvents.METAL_PLACE : SoundEvents.METAL_HIT;
         }
-
-        // 7. Heavy Blocks & Stone
-        if (itemPath.contains("stone")
-                || itemPath.contains("cobblestone")
-                || itemPath.contains("obsidian")
-                || itemPath.contains("deepslate")
-                || itemPath.contains("brick")
-                || itemPath.contains("granite")
-                || itemPath.contains("diorite")
-                || itemPath.contains("andesite")
-                || itemPath.contains("sandstone")
-                || itemPath.contains("basalt")
-                || itemPath.contains("ore")) {
+        if (containsAny(itemPath, "stone", "cobblestone", "obsidian", "deepslate", "brick", "granite", "diorite",
+                "andesite", "sandstone", "basalt", "ore")) {
             return isInsert ? SoundEvents.STONE_PLACE : SoundEvents.STONE_HIT;
         }
-
-        // 8. Wood & Timber
-        if (itemPath.contains("wood")
-                || itemPath.contains("plank")
-                || itemPath.contains("log")
-                || itemPath.contains("stick")
-                || itemPath.contains("door")
-                || itemPath.contains("fence")
-                || itemPath.contains("chest")
-                || itemPath.contains("sign")
-                || itemPath.contains("boat")
-                || itemPath.contains("sapling")
-                || itemPath.contains("crafting_table")) {
+        if (containsAny(itemPath, "wood", "plank", "log", "stick", "door", "fence", "chest", "sign", "boat",
+                "sapling", "crafting_table")) {
             return isInsert ? SoundEvents.WOOD_PLACE : SoundEvents.WOOD_HIT;
         }
-
-        // 9. Ground & Earth (Sand, Gravel, Dirt, Snow)
-        if (itemPath.contains("sand")
-                || itemPath.contains("gravel")
-                || itemPath.contains("dirt")
-                || itemPath.contains("clay")
-                || itemPath.contains("snow")
-                || itemPath.contains("mud")
-                || itemPath.contains("soul_sand")
-                || itemPath.contains("mycelium")
-                || itemPath.contains("podzol")) {
+        if (containsAny(itemPath, "sand", "gravel", "dirt", "clay", "snow", "mud", "soul_sand", "mycelium", "podzol")) {
             return isInsert ? SoundEvents.SAND_PLACE : SoundEvents.SAND_HIT;
         }
-
-        // 10. Soft & Organic & Food
-        if (itemPath.contains("seed")
-                || itemPath.contains("crop")
-                || itemPath.contains("wheat")
-                || itemPath.contains("carrot")
-                || itemPath.contains("potato")
-                || itemPath.contains("apple")
-                || itemPath.contains("food")
-                || itemPath.contains("leaf")
-                || itemPath.contains("leaves")
-                || itemPath.contains("paper")
-                || itemPath.contains("wool")
-                || itemPath.contains("leather")
-                || itemPath.contains("feather")
-                || itemPath.contains("egg")
-                || itemPath.contains("string")
-                || itemPath.contains("flower")
-                || itemPath.contains("grass")
-                || itemPath.contains("sugar_cane")
-                || itemPath.contains("bamboo")
-                || itemPath.contains("bread")
-                || itemPath.contains("cookie")
-                || itemPath.contains("beef")
-                || itemPath.contains("pork")
-                || itemPath.contains("chicken")
-                || itemPath.contains("mutton")
-                || itemPath.contains("rabbit")
-                || itemPath.contains("fish")
-                || itemPath.contains("stew")) {
+        if (containsAny(itemPath, "seed", "crop", "wheat", "carrot", "potato", "apple", "food", "leaf", "leaves",
+                "paper", "wool", "leather", "feather", "egg", "string", "flower", "grass", "sugar_cane",
+                "bamboo", "bread", "cookie", "beef", "pork", "chicken", "mutton", "rabbit", "fish", "stew")) {
             return isInsert ? SoundEvents.BUNDLE_INSERT : SoundEvents.BUNDLE_DROP_CONTENTS;
         }
-
-        // 11. Fallback
-        return isInsert ? SoundEvents.ITEM_PICKUP : SoundEvents.ITEM_PICKUP;
+        return SoundEvents.ITEM_PICKUP;
     }
 
     // =========================================================================
@@ -587,10 +477,10 @@ public final class ContainerHelper {
      * Pulls items from the player's hotbar slots and merges them into the container contents.
      * Returns true if any changes were made.
      */
-    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots) {
+    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<Slot> slots) {
         boolean success = false;
-        for (net.minecraft.world.inventory.Slot slot : slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 9) {
+        for (Slot slot : slots) {
+            if (isPlayerInventorySlot(slot, 9)) {
                 ItemStack hotbarStack = slot.getItem();
                 if (hotbarStack.isEmpty()) continue;
                 int maxStack = hotbarStack.getMaxStackSize();
@@ -625,40 +515,24 @@ public final class ContainerHelper {
      * Deposits items from player's inventory slots (0..35) that match item types already in the container.
      * Returns true if any changes were made.
      */
-    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<net.minecraft.world.inventory.Slot> slots, int containerSlotId) {
+    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<Slot> slots, int containerSlotId) {
         boolean success = false;
-        java.util.Set<ItemStack> distinctTypes = new java.util.HashSet<>();
+        Set<ItemStack> distinctTypes = new HashSet<>();
         for (ItemStack boxStack : contents) {
-            if (!boxStack.isEmpty()) {
-                boolean exists = false;
-                for (ItemStack t : distinctTypes) {
-                    if (ItemStack.isSameItemSameComponents(t, boxStack)) {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists) {
-                    distinctTypes.add(boxStack.copy());
-                }
+            if (!boxStack.isEmpty() && !containsSameItem(distinctTypes, boxStack)) {
+                distinctTypes.add(boxStack.copy());
             }
         }
 
         if (!distinctTypes.isEmpty()) {
-            for (net.minecraft.world.inventory.Slot slot : slots) {
-                if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+            for (Slot slot : slots) {
+                if (isPlayerInventorySlot(slot, 36)) {
                     if (slot.index == containerSlotId) continue;
 
                     ItemStack invStack = slot.getItem();
                     if (invStack.isEmpty()) continue;
 
-                    boolean matches = false;
-                    for (ItemStack t : distinctTypes) {
-                        if (ItemStack.isSameItemSameComponents(t, invStack)) {
-                            matches = true;
-                            break;
-                        }
-                    }
-                    if (matches) {
+                    if (containsSameItem(distinctTypes, invStack)) {
                         int originalCount = invStack.getCount();
                         ItemStack remainder = tryInsert(contents, invStack.copy(), false);
                         slot.set(remainder);
@@ -684,13 +558,13 @@ public final class ContainerHelper {
         if (player == null || volume <= 0.0f) return;
 
         SoundEvent soundEvent = SoundEvents.ITEM_PICKUP;
-        if (com.bettershulker.BetterShulkerConfig.soundOption == com.bettershulker.BetterShulkerConfig.SoundOption.CONTEXTUAL) {
+        if (BetterShulkerConfig.soundOption == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
             soundEvent = getContextualSound(stack, isInsert);
         } else {
             try {
-                String[] split = com.bettershulker.BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
-                var soundLoc = net.minecraft.resources.Identifier.fromNamespaceAndPath(split[0], split[1]);
-                var soundHolderOpt = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+                String[] split = BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
+                var soundLoc = Identifier.fromNamespaceAndPath(split[0], split[1]);
+                var soundHolderOpt = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
                 if (soundHolderOpt.isPresent()) {
                     soundEvent = soundHolderOpt.get().value();
                 }

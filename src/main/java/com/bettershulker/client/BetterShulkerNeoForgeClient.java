@@ -78,7 +78,6 @@ public final class BetterShulkerNeoForgeClient {
                 registerKey(event, "key.bettershulker.scroll_left", GLFW.GLFW_KEY_LEFT),
                 registerKey(event, "key.bettershulker.scroll_right", GLFW.GLFW_KEY_RIGHT),
                 registerKey(event, "key.bettershulker.restock", GLFW.GLFW_KEY_R),
-                registerKey(event, "key.bettershulker.wireless_ender", GLFW.GLFW_KEY_O),
                 registerKey(event, "key.bettershulker.show_full_tooltip", GLFW.GLFW_KEY_V)
         );
     }

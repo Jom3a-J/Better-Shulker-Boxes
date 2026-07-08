@@ -92,7 +92,6 @@ Better Shulker Boxes is designed to respect custom GUI textures from resource pa
 
 ## More Features
 
-- Wireless Ender Chest preview
 - Item filter highlighting
 - Alt Force tooltip while holding a box
 - Colored shulker support

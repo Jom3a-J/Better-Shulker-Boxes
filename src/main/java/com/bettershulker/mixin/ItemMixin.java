@@ -1,34 +1,27 @@
 package com.bettershulker.mixin;
 
-import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.BetterShulkerConfig;
+import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickAction;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.DyeColor;
-
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
 /**
  * Mixin for Item to add native bundle-like slot click interactions for Shulker Boxes and Ender Chests.
- * Handles item insertion, extraction, and shulker box dyeing from within the inventory UI screen.
+ * Handles item insertion and extraction from within the inventory UI screen.
  */
 @Mixin(Item.class)
 public abstract class ItemMixin {
@@ -42,34 +35,8 @@ public abstract class ItemMixin {
      */
     @Inject(method = "overrideStackedOnOther", at = @At("HEAD"), cancellable = true)
     private void bettershulker$overrideStackedOnOther(ItemStack stack, Slot slot, ClickAction clickAction, Player player, CallbackInfoReturnable<Boolean> ci) {
-        if (clickAction != ClickAction.SECONDARY) {
+        if (!bettershulker$canHandleContainerClick(stack, slot, clickAction, player)) {
             return;
-        }
-
-        if (!ContainerHelper.isContainer(stack)) {
-            return;
-        }
-
-        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-            return;
-        }
-
-        if (!player.level().isClientSide()) {
-            if (!(player instanceof ServerPlayer)) {
-                return;
-            }
-            UUID uuid = player.getUUID();
-            long currentTick = player.level().getGameTime();
-            long lastTick = com.bettershulker.BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
-            if (lastTick != currentTick) {
-                com.bettershulker.BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
-                com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
-            }
-            int count = com.bettershulker.BetterShulkerMod.interactionCountsThisTick.get(uuid);
-            if (count >= com.bettershulker.BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
-                return;
-            }
-            com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
@@ -77,14 +44,7 @@ public abstract class ItemMixin {
             if (slotStack.isEmpty()) {
                 // Carried Shulker Box, right-click on empty slot -> Extract/dump first item
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
-                int extractionIndex = -1;
-                for (int i = 0; i < contents.size(); i++) {
-                    if (!contents.get(i).isEmpty()) {
-                        extractionIndex = i;
-                        break;
-                    }
-                }
-
+                int extractionIndex = bettershulker$firstOccupiedSlot(contents);
                 if (extractionIndex != -1) {
                     ItemStack extracted = ContainerHelper.tryExtract(contents, extractionIndex, false);
                     slot.set(extracted);
@@ -123,8 +83,7 @@ public abstract class ItemMixin {
                         ItemStack extracted = enderInv.removeItemNoUpdate(extractionIndex);
                         slot.set(extracted);
 
-                        // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, extracted, false);
                         ci.setReturnValue(true);
                     }
@@ -132,11 +91,8 @@ public abstract class ItemMixin {
                     // Client side: return true if we can extract, to prevent client-server mismatch
                     NonNullList<ItemStack> cached = bettershulker$getClientEnderChestContents();
                     if (cached != null) {
-                        for (ItemStack s : cached) {
-                            if (!s.isEmpty()) {
-                                ci.setReturnValue(true);
-                                break;
-                            }
+                        if (bettershulker$firstOccupiedSlot(cached) != -1) {
+                            ci.setReturnValue(true);
                         }
                     } else {
                         ci.setReturnValue(true);
@@ -146,42 +102,12 @@ public abstract class ItemMixin {
                 // Carried Ender Chest, right-click on stack -> Insert stack into Ender Chest
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
-                    var enderInv = serverPlayer.getEnderChestInventory();
-                    ItemStack invStack = slotStack.copy();
-
-                    // Auto-insert invStack into the ender chest inventory
-                    // First pass: merge with existing compatible stacks
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                        ItemStack existing = enderInv.getItem(i);
-                        if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
-                            int canFit = existing.getMaxStackSize() - existing.getCount();
-                            int toInsert = Math.min(canFit, invStack.getCount());
-                            if (toInsert > 0) {
-                                existing.grow(toInsert);
-                                invStack.shrink(toInsert);
-                            }
-                        }
-                        if (invStack.isEmpty()) break;
-                    }
-
-                    // Second pass: put into empty slots
-                    if (!invStack.isEmpty()) {
-                        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                            ItemStack existing = enderInv.getItem(i);
-                            if (existing.isEmpty()) {
-                                int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                                enderInv.setItem(i, invStack.copyWithCount(toInsert));
-                                invStack.shrink(toInsert);
-                            }
-                            if (invStack.isEmpty()) break;
-                        }
-                    }
+                    ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, slotStack.copy());
 
                     if (invStack.getCount() != slotStack.getCount()) {
                         slot.set(invStack);
 
-                        // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, invStack, true);
                         ci.setReturnValue(true);
                     }
@@ -197,62 +123,13 @@ public abstract class ItemMixin {
      */
     @Inject(method = "overrideOtherStackedOnMe", at = @At("HEAD"), cancellable = true)
     private void bettershulker$overrideOtherStackedOnMe(ItemStack stack, ItemStack other, Slot slot, ClickAction clickAction, Player player, SlotAccess slotAccess, CallbackInfoReturnable<Boolean> ci) {
-        if (clickAction != ClickAction.SECONDARY) {
+        if (!bettershulker$canHandleContainerClick(stack, slot, clickAction, player)) {
             return;
-        }
-
-        if (!ContainerHelper.isContainer(stack)) {
-            return;
-        }
-
-        if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)) {
-            return;
-        }
-
-        if (!player.level().isClientSide()) {
-            if (!(player instanceof ServerPlayer)) {
-                return;
-            }
-            UUID uuid = player.getUUID();
-            long currentTick = player.level().getGameTime();
-            long lastTick = com.bettershulker.BetterShulkerMod.lastInteractionTick.getOrDefault(uuid, -1L);
-            if (lastTick != currentTick) {
-                com.bettershulker.BetterShulkerMod.lastInteractionTick.put(uuid, currentTick);
-                com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, 0);
-            }
-            int count = com.bettershulker.BetterShulkerMod.interactionCountsThisTick.get(uuid);
-            if (count >= com.bettershulker.BetterShulkerMod.MAX_INTERACTIONS_PER_TICK) {
-                return;
-            }
-            com.bettershulker.BetterShulkerMod.interactionCountsThisTick.put(uuid, count + 1);
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
             if (!other.isEmpty()) {
-                // 1. If carried item is a Dye, perform dyeing instead of insertion!
-                DyeColor dyeColor = other.get(DataComponents.DYE);
-                if (dyeColor != null) {
-                    DyeColor currentColor = ContainerHelper.getShulkerColor(stack);
-                    if (currentColor != dyeColor) {
-                        // Create a dyed shulker box preserving the count
-                        ItemStack newShulker = new ItemStack(ContainerHelper.getShulkerBoxByColor(dyeColor), stack.getCount());
-                        newShulker.applyComponents(stack.getComponents());
-
-                        // Set the slot stack to the new dyed shulker box
-                        slot.set(newShulker);
-
-                        // Consume exactly 1 dye from the cursor stack
-                        other.shrink(1);
-
-                        // Play a satisfying dye sound!
-                        player.level().playSound(player, player.getX(), player.getY(), player.getZ(), SoundEvents.DYE_USE, SoundSource.PLAYERS, 1.0F, 1.0F);
-
-                        ci.setReturnValue(true);
-                        return;
-                    }
-                }
-
-                // 2. Otherwise, insert carried item into Shulker Box (vanilla bundle style)
+                // Insert carried item into Shulker Box (vanilla bundle style)
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
                 int originalCount = other.getCount();
                 ItemStack remainder = ContainerHelper.tryInsert(contents, other, false);
@@ -268,42 +145,12 @@ public abstract class ItemMixin {
                 // Carried item right-clicked onto Ender Chest in slot -> Insert carried item into Ender Chest
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
-                    var enderInv = serverPlayer.getEnderChestInventory();
-                    ItemStack invStack = other.copy();
-
-                    // Auto-insert invStack into the ender chest inventory
-                    // First pass: merge with existing compatible stacks
-                    for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                        ItemStack existing = enderInv.getItem(i);
-                        if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
-                            int canFit = existing.getMaxStackSize() - existing.getCount();
-                            int toInsert = Math.min(canFit, invStack.getCount());
-                            if (toInsert > 0) {
-                                existing.grow(toInsert);
-                                invStack.shrink(toInsert);
-                            }
-                        }
-                        if (invStack.isEmpty()) break;
-                    }
-
-                    // Second pass: put into empty slots
-                    if (!invStack.isEmpty()) {
-                        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                            ItemStack existing = enderInv.getItem(i);
-                            if (existing.isEmpty()) {
-                                int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                                enderInv.setItem(i, invStack.copyWithCount(toInsert));
-                                invStack.shrink(toInsert);
-                            }
-                            if (invStack.isEmpty()) break;
-                        }
-                    }
+                    ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, other.copy());
 
                     if (invStack.getCount() != other.getCount()) {
                         slotAccess.set(invStack);
 
-                        // Sync to client using optimized diff payload
-                        PlatformNetworking.sendToPlayer(serverPlayer, com.bettershulker.BetterShulkerMod.buildEnderChestSyncPayload(serverPlayer));
+                        bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, other, true);
                         ci.setReturnValue(true);
                     }
@@ -319,9 +166,62 @@ public abstract class ItemMixin {
     // =========================================================================
 
     @org.spongepowered.asm.mixin.Unique
+    private int bettershulker$firstOccupiedSlot(NonNullList<ItemStack> contents) {
+        for (int i = 0; i < contents.size(); i++) {
+            if (!contents.get(i).isEmpty()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private boolean bettershulker$canHandleContainerClick(ItemStack stack, Slot slot, ClickAction clickAction, Player player) {
+        if (clickAction != ClickAction.SECONDARY) {
+            return false;
+        }
+        if (!ContainerHelper.isContainer(stack)) {
+            return false;
+        }
+        if (!(slot.container instanceof Inventory)) {
+            return false;
+        }
+        return player.level().isClientSide()
+                || (player instanceof ServerPlayer serverPlayer && BetterShulkerMod.consumeInteraction(serverPlayer));
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private void bettershulker$syncEnderChest(ServerPlayer player) {
+        PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private ItemStack bettershulker$insertIntoEnderChest(ServerPlayer player, ItemStack stack) {
+        var enderInv = player.getEnderChestInventory();
+        for (int i = 0; i < enderInv.getContainerSize() && !stack.isEmpty(); i++) {
+            ItemStack existing = enderInv.getItem(i);
+            if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, stack)) {
+                int toInsert = Math.min(existing.getMaxStackSize() - existing.getCount(), stack.getCount());
+                if (toInsert > 0) {
+                    existing.grow(toInsert);
+                    stack.shrink(toInsert);
+                }
+            }
+        }
+        for (int i = 0; i < enderInv.getContainerSize() && !stack.isEmpty(); i++) {
+            if (enderInv.getItem(i).isEmpty()) {
+                int toInsert = Math.min(stack.getMaxStackSize(), stack.getCount());
+                enderInv.setItem(i, stack.copyWithCount(toInsert));
+                stack.shrink(toInsert);
+            }
+        }
+        return stack;
+    }
+
+    @org.spongepowered.asm.mixin.Unique
     private void bettershulker$playLevelSound(Player player, ItemStack stack, boolean isInsert) {
         float volume = player.level().isClientSide()
-                ? com.bettershulker.BetterShulkerConfig.soundVolume
+                ? BetterShulkerConfig.soundVolume
                 : 0.3F;
         ContainerHelper.playInteractionSound(player, stack, isInsert, volume);
     }

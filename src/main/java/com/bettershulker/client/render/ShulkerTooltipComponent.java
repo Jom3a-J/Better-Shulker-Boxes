@@ -16,8 +16,15 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
+import java.util.ArrayList;
 
 import java.util.List;
+import java.util.Optional;
+
+import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
+import static com.bettershulker.client.render.ThemeColorUtil.normalizeOverlayAlpha;
+import static com.bettershulker.client.render.ThemeColorUtil.opaqueOrDefault;
+import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
 
 /**
  * Interactive shulker/ender chest tooltip renderer.
@@ -29,8 +36,6 @@ import java.util.List;
 public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private static final int SLOT_SIZE = 18;
-    private static final int COMPACT_SLOT_SIZE = 20;
-    private static final int COMPACT_ITEM_OFFSET = 2;
     private static final int GRID_COLS = 9;
     private static final int GRID_ROWS = 3;
     private static final int COMPACT_MAX_SLOTS = 5;
@@ -55,6 +60,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private static final Identifier SHULKER_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
     private static final Identifier GENERIC_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
+    private static final int ENDER_ACCENT_COLOR = 0xFF00E6C8;
+    private static final int ENDER_PURPLE_COLOR = 0xFF34104E;
+    private static final int ENDER_DARK_COLOR = 0xFF06120F;
 
     /** Crop selected so vanilla shulker slots line up at y=7 inside our compact preview. */
     private static final float PANEL_TEXTURE_U = 0.0F;
@@ -69,6 +77,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final boolean compactMode;
     private final boolean resourcePackOverridesPanel;
     private final List<Integer> displaySlots;
+    private final List<Integer> displayCounts;
     private final int displayCols;
     private final int displayRows;
     private final int panelWidth;
@@ -82,6 +91,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final int multiSelectColor;
     private final int matchColor;
     private final int panelShadowColor;
+
+    private record DisplayLayout(List<Integer> slots, List<Integer> counts) {}
 
     public ShulkerTooltipComponent(ShulkerTooltipData data) {
         this.contents = data.contents();
@@ -101,14 +112,16 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         this.compactMode = BetterShulkerClient.isCompactModeActive();
         this.resourcePackOverridesPanel = hasResourcePackOverride(getPanelTexture())
                 || getPackShulkerPanelTexture() != null;
-        this.displaySlots = buildDisplaySlots();
+        DisplayLayout displayLayout = buildDisplayLayout();
+        this.displaySlots = displayLayout.slots();
+        this.displayCounts = displayLayout.counts();
         this.displayCols = this.compactMode
                 ? Math.min(COMPACT_MAX_SLOTS, Math.max(1, this.displaySlots.size()))
                 : GRID_COLS;
         this.displayRows = this.compactMode
                 ? Math.max(1, (this.displaySlots.size() + this.displayCols - 1) / this.displayCols)
                 : GRID_ROWS;
-        int compactCellSize = this.resourcePackOverridesPanel ? SLOT_SIZE : COMPACT_SLOT_SIZE;
+        int compactCellSize = SLOT_SIZE;
         this.panelWidth = this.compactMode
                 ? (this.isContainerEmpty ? 0 : 14 + (this.displayCols * compactCellSize))
                 : PANEL_WIDTH;
@@ -129,49 +142,56 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         this.panelShadowColor = palette.panelShadowColor;
     }
 
-    private List<Integer> buildDisplaySlots() {
-        List<Integer> slots = new java.util.ArrayList<>();
+    private DisplayLayout buildDisplayLayout() {
+        List<Integer> slots = new ArrayList<>();
+        List<Integer> counts = new ArrayList<>();
         if (this.compactMode && this.isContainerEmpty) {
-            return slots;
+            return new DisplayLayout(slots, counts);
         } else if (this.compactMode) {
             for (int i = 0; i < this.contents.size() && i < SLOT_COUNT; i++) {
                 ItemStack stack = this.contents.get(i);
                 if (stack.isEmpty()) continue;
-                boolean seen = false;
-                for (int existing : slots) {
-                    if (ItemStack.isSameItemSameComponents(this.contents.get(existing), stack)) {
-                        seen = true;
+
+                int existingIndex = -1;
+                for (int displayIndex = 0; displayIndex < slots.size(); displayIndex++) {
+                    if (ItemStack.isSameItemSameComponents(this.contents.get(slots.get(displayIndex)), stack)) {
+                        existingIndex = displayIndex;
                         break;
                     }
                 }
-                if (!seen) slots.add(i);
+                if (existingIndex >= 0) {
+                    counts.set(existingIndex, counts.get(existingIndex) + stack.getCount());
+                } else {
+                    slots.add(i);
+                    counts.add(stack.getCount());
+                }
             }
-            slots.sort((a, b) -> {
-                int countCompare = Integer.compare(countMergedItemsForSlot(b), countMergedItemsForSlot(a));
-                return countCompare != 0 ? countCompare : Integer.compare(a, b);
+
+            List<Integer> order = new ArrayList<>();
+            for (int i = 0; i < slots.size(); i++) order.add(i);
+            List<Integer> mergedSlots = slots;
+            List<Integer> mergedCounts = counts;
+            order.sort((a, b) -> {
+                int countCompare = Integer.compare(mergedCounts.get(b), mergedCounts.get(a));
+                return countCompare != 0 ? countCompare : Integer.compare(mergedSlots.get(a), mergedSlots.get(b));
             });
-            if (slots.size() > COMPACT_MAX_SLOTS) {
-                slots = new java.util.ArrayList<>(slots.subList(0, COMPACT_MAX_SLOTS));
+
+            List<Integer> sortedSlots = new ArrayList<>();
+            List<Integer> sortedCounts = new ArrayList<>();
+            for (int i = 0; i < order.size() && i < COMPACT_MAX_SLOTS; i++) {
+                int index = order.get(i);
+                sortedSlots.add(mergedSlots.get(index));
+                sortedCounts.add(mergedCounts.get(index));
             }
+            slots = sortedSlots;
+            counts = sortedCounts;
         } else {
             for (int i = 0; i < SLOT_COUNT; i++) {
                 slots.add(i);
+                counts.add(i < this.contents.size() ? this.contents.get(i).getCount() : 0);
             }
         }
-        return slots;
-    }
-
-    private int countMergedItemsForSlot(int actualSlot) {
-        if (actualSlot < 0 || actualSlot >= this.contents.size()) return 0;
-        ItemStack displayStack = this.contents.get(actualSlot);
-        if (displayStack.isEmpty()) return 0;
-        int total = 0;
-        for (ItemStack stack : this.contents) {
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(displayStack, stack)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
+        return new DisplayLayout(slots, counts);
     }
 
     @Override
@@ -205,7 +225,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     @Override
     public void extractImage(Font textRenderer, int tooltipX, int tooltipY, int width, int height, GuiGraphicsExtractor context) {
-        int panelX = this.compactMode && getPanelWidth() > 0 ? tooltipX + (width - getPanelWidth()) / 2 : tooltipX + (width - getPanelWidth()) / 2;
+        int panelX = tooltipX + (width - getPanelWidth()) / 2;
         int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
         long now = System.currentTimeMillis();
 
@@ -226,6 +246,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
         if (!this.compactMode) {
             drawThemeOverlay(context, panelX, panelY);
+            drawEnderChestAccents(context, panelX, panelY);
+            drawEnderChestAnimation(context, panelX, panelY, now);
         }
 
         int hoveredSlot = updateHoveredSlot(panelX, panelY);
@@ -244,7 +266,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         // Tiny theme-colored fill strip at the bottom. Hide it in resource-pack mode so the
         // resource pack owns the panel pixels without extra light lines/artifacts.
-        if (!resourcePackMode && !this.compactMode) {
+        if (!resourcePackMode && !this.compactMode && !this.isEnderChest) {
             drawFillStrip(context, panelX, panelY + getPanelHeight() - 2);
         }
     }
@@ -287,31 +309,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             return;
         }
 
-        int w = getPanelWidth();
-        int h = getPanelHeight();
-        int compactBase = getCompactPanelBaseColor();
-        boolean translucentGlass = BetterShulkerConfig.getTooltipTheme() == BetterShulkerConfig.TooltipTheme.GLASS;
-        int bg = translucentGlass ? withAlpha(compactBase, 170) : blendColor(compactBase, 0xFF000000, 0.16f);
-        int face = translucentGlass ? withAlpha(blendColor(compactBase, 0xFFFFFFFF, 0.18f), 92) : blendColor(compactBase, 0xFFFFFFFF, 0.10f);
-        int edge = withAlpha(this.borderColor, 245);
-        int light = withAlpha(blendColor(this.borderColor, 0xFFFFFFFF, 0.50f), 120);
-        int shadow = withAlpha(blendColor(this.borderColor, 0xFF000000, 0.55f), 170);
-
-        // Shulker Box Tooltip-style compact frame: just a colored border and merged item slots.
-        // No summary/header/fill bar inside the preview; item counts live on the merged stacks.
-        context.fill(panelX, panelY, panelX + w, panelY + h, bg);
-        context.fill(panelX + 2, panelY + 2, panelX + w - 2, panelY + h - 2, face);
-        context.fill(panelX, panelY, panelX + w, panelY + 1, light);
-        context.fill(panelX, panelY + 1, panelX + 1, panelY + h, light);
-        context.fill(panelX, panelY + h - 1, panelX + w, panelY + h, shadow);
-        context.fill(panelX + w - 1, panelY, panelX + w, panelY + h, shadow);
-        drawRectFrame(context, panelX + 1, panelY + 1, w - 2, h - 2, edge);
-
-        for (int displayPos = 0; displayPos < this.displaySlots.size(); displayPos++) {
-            int slotX = getSlotX(panelX, displayPos);
-            int slotY = getSlotY(panelY, displayPos);
-            drawCompactSlotBackground(context, slotX, slotY, compactBase);
-        }
+        drawFullStyleCompactPanel(context, panelX, panelY);
+        drawFullStyleCompactOverlay(context, panelX, panelY);
     }
 
     private void drawResourcePackCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -370,43 +369,173 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private int getCompactPanelBaseColor() {
-        return switch (BetterShulkerConfig.getTooltipTheme()) {
-            case ORIGINAL -> {
-                if (this.isEnderChest) {
-                    yield 0xFF123A2A;
-                }
-                if (this.color != null) {
-                    yield blendColor(0xFF000000 | this.color.getTextureDiffuseColor(), 0xFF000000, 0.18f);                }
-                // Undyed/default shulker boxes are purple. The normal tooltip panel was becoming
-                // near-black in compact mode because the original palette used translucent dark
-                // overlay colors; compact mode needs an opaque base color.
-                yield 0xFF6F2D8F;
-            }
+        BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
+        int themeBase = switch (theme) {
+            case ORIGINAL -> 0xFF6F2D8F;
             case CLASSIC -> 0xFF2D4A1A;
-            case RETRO -> 0xFF1A0028;
+            case RETRO -> 0xFF60406E;
             case SOLARIZED_DARK -> 0xFF002B36;
             case SOLARIZED_LIGHT -> 0xFFFDF6E3;
             case HIGH_CONTRAST -> 0xFF000000;
             case CUSTOM -> opaqueOrDefault(BetterShulkerConfig.getCustomBackgroundColor(), 0xFF1A1A1A);
             case GLASS -> 0xFFEAF7FF;
         };
+        int containerColor = getCompactContainerColor();
+        if (containerColor == 0 || theme == BetterShulkerConfig.TooltipTheme.HIGH_CONTRAST
+                || theme == BetterShulkerConfig.TooltipTheme.GLASS) {
+            return themeBase;
+        }
+        float boxInfluence = theme == BetterShulkerConfig.TooltipTheme.ORIGINAL ? 0.28f : 0.18f;
+        if (theme == BetterShulkerConfig.TooltipTheme.RETRO) {
+            boxInfluence = 0.24f;
+        } else if (theme == BetterShulkerConfig.TooltipTheme.CUSTOM) {
+            boxInfluence = 0.10f;
+        }
+        if (this.isEnderChest) {
+            boxInfluence = Math.max(boxInfluence, 0.22f);
+        }
+        return blendColor(themeBase, containerColor, boxInfluence);
     }
 
-    private void drawCompactSlotBackground(GuiGraphicsExtractor context, int slotX, int slotY, int baseColor) {
-        boolean lightBase = getTextColorForBackground(baseColor) == 0xFF373737;
-        int outer = withAlpha(blendColor(this.borderColor, baseColor, 0.35f), 210);
-        int inner = lightBase
-                ? withAlpha(blendColor(baseColor, 0xFFFFFFFF, 0.12f), 238)
-                : withAlpha(blendColor(baseColor, 0xFF000000, 0.50f), 238);
-        int high = lightBase ? 0x80FFFFFF : 0x45FFFFFF;
-        int low = lightBase ? 0x44000000 : 0x70000000;
-        int size = COMPACT_SLOT_SIZE;
-        context.fill(slotX, slotY, slotX + size, slotY + size, outer);
-        context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, inner);
-        context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + 2, high);
-        context.fill(slotX + 1, slotY + 2, slotX + 2, slotY + size - 1, high);
-        context.fill(slotX + 1, slotY + size - 2, slotX + size - 1, slotY + size - 1, low);
-        context.fill(slotX + size - 2, slotY + 2, slotX + size - 1, slotY + size - 1, low);
+    private int getCompactContainerColor() {
+        if (this.isEnderChest) {
+            return blendColor(ENDER_PURPLE_COLOR, ENDER_ACCENT_COLOR, 0.18f);
+        }
+        if (this.color != null) {
+            return 0xFF000000 | this.color.getTextureDiffuseColor();
+        }
+        return 0;
+    }
+
+    private void drawFullStyleCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
+        if (isGlassTheme()) {
+            drawGlassCompactPanel(context, panelX, panelY, getPanelWidth(), getPanelHeight(), getCompactPanelBaseColor());
+            return;
+        }
+
+        Identifier texture = getPanelTexture();
+        Identifier coloredPackTexture = getPackShulkerPanelTexture();
+        boolean usingExactPackColor = coloredPackTexture != null;
+        if (usingExactPackColor) {
+            texture = coloredPackTexture;
+        }
+        int renderColor = usingExactPackColor ? 0xFFFFFFFF : getPanelRenderColor();
+
+        int leftW = SLOT_START_X;
+        int rightSourceX = SLOT_START_X + GRID_COLS * SLOT_SIZE;
+        int rightW = PANEL_WIDTH - rightSourceX;
+        int slotsW = this.displayCols * SLOT_SIZE;
+        int topH = SLOT_START_Y + this.displayRows * SLOT_SIZE;
+        int bottomH = Math.max(0, getPanelHeight() - topH);
+        int bottomSourceY = SLOT_START_Y + GRID_ROWS * SLOT_SIZE;
+
+        blitFullStyleCompactSlice(context, texture, panelX, panelY,
+                0, 0, leftW, topH, renderColor);
+        blitFullStyleCompactSlice(context, texture, panelX + leftW, panelY,
+                SLOT_START_X, 0, slotsW, topH, renderColor);
+        blitFullStyleCompactSlice(context, texture, panelX + leftW + slotsW, panelY,
+                rightSourceX, 0, rightW, topH, renderColor);
+
+        if (bottomH > 0) {
+            int bottomY = panelY + topH;
+            blitFullStyleCompactSlice(context, texture, panelX, bottomY,
+                    0, bottomSourceY, leftW, bottomH, renderColor);
+            blitFullStyleCompactSlice(context, texture, panelX + leftW, bottomY,
+                    SLOT_START_X, bottomSourceY, slotsW, bottomH, renderColor);
+            blitFullStyleCompactSlice(context, texture, panelX + leftW + slotsW, bottomY,
+                    rightSourceX, bottomSourceY, rightW, bottomH, renderColor);
+        }
+    }
+
+    private void blitFullStyleCompactSlice(GuiGraphicsExtractor context, Identifier texture, int x, int y,
+                                           int u, int v, int w, int h, int renderColor) {
+        if (w <= 0 || h <= 0) return;
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                texture,
+                x,
+                y,
+                PANEL_TEXTURE_U + u,
+                PANEL_TEXTURE_V + v,
+                w,
+                h,
+                256,
+                256,
+                renderColor);
+    }
+
+    private void drawFullStyleCompactOverlay(GuiGraphicsExtractor context, int panelX, int panelY) {
+        if (isGlassTheme() || this.resourcePackOverridesPanel) {
+            return;
+        }
+
+        int w = getPanelWidth();
+        int h = getPanelHeight();
+        context.fill(panelX + 2, panelY + 2, panelX + w - 2, panelY + h - 2, this.tintColor);
+        context.fill(panelX + 7, panelY + 6, panelX + w - 7, panelY + Math.max(7, h - 6), withAlpha(this.borderColor, 34));
+
+        int slotTint = withAlpha(this.borderColor, 26);
+        for (int displayPos = 0; displayPos < this.displaySlots.size(); displayPos++) {
+            int slotX = getSlotX(panelX, displayPos);
+            int slotY = getSlotY(panelY, displayPos);
+            context.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1, slotTint);
+        }
+
+        int softHighlight = withAlpha(blendColor(this.borderColor, 0xFFFFFFFF, 0.45f), 28);
+        context.fill(panelX + 3, panelY + 3, panelX + w - 3, panelY + 5, softHighlight);
+        context.fill(panelX + 3, panelY + 5, panelX + 5, panelY + h - 3, softHighlight);
+
+        if (this.isEnderChest) {
+            drawCompactEnderChestBottomCap(context, panelX, panelY);
+        }
+    }
+
+    private void drawCompactEnderChestBottomCap(GuiGraphicsExtractor context, int panelX, int panelY) {
+        int capHeight = 7;
+        int capY = panelY + getPanelHeight() - capHeight;
+        int leftW = SLOT_START_X;
+        int rightSourceX = SLOT_START_X + GRID_COLS * SLOT_SIZE;
+        int rightW = PANEL_WIDTH - rightSourceX;
+        int slotsW = this.displayCols * SLOT_SIZE;
+        int sourceY = Math.round(PANEL_TEXTURE_V) + PANEL_HEIGHT - capHeight;
+
+        blitCompactCapSlice(context, panelX, capY, 0, sourceY, leftW, capHeight);
+        blitCompactCapSlice(context, panelX + leftW, capY, SLOT_START_X, sourceY, slotsW, capHeight);
+        blitCompactCapSlice(context, panelX + leftW + slotsW, capY, rightSourceX, sourceY, rightW, capHeight);
+
+        int tint = withAlpha(ENDER_ACCENT_COLOR, 28);
+        context.fill(panelX + 7, capY + 1, panelX + getPanelWidth() - 7, capY + capHeight - 2, tint);
+        int rim = withAlpha(blendColor(ENDER_ACCENT_COLOR, this.panelShadowColor, 0.75f), 190);
+        context.fill(panelX + 6, capY + capHeight - 2, panelX + getPanelWidth() - 6, capY + capHeight - 1, rim);
+    }
+
+    private void blitCompactCapSlice(GuiGraphicsExtractor context, int x, int y, int u, int v, int w, int h) {
+        if (w <= 0 || h <= 0) return;
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                SHULKER_PANEL_TEXTURE,
+                x,
+                y,
+                (float) u,
+                (float) v,
+                w,
+                h,
+                256,
+                256,
+                0xFFFFFFFF);
+    }
+
+    private void drawGlassCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY, int w, int h, int compactBase) {
+        int bg = withAlpha(compactBase, 170);
+        int face = withAlpha(blendColor(compactBase, 0xFFFFFFFF, 0.18f), 92);
+        int edge = withAlpha(this.borderColor, 245);
+        int light = withAlpha(blendColor(this.borderColor, 0xFFFFFFFF, 0.50f), 120);
+        int shadow = withAlpha(blendColor(this.borderColor, 0xFF000000, 0.55f), 170);
+        context.fill(panelX, panelY, panelX + w, panelY + h, bg);
+        context.fill(panelX + 2, panelY + 2, panelX + w - 2, panelY + h - 2, face);
+        context.fill(panelX, panelY, panelX + w, panelY + 1, light);
+        context.fill(panelX, panelY + 1, panelX + 1, panelY + h, light);
+        context.fill(panelX, panelY + h - 1, panelX + w, panelY + h, shadow);
+        context.fill(panelX + w - 1, panelY, panelX + w, panelY + h, shadow);
+        drawRectFrame(context, panelX + 1, panelY + 1, w - 2, h - 2, edge);
     }
 
     private String getCompactFullHintText() {
@@ -418,7 +547,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 keyName = "V";
             }
         }
-        return keyName + ": View full contents";
+        return keyName + ": Full contents";
     }
 
     private void drawCompactFullHint(Font font, GuiGraphicsExtractor context, int x, int y, int width) {
@@ -426,7 +555,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int textX = x + Math.max(4, (width - font.width(hint)) / 2);
         int textY = y + 3;
         context.text(font, Component.literal(hint), textX + 1, textY + 1, 0xAA000000);
-        context.text(font, Component.literal(hint), textX, textY, withAlpha(this.textColor, 210));
+        context.text(font, Component.literal(hint), textX, textY, 0xFFFFD700);
     }
 
     private int getPanelWidth() {
@@ -512,6 +641,69 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             return Minecraft.getInstance().getResourceManager().getResourceStack(texture).size() > 1;
         } catch (Exception ignored) {
             return false;
+        }
+    }
+
+    private void drawEnderChestAccents(GuiGraphicsExtractor context, int panelX, int panelY) {
+        if (!this.isEnderChest || this.resourcePackOverridesPanel || isGlassTheme()) {
+            return;
+        }
+
+        int accent = withAlpha(ENDER_ACCENT_COLOR, 165);
+        int strongAccent = withAlpha(ENDER_ACCENT_COLOR, 215);
+        int soft = withAlpha(ENDER_ACCENT_COLOR, 42);
+        int purple = withAlpha(ENDER_PURPLE_COLOR, 75);
+        int bottomTint = withAlpha(ENDER_ACCENT_COLOR, 34);
+        int capHeight = 7;
+        int capY = panelY + getPanelHeight() - capHeight;
+
+        context.fill(panelX + 5, panelY + 4, panelX + PANEL_WIDTH - 5, panelY + 5, soft);
+        context.fill(panelX + 4, panelY + 5, panelX + 5, panelY + getPanelHeight() - 5, soft);
+        context.fill(panelX + PANEL_WIDTH - 5, panelY + 5, panelX + PANEL_WIDTH - 4, panelY + getPanelHeight() - 5, soft);
+        context.fill(panelX + 8, panelY + 6, panelX + 22, panelY + 7, accent);
+        context.fill(panelX + PANEL_WIDTH - 22, panelY + 6, panelX + PANEL_WIDTH - 8, panelY + 7, accent);
+        context.fill(panelX + PANEL_WIDTH / 2 - 12, panelY + 5, panelX + PANEL_WIDTH / 2 + 12, panelY + 6, purple);
+
+        // Reuse the normal shulker panel's bottom cap pixels so the Ender Chest bottom edge
+        // has the same shape/thickness, then add only a faint Ender tint over that cap.
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                SHULKER_PANEL_TEXTURE,
+                panelX,
+                capY,
+                PANEL_TEXTURE_U,
+                PANEL_TEXTURE_V + PANEL_HEIGHT - capHeight,
+                PANEL_WIDTH,
+                capHeight,
+                256,
+                256,
+                0xFFFFFFFF);
+        context.fill(panelX + 7, capY + 1, panelX + PANEL_WIDTH - 7, capY + capHeight - 2, bottomTint);
+    }
+
+    private void drawEnderChestAnimation(GuiGraphicsExtractor context, int panelX, int panelY, long now) {
+        if (!this.isEnderChest || this.resourcePackOverridesPanel || isGlassTheme()
+                || !BetterShulkerConfig.hoverAnimationsEnabled) {
+            return;
+        }
+
+        float pulse = (float) Math.sin(now / 420.0) * 0.5f + 0.5f;
+        int glowAlpha = 32 + Math.round(38 * pulse);
+        int purpleGlow = withAlpha(ENDER_PURPLE_COLOR, 28 + Math.round(30 * (1.0f - pulse)));
+        int panelBottom = panelY + getPanelHeight();
+
+        // Slow Ender pulse along the top cap only; keep the shulker-matched bottom cap clean.
+        context.fill(panelX + 10, panelY + 7, panelX + PANEL_WIDTH - 10, panelY + 8, purpleGlow);
+
+        // Tiny deterministic portal motes around the border for identity without distracting from items.
+        for (int i = 0; i < 7; i++) {
+            double t = (now / 1000.0) + i * 0.73;
+            int x = panelX + 12 + Math.floorMod((int) (i * 29 + now / 80), PANEL_WIDTH - 24);
+            int y = (i % 2 == 0)
+                    ? panelY + 6 + (int) (Math.sin(t) * 2.0)
+                    : panelBottom - 9 + (int) (Math.cos(t) * 2.0);
+            int alpha = 75 + (int) (55 * (Math.sin(t * 1.7) * 0.5 + 0.5));
+            int color = (i % 3 == 0) ? withAlpha(ENDER_PURPLE_COLOR, alpha) : withAlpha(ENDER_ACCENT_COLOR, alpha);
+            context.fill(x, y, x + 1, y + 1, color);
         }
     }
 
@@ -660,7 +852,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 int itemY = slotY + (this.compactMode ? getCompactItemOffset() : 1);
                 context.item(stack, itemX, itemY);
                 if (this.compactMode) {
-                    int totalCount = getGroupedItemCount(i);
+                    int totalCount = getDisplayItemCount(displayPos);
                     if (totalCount > 1) {
                         drawCompactItemCount(font, context, itemX, itemY, totalCount);
                     } else {
@@ -710,20 +902,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(slotX + size, slotY, slotX + size + 1, slotY + size, hot);
     }
 
-    private int getGroupedItemCount(int actualSlot) {
-        if (actualSlot < 0 || actualSlot >= this.contents.size()) return 0;
-        ItemStack displayStack = this.contents.get(actualSlot);
-        if (displayStack.isEmpty()) return 0;
-        int total = 0;
-        if (this.compactMode) {
-            for (ItemStack stack : this.contents) {
-                if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(displayStack, stack)) {
-                    total += stack.getCount();
-                }
-            }
-            return total;
-        }
-        return displayStack.getCount();
+    private int getDisplayItemCount(int displayPos) {
+        if (displayPos < 0 || displayPos >= this.displayCounts.size()) return 0;
+        return this.displayCounts.get(displayPos);
     }
 
     private void drawCompactItemCount(Font font, GuiGraphicsExtractor context, int itemX, int itemY, int count) {
@@ -800,7 +981,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             ItemStack hoveredStack = this.contents.get(hoveredSlot);
             if (!hoveredStack.isEmpty()) {
                 hoveredName = hoveredStack.getHoverName().getString();
-                context.setTooltipForNextFrame(font, List.of(hoveredStack.getHoverName()), java.util.Optional.empty(), mouseX, mouseY);
+                context.setTooltipForNextFrame(font, List.of(hoveredStack.getHoverName()), Optional.empty(), mouseX, mouseY);
             }
         }
 
@@ -817,7 +998,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                     int tooltipWidth = font.width(selectedStack.getHoverName()) + 12;
                     context.setTooltipForNextFrame(font,
                             List.of(selectedStack.getHoverName()),
-                            java.util.Optional.empty(),
+                            Optional.empty(),
                             mouseX - tooltipWidth - 12,
                             mouseY - 10);
                 }
@@ -974,17 +1155,16 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private int getRenderedSlotSize() {
-        if (!this.compactMode) return SLOT_SIZE;
-        return this.resourcePackOverridesPanel ? SLOT_SIZE : COMPACT_SLOT_SIZE;
+        return SLOT_SIZE;
     }
 
     private int getCompactItemOffset() {
-        return this.resourcePackOverridesPanel ? 1 : COMPACT_ITEM_OFFSET;
+        return 1;
     }
 
     private int getSlotX(int panelX, int slot) {
         int cols = this.compactMode ? this.displayCols : GRID_COLS;
-        int startX = this.compactMode ? (this.resourcePackOverridesPanel ? SLOT_START_X : COMPACT_SLOT_START_X) : SLOT_START_X;
+        int startX = SLOT_START_X;
         return panelX + startX + (slot % cols) * getRenderedSlotSize();
     }
 
@@ -1013,7 +1193,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private int getSlotStartY() {
-        if (this.compactMode) return this.resourcePackOverridesPanel ? RESOURCE_PACK_SLOT_START_Y : COMPACT_SLOT_START_Y;
+        if (this.compactMode) return this.resourcePackOverridesPanel ? RESOURCE_PACK_SLOT_START_Y : SLOT_START_Y;
         return this.resourcePackOverridesPanel ? RESOURCE_PACK_SLOT_START_Y : SLOT_START_Y;
     }
 
@@ -1050,7 +1230,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             select = 0xFFFFD700;
         }
 
-        switch (BetterShulkerConfig.getTooltipTheme()) {
+        BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
+        switch (theme) {
             case ORIGINAL -> {
                 // Keep container/ender derived defaults.
             }
@@ -1116,44 +1297,18 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             }
         }
 
+        if (this.isEnderChest && theme != BetterShulkerConfig.TooltipTheme.CUSTOM) {
+            baseBorder = blendColor(baseBorder, ENDER_ACCENT_COLOR, 0.48f);
+            baseTint = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.35f), 112);
+            badgeBg = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.45f), 230);
+            select = ENDER_ACCENT_COLOR;
+            multi = 0xFFB35CFF;
+            match = 0xFF50FFB8;
+        }
+
         return new ThemePalette(baseBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);
     }
 
-    private static int normalizeOverlayAlpha(int color, int fallbackAlpha) {
-        int alpha = (color >>> 24) & 0xFF;
-        if (alpha == 0 || alpha == 255) alpha = fallbackAlpha;
-        return (alpha << 24) | (color & 0x00FFFFFF);
-    }
-
-    private static int opaqueOrDefault(int color, int fallback) {
-        if ((color & 0x00FFFFFF) == 0 && ((color >>> 24) & 0xFF) == 0) return fallback;
-        return 0xFF000000 | (color & 0x00FFFFFF);
-    }
-
-    private static int withAlpha(int color, int alpha) {
-        return (Math.max(0, Math.min(255, alpha)) << 24) | (color & 0x00FFFFFF);
-    }
-
-    private static int blendColor(int colorA, int colorB, float factor) {
-        int rA = (colorA >> 16) & 0xFF;
-        int gA = (colorA >> 8) & 0xFF;
-        int bA = colorA & 0xFF;
-        int rB = (colorB >> 16) & 0xFF;
-        int gB = (colorB >> 8) & 0xFF;
-        int bB = colorB & 0xFF;
-        int r = Math.round(rA + (rB - rA) * factor);
-        int g = Math.round(gA + (gB - gA) * factor);
-        int b = Math.round(bA + (bB - bA) * factor);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
-
-    public static int getTextColorForBackground(int color) {
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-        double luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-        return luminance > 0.65 ? 0xFF373737 : 0xFFFFFFFF;
-    }
 
     private record ThemePalette(
             int borderColor,

@@ -176,9 +176,9 @@ public class BetterShulkerConfig {
             customNameBorderColor = hexVal(props, "customNameBorderColor", customNameBorderColor);
             customNameTextColor   = hexVal(props, "customNameTextColor", customNameTextColor);
             customSelectionSquareColor = hexVal(props, "customSelectionSquareColor", customSelectionSquareColor);
-            System.out.println("[BetterShulker] Config loaded from " + CONFIG_PATH);
+            BetterShulkerMod.LOGGER.info("[BetterShulker] Config loaded from {}", CONFIG_PATH);
         } catch (Exception e) {
-            System.err.println("[BetterShulker] Failed to load config: " + e.getMessage());
+            BetterShulkerMod.LOGGER.warn("[BetterShulker] Failed to load config", e);
         }
     }
 
@@ -209,9 +209,9 @@ public class BetterShulkerConfig {
             try (var writer = Files.newBufferedWriter(CONFIG_PATH)) {
                 props.store(writer, "Better Shulker Plus Configuration");
             }
-            System.out.println("[BetterShulker] Config saved to " + CONFIG_PATH);
+            BetterShulkerMod.LOGGER.info("[BetterShulker] Config saved to {}", CONFIG_PATH);
         } catch (Exception e) {
-            System.err.println("[BetterShulker] Failed to save config: " + e.getMessage());
+            BetterShulkerMod.LOGGER.warn("[BetterShulker] Failed to save config", e);
         }
     }
 

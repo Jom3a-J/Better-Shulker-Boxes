@@ -1,6 +1,7 @@
 package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
+import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.ContainerInteractPayload;
@@ -18,6 +19,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
@@ -30,9 +32,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -100,7 +105,7 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private boolean bettershulker$wigglePushed = false;
 
-    protected HandledScreenMixin(net.minecraft.network.chat.Component title) {
+    protected HandledScreenMixin(Component title) {
         super(title);
     }
 
@@ -165,6 +170,24 @@ public abstract class HandledScreenMixin extends Screen {
             if (cached != null) return cached;
         }
         return NonNullList.withSize(27, ItemStack.EMPTY);
+    }
+
+    @Unique
+    private record bettershulker$ActiveContainer(ItemStack stack, int slotId) {}
+
+    @Unique
+    private bettershulker$ActiveContainer bettershulker$getActiveContainer() {
+        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
+        if (containerStack.isEmpty()) {
+            ItemStack carried = bettershulker$self().getMenu().getCarried();
+            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
+                containerStack = this.hoveredSlot.getItem();
+            } else if (ContainerHelper.isContainer(carried)) {
+                containerStack = carried;
+            }
+        }
+        int slotId = this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack ? this.hoveredSlot.index : -1;
+        return new bettershulker$ActiveContainer(containerStack, slotId);
     }
 
     @Unique
@@ -485,9 +508,9 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private int bettershulker$clampScroll(int current, int delta, ItemStack containerStack) {
-        if (com.bettershulker.client.BetterShulkerClient.isCompactModeActive()) {
+        if (BetterShulkerClient.isCompactModeActive()) {
             NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
-            List<Integer> visibleIndices = new java.util.ArrayList<>();
+            List<Integer> visibleIndices = new ArrayList<>();
             for (int i = 0; i < contents.size(); i++) {
                 ItemStack stack = contents.get(i);
                 if (!stack.isEmpty()) {
@@ -513,7 +536,7 @@ public abstract class HandledScreenMixin extends Screen {
                     return countCompare != 0 ? countCompare : Integer.compare(a, b);
                 });
                 if (visibleIndices.size() > 5) {
-                    visibleIndices = new java.util.ArrayList<>(visibleIndices.subList(0, 5));
+                    visibleIndices = new ArrayList<>(visibleIndices.subList(0, 5));
                 }
             }
 
@@ -880,7 +903,7 @@ public abstract class HandledScreenMixin extends Screen {
                 graphics.fill(slotX + 1, slotY + 15, slotX + 1 + filledWidth, slotY + 17, fillColor);
             }
         } catch (Exception e) {
-            System.out.println("bettershulker$renderContainerOverlay error: " + e);
+            BetterShulkerMod.LOGGER.warn("[BetterShulker] Failed to render container fill overlay", e);
         }
     }
 
@@ -901,10 +924,10 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique
-    private int bettershulker$findVirtualInventorySlot(NonNullList<Slot> slots, ItemStack stack, java.util.Map<Integer, ItemStack> virtualInv) {
+    private int bettershulker$findVirtualInventorySlot(NonNullList<Slot> slots, ItemStack stack, Map<Integer, ItemStack> virtualInv) {
         // First pass: try to merge with existing slots that have room
         for (Slot slot : slots) {
-            if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)
+            if (!(slot.container instanceof Inventory)
                 || slot.getContainerSlot() >= 36) continue;
             
             ItemStack virtualStack = virtualInv.get(slot.index);
@@ -926,7 +949,7 @@ public abstract class HandledScreenMixin extends Screen {
 
         // Second pass: put into the first empty slot
         for (Slot slot : slots) {
-            if (!(slot.container instanceof net.minecraft.world.entity.player.Inventory)
+            if (!(slot.container instanceof Inventory)
                 || slot.getContainerSlot() >= 36) continue;
             
             ItemStack virtualStack = virtualInv.get(slot.index);
@@ -942,26 +965,17 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private void bettershulker$processMultiSelectExtract() {
         var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
+        bettershulker$ActiveContainer active = bettershulker$getActiveContainer();
+        ItemStack containerStack = active.stack();
         if (containerStack.isEmpty()) return;
 
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
-
         NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
-        java.util.Set<Integer> selectedSet = BetterShulkerClient.getSelectedSlotsSet();
+        Set<Integer> selectedSet = BetterShulkerClient.getSelectedSlotsSet();
         
         // Build virtual inventory state map for player inventory slots
-        java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
+        Map<Integer, ItemStack> virtualInv = new HashMap<>();
         for (Slot slot : self.getMenu().slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+            if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                 virtualInv.put(slot.index, slot.getItem().copy());
             }
         }
@@ -978,7 +992,7 @@ public abstract class HandledScreenMixin extends Screen {
             int targetSlotIdx = bettershulker$findVirtualInventorySlot(self.getMenu().slots, shulkerStack, virtualInv);
             if (targetSlotIdx != -1) {
                 bettershulker$sendInteractPayload(
-                    containerSlotIndex, targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
+                    active.slotId(), targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
             }
         }
 
@@ -989,18 +1003,9 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private void bettershulker$processSingleSlotExtract() {
         var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
+        bettershulker$ActiveContainer active = bettershulker$getActiveContainer();
+        ItemStack containerStack = active.stack();
         if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
 
         NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
         int targetIdx = bettershulker$getExtractionIndex(containerStack);
@@ -1009,9 +1014,9 @@ public abstract class HandledScreenMixin extends Screen {
         if (shulkerStack.isEmpty()) return;
 
         // Build virtual inventory state map for player inventory slots
-        java.util.Map<Integer, ItemStack> virtualInv = new java.util.HashMap<>();
+        Map<Integer, ItemStack> virtualInv = new HashMap<>();
         for (Slot slot : self.getMenu().slots) {
-            if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
+            if (ContainerHelper.isPlayerInventorySlot(slot, 36)) {
                 virtualInv.put(slot.index, slot.getItem().copy());
             }
         }
@@ -1019,31 +1024,20 @@ public abstract class HandledScreenMixin extends Screen {
         int targetSlotIdx = bettershulker$findVirtualInventorySlot(self.getMenu().slots, shulkerStack, virtualInv);
         if (targetSlotIdx != -1) {
             bettershulker$sendInteractPayload(
-                containerSlotIndex, targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
+                active.slotId(), targetIdx, ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), targetSlotIdx);
             bettershulker$playClientSound(shulkerStack, false);
         }
     }
 
     @Unique
     private void bettershulker$triggerRestockOrDeposit(boolean deposit) {
-        var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
-        }
-        if (containerStack.isEmpty()) return;
-
-        int containerSlotIndex = (this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack) ? this.hoveredSlot.index : -1;
+        bettershulker$ActiveContainer active = bettershulker$getActiveContainer();
+        if (active.stack().isEmpty()) return;
 
         var actionType = deposit ? ContainerInteractPayload.InteractType.DEPOSIT : ContainerInteractPayload.InteractType.RESTOCK;
 
         bettershulker$sendInteractPayload(
-            containerSlotIndex, -1, actionType.toId(), -1);
+            active.slotId(), -1, actionType.toId(), -1);
     }
 
 
@@ -1073,19 +1067,10 @@ public abstract class HandledScreenMixin extends Screen {
                 containerStack = carried;
             } else if (containerSlotId >= 0 && containerSlotId < self.getMenu().slots.size()) {
                 containerStack = self.getMenu().slots.get(containerSlotId).getItem();
-            } else if (containerSlotId == -2) {
-                for (Slot slot : self.getMenu().slots) {
-                    if (slot.container instanceof net.minecraft.world.entity.player.Inventory && slot.getContainerSlot() < 36) {
-                        if (ContainerHelper.isEnderChest(slot.getItem())) {
-                            containerStack = slot.getItem();
-                            break;
-                        }
-                    }
-                }
             }
 
             NonNullList<ItemStack> ecContents = null;
-            if (containerStack.isEmpty() ? (containerSlotId == -2) : ContainerHelper.isEnderChest(containerStack)) {
+            if (ContainerHelper.isEnderChest(containerStack)) {
                 ecContents = BetterShulkerClient.getEnderChestContents();
             }
 
@@ -1096,7 +1081,7 @@ public abstract class HandledScreenMixin extends Screen {
             }
 
             ContainerInteractPayload.InteractType action = ContainerInteractPayload.InteractType.fromId(actionId);
-            boolean isEnder = containerStack.isEmpty() ? (containerSlotId == -2) : ContainerHelper.isEnderChest(containerStack);
+            boolean isEnder = ContainerHelper.isEnderChest(containerStack);
 
             if (isEnder) {
                 bettershulker$predictEnderChest(txId, targetIndex, action, inventorySlotId);
@@ -1110,7 +1095,7 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private static void BetterShulkerMod$LOGGER$info(String msg) {
-        com.bettershulker.BetterShulkerMod.LOGGER.info("[BetterShulker-ClientPrediction] " + msg);
+        BetterShulkerMod.LOGGER.info("[BetterShulker-ClientPrediction] " + msg);
     }
 
     @Unique
@@ -1185,7 +1170,7 @@ public abstract class HandledScreenMixin extends Screen {
             case SWEEP_INSERT -> {
                 if (inventorySlotId < 0 || inventorySlotId >= self.getMenu().slots.size()) return;
                 Slot targetSlot = self.getMenu().slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) return;
+                if (!(targetSlot.container instanceof Inventory)) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 ItemStack remainder = ContainerHelper.tryInsert(contents, invStack.copy(), false);
@@ -1330,7 +1315,7 @@ public abstract class HandledScreenMixin extends Screen {
             case SWEEP_INSERT -> {
                 if (inventorySlotId < 0 || inventorySlotId >= self.getMenu().slots.size()) return;
                 Slot targetSlot = self.getMenu().slots.get(inventorySlotId);
-                if (!(targetSlot.container instanceof net.minecraft.world.entity.player.Inventory)) return;
+                if (!(targetSlot.container instanceof Inventory)) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 for (int i = 0; i < contents.size(); i++) {
@@ -1399,7 +1384,7 @@ public abstract class HandledScreenMixin extends Screen {
                 ContainerHelper.restockContents(contents, self.getMenu().slots);
             }
             case DEPOSIT -> {
-                ContainerHelper.depositContents(contents, self.getMenu().slots, -2); // containerSlotId for Ender Chest prediction is -2
+                ContainerHelper.depositContents(contents, self.getMenu().slots, -2);
             }
         }
     }
@@ -1410,7 +1395,7 @@ public abstract class HandledScreenMixin extends Screen {
             var self = bettershulker$self();
             ItemStack carried = self.getMenu().getCarried();
             long now = System.currentTimeMillis();
-            java.util.List<BetterShulkerClient.PredictionTransaction> txs = BetterShulkerClient.getActiveTransactions();
+            List<BetterShulkerClient.PredictionTransaction> txs = BetterShulkerClient.getActiveTransactions();
 
             for (int idx = txs.size() - 1; idx >= 0; idx--) {
                 BetterShulkerClient.PredictionTransaction tx = txs.get(idx);
@@ -1430,7 +1415,7 @@ public abstract class HandledScreenMixin extends Screen {
                 }
 
                 if (!accepted) {
-                    for (java.util.Map.Entry<Integer, ItemStack> entry : tx.originalSlots.entrySet()) {
+                    for (Map.Entry<Integer, ItemStack> entry : tx.originalSlots.entrySet()) {
                         int slotId = entry.getKey();
                         ItemStack orig = entry.getValue();
                         if (slotId >= 0 && slotId < self.getMenu().slots.size()) {
@@ -1456,7 +1441,7 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$renderRollbackAnimations(GuiGraphicsExtractor graphics) {
         try {
             long now = System.currentTimeMillis();
-            java.util.List<BetterShulkerClient.RollbackAnimation> rollbacks = BetterShulkerClient.getActiveRollbacks();
+            List<BetterShulkerClient.RollbackAnimation> rollbacks = BetterShulkerClient.getActiveRollbacks();
             for (int idx = rollbacks.size() - 1; idx >= 0; idx--) {
                 BetterShulkerClient.RollbackAnimation anim = rollbacks.get(idx);
                 long elapsed = now - anim.startTime;
