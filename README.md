@@ -1,6 +1,6 @@
 # Better Shulker Boxes
 
-![BSB BANNER](https://cdn.modrinth.com/data/cached_images/cc53142fb920596b6cbc2ebbf4058b6985c6e3a8.png)
+![banner](https://cdn.modrinth.com/data/cached_images/dd214565060dc8eb10493d839449f7acaa942134.png)
 
 Better Shulker Boxes is a highly interactive UI/UX mod that revolutionizes how you interact with Shulker Boxes in Minecraft. Instead of the tedious cycle of placing down a Shulker Box, opening it, interacting with it, breaking it, and picking it back up, this mod allows you to interact with Shulker Boxes and Ender Chests directly from your inventory using an advanced interactive tooltip!
 
