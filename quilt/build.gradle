@@ -1,0 +1,81 @@
+plugins {
+    id 'java'
+    id 'net.fabricmc.fabric-loom' version '1.17.11'
+}
+
+group = rootProject.maven_group
+version = rootProject.mod_version
+
+base {
+    archivesName = "${rootProject.archives_base_name}-quilt"
+}
+
+sourceSets.main.java.srcDir rootProject.file('src/main/java')
+sourceSets.main.resources.srcDir rootProject.file('src/main/resources')
+sourceSets.main.java.exclude '**/BetterShulkerNeoForgeMod.java'
+sourceSets.main.java.exclude '**/BetterShulkerNeoForgeClient.java'
+sourceSets.main.resources.exclude 'fabric.mod.json'
+sourceSets.main.resources.exclude 'META-INF/neoforge.mods.toml'
+
+repositories {
+    mavenCentral()
+    maven { url = uri('https://maven.quiltmc.org/repository/release') }
+    maven { url = uri('https://api.modrinth.com/maven') }
+    maven { url = uri('https://maven.shedaniel.me/') }
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    implementation "org.quiltmc:quilt-loader:${rootProject.quilt_loader_version}"
+    implementation "net.fabricmc:sponge-mixin:0.17.2+mixin.0.8.7"
+    implementation "org.quiltmc:quilt-json5:1.0.4+final"
+    implementation "org.quiltmc:quilt-config:1.3.3"
+    implementation "io.github.llamalad7:mixinextras-fabric:0.5.4"
+
+    // Quilt Loader supports Fabric metadata and APIs. QSL has no Minecraft 26.2 release,
+    // so the Quilt build intentionally reuses the tested Fabric platform entrypoints.
+    implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+    compileOnly "maven.modrinth:modmenu:20.0.0-beta.2"
+    implementation("me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_config_version}") {
+        // Quilt Loader already provides Fabric Loader compatibility classes. Keeping Cloth
+        // Config's transitive Fabric Loader here would put two signed implementations on the
+        // development runtime classpath and cause a signer mismatch during launch.
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'quilt_loader_version', rootProject.quilt_loader_version
+    from('src/quiltResources') {
+        expand(
+                version: project.version,
+                quilt_loader_version: rootProject.quilt_loader_version
+        )
+    }
+}
+
+// Fabric Loom describes development mods through Fabric-only launch properties. Quilt Loader uses
+// loader.addMods instead, so explicitly provide the built mod and its two runtime mod dependencies.
+tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
+    dependsOn tasks.named('jar')
+    doFirst {
+        def runtimeMods = configurations.runtimeClasspath.files.findAll { file ->
+            file.name.startsWith("fabric-api-${rootProject.fabric_api_version}")
+                    || file.name.startsWith("cloth-config-fabric-${rootProject.cloth_config_version}")
+        }
+        def modFiles = [tasks.named('jar').get().archiveFile.get().asFile] + runtimeMods
+        jvmArgs "-Dloader.addMods=${modFiles.join(File.pathSeparator)}"
+    }
+}
