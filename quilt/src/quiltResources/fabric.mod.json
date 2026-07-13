@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "bettershulker",
+  "version": "${version}",
+  "name": "Better Shulker Boxes",
+  "description": "Peek inside Shulker Boxes and Ender Chests without placing them. Better Shulker Boxes provides interactive full and compact previews with direct insertion and extraction.",
+  "authors": [
+    "Jom3a"
+  ],
+  "license": "MIT",
+  "icon": "icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.bettershulker.BetterShulkerFabricMod"
+    ],
+    "client": [
+      "com.bettershulker.client.BetterShulkerFabricClient"
+    ],
+    "modmenu": [
+      "com.bettershulker.client.BetterShulkerModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "bettershulker.mixins.json"
+  ],
+  "depends": {
+    "quilt_loader": ">=${quilt_loader_version}",
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~26.2",
+    "java": ">=25",
+    "fabric-api": "*",
+    "cloth-config": ">=26.2.155"
+  },
+  "suggests": {
+    "modmenu": "*"
+  },
+  "custom": {
+    "modmenu": {
+      "badges": [
+        "client_and_server"
+      ]
+    }
+  }
+}

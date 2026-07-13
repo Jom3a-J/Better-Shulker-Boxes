@@ -9,6 +9,7 @@ allprojects {
     repositories {
         mavenCentral()
         maven { url = uri('https://maven.fabricmc.net/') }
+        maven { url = uri('https://maven.quiltmc.org/repository/release') }
         maven { url = uri('https://maven.neoforged.net/releases') }
         maven { url = uri('https://api.modrinth.com/maven') }
         maven { url = uri('https://maven.shedaniel.me/') }
@@ -17,8 +18,8 @@ allprojects {
 
 tasks.register('buildAllLoaders') {
     group = 'build'
-    description = 'Builds both Fabric and NeoForge Better Shulker Boxes jars.'
-    dependsOn ':fabric:jar', ':neoforge:jar'
+    description = 'Builds Fabric, NeoForge, and Quilt Better Shulker Boxes jars.'
+    dependsOn ':fabric:jar', ':neoforge:jar', ':quilt:jar'
 }
 
 build.dependsOn tasks.named('buildAllLoaders')
