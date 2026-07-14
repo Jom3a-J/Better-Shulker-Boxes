@@ -34,9 +34,15 @@ public record EnderChestSyncPayload(List<EnderChestDiff> diffs) implements Custo
                     int decodedCount = 0;
                     while (decodedCount < activeSlots.size()) {
                         int runLength = buf.readVarInt();
+                        int remainingSlots = activeSlots.size() - decodedCount;
+                        if (runLength <= 0 || runLength > remainingSlots) {
+                            throw new IllegalArgumentException("Invalid Ender Chest sync run length: " + runLength);
+                        }
+
                         ItemStack stack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buf);
-                        for (int r = 0; r < runLength && decodedCount < activeSlots.size(); r++) {
-                            diffs.add(new EnderChestDiff(activeSlots.get(decodedCount), stack));
+                        for (int r = 0; r < runLength; r++) {
+                            // Each cache slot must own its stack: client prediction mutates these values.
+                            diffs.add(new EnderChestDiff(activeSlots.get(decodedCount), stack.copy()));
                             decodedCount++;
                         }
                     }
@@ -63,7 +69,8 @@ public record EnderChestSyncPayload(List<EnderChestDiff> diffs) implements Custo
                         ItemStack currentStack = sortedDiffs.get(index).stack();
                         int runLength = 1;
                         while (index + runLength < sortedDiffs.size()
-                                && ItemStack.isSameItemSameComponents(sortedDiffs.get(index + runLength).stack(), currentStack)) {
+                                // RLE is valid only when the full serialized stack, including count, matches.
+                                && ItemStack.matches(sortedDiffs.get(index + runLength).stack(), currentStack)) {
                             runLength++;
                         }
                         buf.writeVarInt(runLength);

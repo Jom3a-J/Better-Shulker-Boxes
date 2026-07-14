@@ -8,7 +8,6 @@ import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ClickAction;
 import net.minecraft.world.inventory.Slot;
@@ -42,23 +41,28 @@ public abstract class ItemMixin {
         if (ContainerHelper.isShulkerBox(stack)) {
             ItemStack slotStack = slot.getItem();
             if (slotStack.isEmpty()) {
-                // Carried Shulker Box, right-click on empty slot -> Extract/dump first item
+                // Carried Shulker Box, right-click on empty slot -> Extract/dump first item.
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
                 int extractionIndex = bettershulker$firstOccupiedSlot(contents);
                 if (extractionIndex != -1) {
                     ItemStack extracted = ContainerHelper.tryExtract(contents, extractionIndex, false);
-                    slot.set(extracted);
-                    ContainerHelper.setContainerContents(stack, contents);
-                    bettershulker$playLevelSound(player, extracted, false);
-                    ci.setReturnValue(true);
+                    ItemStack soundStack = extracted.copy();
+                    int originalCount = extracted.getCount();
+                    ItemStack remainder = bettershulker$safeInsertIntoSlot(player, slot, extracted);
+                    bettershulker$restoreExtractedStack(contents, extractionIndex, remainder);
+                    if (remainder.getCount() < originalCount) {
+                        ContainerHelper.setContainerContents(stack, contents);
+                        bettershulker$playLevelSound(player, soundStack, false);
+                        ci.setReturnValue(true);
+                    }
                 }
-            } else {
-                // Carried Shulker Box, right-click on stack -> Insert/vacuum stack into Shulker Box
+            } else if (slot.allowModification(player)) {
+                // Carried Shulker Box, right-click on stack -> Insert/vacuum stack into Shulker Box.
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
                 int originalCount = slotStack.getCount();
                 ItemStack remainder = ContainerHelper.tryInsert(contents, slotStack, false);
                 if (remainder.getCount() != originalCount) {
-                    slot.set(remainder);
+                    slot.setByPlayer(remainder, slotStack);
                     ContainerHelper.setContainerContents(stack, contents);
                     bettershulker$playLevelSound(player, slotStack, true);
                     ci.setReturnValue(true);
@@ -80,12 +84,21 @@ public abstract class ItemMixin {
                     }
 
                     if (extractionIndex != -1) {
-                        ItemStack extracted = enderInv.removeItemNoUpdate(extractionIndex);
-                        slot.set(extracted);
-
-                        bettershulker$syncEnderChest(serverPlayer);
-                        bettershulker$playLevelSound(player, extracted, false);
-                        ci.setReturnValue(true);
+                        ItemStack sourceStack = enderInv.getItem(extractionIndex);
+                        ItemStack transfer = sourceStack.copy();
+                        ItemStack soundStack = transfer.copy();
+                        int originalCount = transfer.getCount();
+                        ItemStack remainder = bettershulker$safeInsertIntoSlot(player, slot, transfer);
+                        int moved = originalCount - remainder.getCount();
+                        if (moved > 0) {
+                            sourceStack.shrink(moved);
+                            if (sourceStack.isEmpty()) {
+                                enderInv.setItem(extractionIndex, ItemStack.EMPTY);
+                            }
+                            bettershulker$syncEnderChest(serverPlayer);
+                            bettershulker$playLevelSound(player, soundStack, false);
+                            ci.setReturnValue(true);
+                        }
                     }
                 } else {
                     // Client side: return true if we can extract, to prevent client-server mismatch
@@ -98,17 +111,16 @@ public abstract class ItemMixin {
                         ci.setReturnValue(true);
                     }
                 }
-            } else {
-                // Carried Ender Chest, right-click on stack -> Insert stack into Ender Chest
+            } else if (slot.allowModification(player)) {
+                // Carried Ender Chest, right-click on stack -> Insert stack into Ender Chest.
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
                     ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, slotStack.copy());
 
                     if (invStack.getCount() != slotStack.getCount()) {
-                        slot.set(invStack);
-
+                        slot.setByPlayer(invStack, slotStack);
                         bettershulker$syncEnderChest(serverPlayer);
-                        bettershulker$playLevelSound(player, invStack, true);
+                        bettershulker$playLevelSound(player, slotStack, true);
                         ci.setReturnValue(true);
                     }
                 } else {
@@ -123,19 +135,21 @@ public abstract class ItemMixin {
      */
     @Inject(method = "overrideOtherStackedOnMe", at = @At("HEAD"), cancellable = true)
     private void bettershulker$overrideOtherStackedOnMe(ItemStack stack, ItemStack other, Slot slot, ClickAction clickAction, Player player, SlotAccess slotAccess, CallbackInfoReturnable<Boolean> ci) {
-        if (!bettershulker$canHandleContainerClick(stack, slot, clickAction, player)) {
+        if (!bettershulker$canHandleContainerClick(stack, slot, clickAction, player)
+                || !slot.allowModification(player)) {
             return;
         }
 
         if (ContainerHelper.isShulkerBox(stack)) {
             if (!other.isEmpty()) {
                 // Insert carried item into Shulker Box (vanilla bundle style)
-                NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
+                ItemStack updatedContainer = stack.copy();
+                NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(updatedContainer);
                 int originalCount = other.getCount();
                 ItemStack remainder = ContainerHelper.tryInsert(contents, other, false);
-                if (remainder.getCount() != originalCount) {
-                    slotAccess.set(remainder);
-                    ContainerHelper.setContainerContents(stack, contents);
+                if (remainder.getCount() != originalCount && slotAccess.set(remainder)) {
+                    ContainerHelper.setContainerContents(updatedContainer, contents);
+                    slot.setByPlayer(updatedContainer, stack);
                     bettershulker$playLevelSound(player, other, true);
                     ci.setReturnValue(true);
                 }
@@ -145,14 +159,16 @@ public abstract class ItemMixin {
                 // Carried item right-clicked onto Ender Chest in slot -> Insert carried item into Ender Chest
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
+                    NonNullList<ItemStack> originalContents = bettershulker$copyEnderChestContents(serverPlayer);
                     ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, other.copy());
 
-                    if (invStack.getCount() != other.getCount()) {
-                        slotAccess.set(invStack);
-
+                    if (invStack.getCount() != other.getCount() && slotAccess.set(invStack)) {
                         bettershulker$syncEnderChest(serverPlayer);
                         bettershulker$playLevelSound(player, other, true);
                         ci.setReturnValue(true);
+                    } else {
+                        // SlotAccess can reject a write; never retain a transferred item in that case.
+                        bettershulker$restoreEnderChestContents(serverPlayer, originalContents);
                     }
                 } else {
                     ci.setReturnValue(true);
@@ -164,6 +180,29 @@ public abstract class ItemMixin {
     // =========================================================================
     //  Private Helpers
     // =========================================================================
+
+    @org.spongepowered.asm.mixin.Unique
+    private ItemStack bettershulker$safeInsertIntoSlot(Player player, Slot slot, ItemStack stack) {
+        if (stack.isEmpty() || !slot.isActive() || slot.isFake() || !slot.mayPlace(stack)) {
+            return stack;
+        }
+        if (!slot.getItem().isEmpty() && !slot.allowModification(player)) {
+            return stack;
+        }
+        return slot.safeInsert(stack);
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private void bettershulker$restoreExtractedStack(NonNullList<ItemStack> contents, int index, ItemStack remainder) {
+        if (remainder.isEmpty()) return;
+
+        ItemStack current = contents.get(index);
+        if (current.isEmpty()) {
+            contents.set(index, remainder);
+        } else if (ItemStack.isSameItemSameComponents(current, remainder)) {
+            current.grow(remainder.getCount());
+        }
+    }
 
     @org.spongepowered.asm.mixin.Unique
     private int bettershulker$firstOccupiedSlot(NonNullList<ItemStack> contents) {
@@ -180,10 +219,13 @@ public abstract class ItemMixin {
         if (clickAction != ClickAction.SECONDARY) {
             return false;
         }
-        if (!ContainerHelper.isContainer(stack)) {
+        if (!ContainerHelper.isContainer(stack)
+                || !ContainerHelper.canAccessContainer(stack, player)
+                || !player.isAlive()
+                || player.isSpectator()) {
             return false;
         }
-        if (!(slot.container instanceof Inventory)) {
+        if (slot.container != player.getInventory() || !slot.isActive() || slot.isFake()) {
             return false;
         }
         return player.level().isClientSide()
@@ -193,6 +235,24 @@ public abstract class ItemMixin {
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$syncEnderChest(ServerPlayer player) {
         PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private NonNullList<ItemStack> bettershulker$copyEnderChestContents(ServerPlayer player) {
+        var enderInv = player.getEnderChestInventory();
+        NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
+        for (int i = 0; i < enderInv.getContainerSize(); i++) {
+            contents.set(i, enderInv.getItem(i).copy());
+        }
+        return contents;
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private void bettershulker$restoreEnderChestContents(ServerPlayer player, NonNullList<ItemStack> contents) {
+        var enderInv = player.getEnderChestInventory();
+        for (int i = 0; i < enderInv.getContainerSize() && i < contents.size(); i++) {
+            enderInv.setItem(i, contents.get(i));
+        }
     }
 
     @org.spongepowered.asm.mixin.Unique

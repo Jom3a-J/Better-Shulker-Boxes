@@ -5,6 +5,7 @@ import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.util.ContainerHelper;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
@@ -60,9 +61,18 @@ public abstract class ItemStackMixin {
             var color = ContainerHelper.getShulkerColor(self);
             ci.setReturnValue(Optional.of(new ShulkerTooltipData(contents, color, false, selectedItemName, self.getHoverName().getString())));
         } else if (ContainerHelper.isEnderChest(self)) {
+            var player = Minecraft.getInstance().player;
+            if (player == null || !player.isAlive() || player.isSpectator()
+                    || !ContainerHelper.canAccessContainer(self, player)) {
+                ci.setReturnValue(Optional.empty());
+                return;
+            }
+
+            // Ender Chest contents can change through vanilla screens or other mods, so refresh
+            // while the tooltip is in use instead of treating the first snapshot as permanent.
+            BetterShulkerClient.requestEnderChestSync();
             NonNullList<ItemStack> cachedContents = BetterShulkerClient.getEnderChestContents();
             if (cachedContents == null) {
-                BetterShulkerClient.requestEnderChestSync();
                 ci.setReturnValue(Optional.empty());
                 return;
             }

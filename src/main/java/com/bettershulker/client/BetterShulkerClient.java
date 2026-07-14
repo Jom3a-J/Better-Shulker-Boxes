@@ -173,7 +173,7 @@ public class BetterShulkerClient {
         for (EnderChestSyncPayload.EnderChestDiff diff : payload.diffs()) {
             int idx = diff.slotIndex();
             if (idx >= 0 && idx < 27) {
-                enderChestContents.set(idx, diff.stack());
+                enderChestContents.set(idx, diff.stack().copy());
             }
         }
         BetterShulkerMod.LOGGER.debug(

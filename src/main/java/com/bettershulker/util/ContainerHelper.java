@@ -5,6 +5,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.LockCode;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
@@ -15,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import java.util.HashSet;
@@ -93,8 +93,18 @@ public final class ContainerHelper {
         return isShulkerBox(stack) || isEnderChest(stack);
     }
 
-    public static boolean isPlayerInventorySlot(Slot slot, int slotLimit) {
-        return slot.container instanceof Inventory
+    /** Respects vanilla's lock component before exposing portable container interactions. */
+    public static boolean canAccessContainer(ItemStack stack, @Nullable Player player) {
+        if (player == null) return false;
+        LockCode lock = stack.get(DataComponents.LOCK);
+        return lock == null || lock.canUnlock(player);
+    }
+
+    public static boolean isPlayerInventorySlot(Slot slot, Player player, int slotLimit) {
+        return slot.container == player.getInventory()
+                && slot.isActive()
+                && !slot.isFake()
+                && slot.getContainerSlot() >= 0
                 && slot.getContainerSlot() < slotLimit;
     }
 
@@ -477,35 +487,36 @@ public final class ContainerHelper {
      * Pulls items from the player's hotbar slots and merges them into the container contents.
      * Returns true if any changes were made.
      */
-    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<Slot> slots) {
+    public static boolean restockContents(NonNullList<ItemStack> contents, Iterable<Slot> slots, Player player) {
         boolean success = false;
         for (Slot slot : slots) {
-            if (isPlayerInventorySlot(slot, 9)) {
-                ItemStack hotbarStack = slot.getItem();
-                if (hotbarStack.isEmpty()) continue;
-                int maxStack = hotbarStack.getMaxStackSize();
-                if (hotbarStack.getCount() < maxStack) {
-                    int needed = maxStack - hotbarStack.getCount();
-                    boolean slotChanged = false;
-                    for (int i = 0; i < contents.size() && needed > 0; i++) {
-                        ItemStack boxStack = contents.get(i);
-                        if (!boxStack.isEmpty() && ItemStack.isSameItemSameComponents(boxStack, hotbarStack)) {
-                            int toTake = Math.min(needed, boxStack.getCount());
-                            boxStack.shrink(toTake);
-                            hotbarStack.grow(toTake);
-                            needed -= toTake;
-                            if (boxStack.isEmpty()) {
-                                contents.set(i, ItemStack.EMPTY);
-                            }
-                            slotChanged = true;
-                            success = true;
-                        }
+            if (!isPlayerInventorySlot(slot, player, 9) || !slot.allowModification(player)) continue;
+
+            ItemStack originalStack = slot.getItem();
+            if (originalStack.isEmpty()) continue;
+
+            ItemStack updatedStack = originalStack.copy();
+            int maxStack = slot.getMaxStackSize(updatedStack);
+            if (updatedStack.getCount() >= maxStack) continue;
+
+            int needed = maxStack - updatedStack.getCount();
+            boolean slotChanged = false;
+            for (int i = 0; i < contents.size() && needed > 0; i++) {
+                ItemStack boxStack = contents.get(i);
+                if (!boxStack.isEmpty() && ItemStack.isSameItemSameComponents(boxStack, updatedStack)) {
+                    int toTake = Math.min(needed, boxStack.getCount());
+                    boxStack.shrink(toTake);
+                    updatedStack.grow(toTake);
+                    needed -= toTake;
+                    if (boxStack.isEmpty()) {
+                        contents.set(i, ItemStack.EMPTY);
                     }
-                    if (slotChanged) {
-                        slot.set(hotbarStack);
-                        slot.setChanged();
-                    }
+                    slotChanged = true;
+                    success = true;
                 }
+            }
+            if (slotChanged) {
+                slot.setByPlayer(updatedStack, originalStack);
             }
         }
         return success;
@@ -515,7 +526,8 @@ public final class ContainerHelper {
      * Deposits items from player's inventory slots (0..35) that match item types already in the container.
      * Returns true if any changes were made.
      */
-    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<Slot> slots, int containerSlotId) {
+    public static boolean depositContents(NonNullList<ItemStack> contents, Iterable<Slot> slots,
+                                          @Nullable Slot excludedSlot, Player player) {
         boolean success = false;
         Set<ItemStack> distinctTypes = new HashSet<>();
         for (ItemStack boxStack : contents) {
@@ -526,20 +538,20 @@ public final class ContainerHelper {
 
         if (!distinctTypes.isEmpty()) {
             for (Slot slot : slots) {
-                if (isPlayerInventorySlot(slot, 36)) {
-                    if (slot.index == containerSlotId) continue;
+                if (!isPlayerInventorySlot(slot, player, 36)
+                        || slot == excludedSlot
+                        || !slot.allowModification(player)) {
+                    continue;
+                }
 
-                    ItemStack invStack = slot.getItem();
-                    if (invStack.isEmpty()) continue;
+                ItemStack invStack = slot.getItem();
+                if (invStack.isEmpty() || !containsSameItem(distinctTypes, invStack)) continue;
 
-                    if (containsSameItem(distinctTypes, invStack)) {
-                        int originalCount = invStack.getCount();
-                        ItemStack remainder = tryInsert(contents, invStack.copy(), false);
-                        slot.set(remainder);
-                        if (remainder.getCount() < originalCount) {
-                            success = true;
-                        }
-                    }
+                int originalCount = invStack.getCount();
+                ItemStack remainder = tryInsert(contents, invStack.copy(), false);
+                if (remainder.getCount() < originalCount) {
+                    slot.setByPlayer(remainder, invStack);
+                    success = true;
                 }
             }
         }
