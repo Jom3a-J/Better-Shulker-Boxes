@@ -3,7 +3,6 @@ package com.bettershulker.client.render;
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.BetterShulkerClient;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
@@ -44,12 +43,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     /** Vanilla shulker/container textures are 176px wide. We crop the storage slot band. */
     private static final int PANEL_WIDTH = 176;
     private static final int PANEL_HEIGHT = 68;
-    private static final int RESOURCE_PACK_PANEL_HEIGHT = 77;
     private static final int SLOT_START_X = 8;
     private static final int SLOT_START_Y = 7;
     private static final int RESOURCE_PACK_SLOT_START_Y = 18;
     private static final int RESOURCE_PACK_SLOT_AREA_BOTTOM = RESOURCE_PACK_SLOT_START_Y + GRID_ROWS * SLOT_SIZE;
-    private static final int RESOURCE_PACK_BOTTOM_CAP_HEIGHT = RESOURCE_PACK_PANEL_HEIGHT - RESOURCE_PACK_SLOT_AREA_BOTTOM;
     private static final int TOOLTIP_BOTTOM_PADDING = 6;
     private static final int COMPACT_SLOT_START_X = 7;
     private static final int COMPACT_SLOT_START_Y = 7;
@@ -59,7 +56,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int NAME_BADGE_OVERLAP = 4;
 
     private static final Identifier SHULKER_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
-    private static final Identifier GENERIC_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
     private static final int ENDER_ACCENT_COLOR = 0xFF00E6C8;
     private static final int ENDER_PURPLE_COLOR = 0xFF34104E;
     private static final int ENDER_DARK_COLOR = 0xFF06120F;
@@ -75,6 +71,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final String containerName;
     private final boolean isContainerEmpty;
     private final boolean compactMode;
+    private final ResourcePackContainerTextures.Panel panelTexture;
     private final boolean resourcePackOverridesPanel;
     private final List<Integer> displaySlots;
     private final List<Integer> displayCounts;
@@ -110,8 +107,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
         this.isContainerEmpty = empty;
         this.compactMode = BetterShulkerClient.isCompactModeActive();
-        this.resourcePackOverridesPanel = hasResourcePackOverride(getPanelTexture())
-                || getPackShulkerPanelTexture() != null;
+        this.panelTexture = ResourcePackContainerTextures.resolve(this.color, this.isEnderChest);
+        this.resourcePackOverridesPanel = this.panelTexture.suppliedByPack();
         DisplayLayout displayLayout = buildDisplayLayout();
         this.displaySlots = displayLayout.slots();
         this.displayCounts = displayLayout.counts();
@@ -127,9 +124,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 : PANEL_WIDTH;
         this.panelHeight = this.compactMode
                 ? (this.isContainerEmpty ? 0 : (this.resourcePackOverridesPanel
-                        ? RESOURCE_PACK_SLOT_START_Y + (this.displayRows * compactCellSize) + RESOURCE_PACK_BOTTOM_CAP_HEIGHT
+                        ? RESOURCE_PACK_SLOT_START_Y + (this.displayRows * compactCellSize) + this.panelTexture.bottomCapHeight()
                         : 14 + (this.displayRows * compactCellSize)))
-                : (this.resourcePackOverridesPanel ? RESOURCE_PACK_PANEL_HEIGHT : PANEL_HEIGHT);
+                : (this.resourcePackOverridesPanel
+                        ? RESOURCE_PACK_SLOT_AREA_BOTTOM + this.panelTexture.bottomCapHeight()
+                        : PANEL_HEIGHT);
 
         ThemePalette palette = buildThemePalette();
         this.borderColor = palette.borderColor;
@@ -272,35 +271,25 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawResourcePackPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
-        // Resource-pack mode should use the real panel texture for this container, not a fake
-        // tinted generic panel. For shulkers this preserves the pack's actual shulker color/style.
+        // Resource-pack mode uses the pack's actual panel texture without a fake tint.
         Identifier texture = getPanelTexture();
-        Identifier coloredPackTexture = getPackShulkerPanelTexture();
-        // Recolourful/OptiGUI packs provide real per-dye shulker GUI textures. Use the exact
-        // texture only when it actually exists; otherwise fall back safely so colored shulkers do
-        // not render Minecraft's missing-texture magenta/black block.
-        boolean usingExactPackColor = this.resourcePackOverridesPanel && coloredPackTexture != null;
-        if (usingExactPackColor) {
-            texture = coloredPackTexture;
+
+        int renderColor = getPanelRenderColor();
+        if (!this.resourcePackOverridesPanel) {
+            context.blit(RenderPipelines.GUI_TEXTURED,
+                    texture, panelX, panelY, PANEL_TEXTURE_U, PANEL_TEXTURE_V,
+                    PANEL_WIDTH, getPanelHeight(), 256, 256, renderColor);
+            return;
         }
 
-        // In resource-pack mode draw from the real top of the shulker GUI so the colored header
-        // is not cut off. Keep the last two rows cropped because this pack puts a stray bright line
-        // there when the full GUI is compressed into a compact tooltip.
-        int drawHeight = getPanelHeight();
-        float textureV = this.resourcePackOverridesPanel ? 0.0F : PANEL_TEXTURE_V;
-        int renderColor = usingExactPackColor ? 0xFFFFFFFF : getPanelRenderColor();
+        // The preview shows three rows, then closes with its dedicated tooltip bottom cap.
         context.blit(RenderPipelines.GUI_TEXTURED,
-                texture,
-                panelX,
-                panelY,
-                PANEL_TEXTURE_U,
-                textureV,
-                PANEL_WIDTH,
-                drawHeight,
-                256,
-                256,
-                renderColor);
+                texture, panelX, panelY, 0.0F, 0.0F,
+                PANEL_WIDTH, RESOURCE_PACK_SLOT_AREA_BOTTOM, 256, 256, renderColor);
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                this.panelTexture.bottomCapTexture(), panelX, panelY + RESOURCE_PACK_SLOT_AREA_BOTTOM,
+                0.0F, (float) this.panelTexture.bottomCapSourceY(),
+                PANEL_WIDTH, this.panelTexture.bottomCapHeight(), 256, 256, renderColor);
     }
 
     private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -315,13 +304,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private void drawResourcePackCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
         Identifier texture = getPanelTexture();
-        Identifier coloredPackTexture = getPackShulkerPanelTexture();
-        boolean usingExactPackColor = coloredPackTexture != null;
-        if (usingExactPackColor) {
-            texture = coloredPackTexture;
-        }
-
-        int renderColor = usingExactPackColor ? 0xFFFFFFFF : getPanelRenderColor();
+        int renderColor = getPanelRenderColor();
 
         // Recompose the resource-pack shulker panel instead of simply cropping the top-left.
         // A raw crop cuts the right/bottom borders in the middle of the full 9x3 GUI.  This keeps
@@ -332,7 +315,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int slotsW = this.displayCols * SLOT_SIZE;
         int topH = RESOURCE_PACK_SLOT_START_Y + this.displayRows * SLOT_SIZE;
         int bottomH = Math.max(0, getPanelHeight() - topH);
-        int bottomSourceY = RESOURCE_PACK_SLOT_AREA_BOTTOM;
+        int bottomSourceY = this.panelTexture.bottomCapSourceY();
 
         blitResourcePackSlice(context, texture, panelX, panelY,
                 0, 0, leftW, topH, renderColor);
@@ -343,11 +326,12 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         if (bottomH > 0) {
             int bottomY = panelY + topH;
-            blitResourcePackSlice(context, texture, panelX, bottomY,
+            Identifier bottomCapTexture = this.panelTexture.bottomCapTexture();
+            blitResourcePackSlice(context, bottomCapTexture, panelX, bottomY,
                     0, bottomSourceY, leftW, bottomH, renderColor);
-            blitResourcePackSlice(context, texture, panelX + leftW, bottomY,
+            blitResourcePackSlice(context, bottomCapTexture, panelX + leftW, bottomY,
                     SLOT_START_X, bottomSourceY, slotsW, bottomH, renderColor);
-            blitResourcePackSlice(context, texture, panelX + leftW + slotsW, bottomY,
+            blitResourcePackSlice(context, bottomCapTexture, panelX + leftW + slotsW, bottomY,
                     rightSourceX, bottomSourceY, rightW, bottomH, renderColor);
         }
     }
@@ -414,12 +398,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
 
         Identifier texture = getPanelTexture();
-        Identifier coloredPackTexture = getPackShulkerPanelTexture();
-        boolean usingExactPackColor = coloredPackTexture != null;
-        if (usingExactPackColor) {
-            texture = coloredPackTexture;
-        }
-        int renderColor = usingExactPackColor ? 0xFFFFFFFF : getPanelRenderColor();
+        int renderColor = getPanelRenderColor();
 
         int leftW = SLOT_START_X;
         int rightSourceX = SLOT_START_X + GRID_COLS * SLOT_SIZE;
@@ -511,7 +490,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private void blitCompactCapSlice(GuiGraphicsExtractor context, int x, int y, int u, int v, int w, int h) {
         if (w <= 0 || h <= 0) return;
         context.blit(RenderPipelines.GUI_TEXTURED,
-                SHULKER_PANEL_TEXTURE,
+                this.isEnderChest ? VanillaTooltipTextures.shulker() : SHULKER_PANEL_TEXTURE,
                 x,
                 y,
                 (float) u,
@@ -567,47 +546,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private int getPanelRenderColor() {
-        if (!this.resourcePackOverridesPanel || this.isEnderChest || this.color == null) {
-            return 0xFFFFFFFF;
-        }
-        // Fallback only for packs that override the normal shulker GUI but do not provide the
-        // OptiFine/Recolourful per-color GUI files.
-        return 0xFF000000 | this.color.getTextureDiffuseColor();
-    }
-
-    private Identifier getPackShulkerPanelTexture() {
-        if (this.isEnderChest || this.color == null) return null;
-
-        String colorName = this.color.getName();
-        Identifier[] candidates = new Identifier[] {
-                Identifier.withDefaultNamespace("optifine/gui/container/shulker_box/" + colorName + ".png"),
-                Identifier.withDefaultNamespace("textures/gui/container/shulker_box/" + colorName + ".png"),
-                Identifier.withDefaultNamespace("textures/gui/container/shulker_box/" + colorName + "_shulker_box.png")
-        };
-        for (Identifier candidate : candidates) {
-            if (hasResource(candidate)) return candidate;
-        }
-
-        try {
-            var resources = Minecraft.getInstance().getResourceManager().listResources(
-                    "optifine/gui/container/shulker_box",
-                    id -> id.getPath().endsWith("/" + colorName + ".png"));
-            if (!resources.isEmpty()) {
-                return resources.keySet().iterator().next();
-            }
-        } catch (Exception ignored) {
-            // Fall through to safe generic shulker texture fallback.
-        }
-        return null;
-    }
-
-    private static boolean hasResource(Identifier texture) {
-        if (texture == null) return false;
-        try {
-            return Minecraft.getInstance().getResourceManager().getResource(texture).isPresent();
-        } catch (Exception ignored) {
-            return false;
-        }
+        // The resource pack owns its own colour treatment. Never apply an artificial dye tint.
+        return 0xFFFFFFFF;
     }
 
     private void drawGlassPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -633,24 +573,15 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private Identifier getPanelTexture() {
-        return this.isEnderChest ? GENERIC_PANEL_TEXTURE : SHULKER_PANEL_TEXTURE;
-    }
-
-    private static boolean hasResourcePackOverride(Identifier texture) {
-        try {
-            return Minecraft.getInstance().getResourceManager().getResourceStack(texture).size() > 1;
-        } catch (Exception ignored) {
-            return false;
-        }
+        return this.isEnderChest ? VanillaTooltipTextures.generic54() : this.panelTexture.texture();
     }
 
     private void drawEnderChestAccents(GuiGraphicsExtractor context, int panelX, int panelY) {
-        if (!this.isEnderChest || this.resourcePackOverridesPanel || isGlassTheme()) {
+        if (!this.isEnderChest || isGlassTheme()) {
             return;
         }
 
         int accent = withAlpha(ENDER_ACCENT_COLOR, 165);
-        int strongAccent = withAlpha(ENDER_ACCENT_COLOR, 215);
         int soft = withAlpha(ENDER_ACCENT_COLOR, 42);
         int purple = withAlpha(ENDER_PURPLE_COLOR, 75);
         int bottomTint = withAlpha(ENDER_ACCENT_COLOR, 34);
@@ -664,10 +595,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(panelX + PANEL_WIDTH - 22, panelY + 6, panelX + PANEL_WIDTH - 8, panelY + 7, accent);
         context.fill(panelX + PANEL_WIDTH / 2 - 12, panelY + 5, panelX + PANEL_WIDTH / 2 + 12, panelY + 6, purple);
 
-        // Reuse the normal shulker panel's bottom cap pixels so the Ender Chest bottom edge
-        // has the same shape/thickness, then add only a faint Ender tint over that cap.
+        // Existing Ender tooltip cap: reuse the regular Shulker-shaped closure, then lightly tint it.
         context.blit(RenderPipelines.GUI_TEXTURED,
-                SHULKER_PANEL_TEXTURE,
+                VanillaTooltipTextures.shulker(),
                 panelX,
                 capY,
                 PANEL_TEXTURE_U,
