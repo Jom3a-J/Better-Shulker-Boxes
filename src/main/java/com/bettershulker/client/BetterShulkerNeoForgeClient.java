@@ -4,6 +4,7 @@ import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.render.ShulkerTooltipComponent;
 import com.bettershulker.client.render.ShulkerTooltipData;
+import com.bettershulker.client.render.ResourcePackCacheReloader;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.client.KeyMapping;
@@ -16,6 +17,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
@@ -53,6 +55,7 @@ public final class BetterShulkerNeoForgeClient {
         modBus.addListener(this::registerTooltipFactories);
         modBus.addListener(this::registerKeyMappings);
         modBus.addListener(this::registerClientPayloadHandlers);
+        modBus.addListener(this::registerClientReloadListeners);
 
         NeoForge.EVENT_BUS.addListener(this::onClientTick);
         NeoForge.EVENT_BUS.addListener(this::onClientLoggingOut);
@@ -64,6 +67,10 @@ public final class BetterShulkerNeoForgeClient {
 
     private void registerClientPayloadHandlers(RegisterClientPayloadHandlersEvent event) {
         event.register(EnderChestSyncPayload.TYPE, (payload, context) -> BetterShulkerClient.applyEnderChestSync(payload));
+    }
+
+    private void registerClientReloadListeners(AddClientReloadListenersEvent event) {
+        event.addListener(ResourcePackCacheReloader.ID, ResourcePackCacheReloader.create());
     }
 
     private void registerKeyMappings(RegisterKeyMappingsEvent event) {

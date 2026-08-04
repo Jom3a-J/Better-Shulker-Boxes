@@ -3,7 +3,7 @@
   "id": "bettershulker",
   "version": "${version}",
   "name": "Better Shulker Boxes",
-  "description": "Peek inside Shulker Boxes and Ender Chests without placing them! Better Shulker Boxes adds a rich 9×3 interactive tooltip that lets you preview, insert, and extract items directly from any inventory screen. Scroll to select slots, left-click to extract, right-click to insert — no more tedious place-open-close-break cycles. Features full server-side validation to prevent duplication exploits, rate-limited Ender Chest syncing, and seamless compatibility with vanilla mechanics.",
+  "description": "Peek inside Shulker Boxes and Ender Chests without placing them! Better Shulker Boxes adds a rich 9×3 interactive tooltip that lets you preview, insert, and extract items directly from any inventory screen. Scroll to select slots, left-click to insert, right-click to extract — no more tedious place-open-close-break cycles. Features full server-side validation to prevent duplication exploits, rate-limited Ender Chest syncing, and seamless compatibility with vanilla mechanics.",
   "authors": [
     "Jom3a"
   ],

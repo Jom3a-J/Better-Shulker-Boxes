@@ -1,6 +1,7 @@
 package com.bettershulker;
 
 import com.bettershulker.network.ContainerInteractPayload;
+import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
@@ -93,6 +94,46 @@ public class BetterShulkerMod {
         return false;
     }
 
+    /**
+     * Validates the exact source that caused a client to request an Ender Chest preview.
+     *
+     * <p>Tooltip requests may originate from a normal menu slot, the menu's carried stack,
+     * or a context where Minecraft did not expose a menu source. The exact-source paths
+     * deliberately use the same active/modifiable slot checks as container interactions;
+     * the fallback keeps non-screen tooltip calls compatible with the original inventory
+     * authorization.</p>
+     */
+    public static boolean hasAccessibleEnderChestSource(ServerPlayer player, int sourceSlotId) {
+        if (!player.isAlive() || player.isSpectator()) return false;
+
+        AbstractContainerMenu menu = player.containerMenu;
+        if (!menu.stillValid(player)) return false;
+
+        if (sourceSlotId == EnderChestRequestPayload.CARRIED_SOURCE_SLOT) {
+            ItemStack carried = menu.getCarried();
+            return isAccessibleEnderChest(carried, player);
+        }
+
+        if (sourceSlotId >= 0) {
+            if (sourceSlotId >= menu.slots.size()) return false;
+            Slot sourceSlot = menu.slots.get(sourceSlotId);
+            return isUsableSlot(sourceSlot)
+                    && sourceSlot.allowModification(player)
+                    && isAccessibleEnderChest(sourceSlot.getItem(), player);
+        }
+
+        if (sourceSlotId == EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE) {
+            return hasAccessibleEnderChestInInventory(player);
+        }
+
+        return false;
+    }
+
+    private static boolean isAccessibleEnderChest(ItemStack stack, ServerPlayer player) {
+        return ContainerHelper.isEnderChest(stack)
+                && ContainerHelper.canAccessContainer(stack, player);
+    }
+
     public static boolean consumeInteraction(ServerPlayer player) {
         long currentTick = player.level().getGameTime();
         UUID uuid = player.getUUID();
@@ -122,7 +163,7 @@ public class BetterShulkerMod {
         }
     }
 
-    public static void handleEnderChestSyncRequest(ServerPlayer player) {
+    public static void handleEnderChestSyncRequest(ServerPlayer player, int sourceSlotId) {
         UUID uuid = player.getUUID();
         long currentTick = player.level().getGameTime();
         Long lastRequestTick = lastEnderChestSyncRequestTick.get(uuid);
@@ -131,14 +172,24 @@ public class BetterShulkerMod {
         }
         lastEnderChestSyncRequestTick.put(uuid, currentTick);
 
-        if (!hasAccessibleEnderChestInInventory(player)) {
-            warnRejectedInteraction(player, "requested Ender Chest sync without an accessible Ender Chest item");
+        if (!hasAccessibleEnderChestSource(player, sourceSlotId)) {
+            resetEnderChestSync(uuid);
+            clearEnderChestClientCache(player);
+            warnRejectedInteraction(player, "requested Ender Chest sync from an inaccessible source: " + sourceSlotId);
             return;
         }
 
         resetEnderChestSync(uuid);
         PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
         LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
+    }
+
+    private static void clearEnderChestClientCache(ServerPlayer player) {
+        List<EnderChestSyncPayload.EnderChestDiff> emptyDiffs = new ArrayList<>();
+        for (int i = 0; i < ContainerHelper.SHULKER_SLOT_COUNT; i++) {
+            emptyDiffs.add(new EnderChestSyncPayload.EnderChestDiff(i, ItemStack.EMPTY));
+        }
+        PlatformNetworking.sendToPlayer(player, new EnderChestSyncPayload(emptyDiffs));
     }
 
     public static void handleRateLimitedContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
@@ -412,7 +463,8 @@ public class BetterShulkerMod {
         }
 
         Slot slot = player.containerMenu.slots.get(slotId);
-        if (slot.container != player.getInventory() || !isUsableSlot(slot)) {
+        if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                || !slot.allowModification(player)) {
             warnRejectedInteraction(player, "tried " + actionDescription
                     + " on an unavailable player-inventory slot: " + slotId);
             return null;
@@ -425,10 +477,10 @@ public class BetterShulkerMod {
      * occupied slots the player is not allowed to modify. The returned stack is the remainder.
      */
     private static ItemStack safeInsertIntoSlot(ServerPlayer player, Slot slot, ItemStack stack) {
-        if (stack.isEmpty() || !isUsableSlot(slot) || !slot.mayPlace(stack)) {
-            return stack;
-        }
-        if (!slot.getItem().isEmpty() && !slot.allowModification(player)) {
+        if (stack.isEmpty()
+                || !ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                || !slot.allowModification(player)
+                || !slot.mayPlace(stack)) {
             return stack;
         }
         return slot.safeInsert(stack);

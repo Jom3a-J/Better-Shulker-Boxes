@@ -28,7 +28,7 @@ Quickly check what is inside a Shulker Box without placing it down. Use the full
 
 Move items in and out of Shulker Boxes directly from the tooltip. The mod gives instant visual feedback while still keeping the server authoritative.
 
-- Hold **left-click** and drag to extract and **right-click** and drag to insert
+- Hold **left-click** and drag to insert and **right-click** and drag to extract
 - Insert cursor-held items directly into boxes
 - Extract items directly from preview slots
 - Smart merging with existing stacks
@@ -81,12 +81,21 @@ Better Shulker Boxes is designed to respect custom GUI textures from resource pa
 
 - Supports custom shulker/container GUI textures
 - Supports colored shulker GUI styles where available
+- Uses automatic layout profiles for supported OptiGUI/OptiFine-style packs
+- Supports optional pack metadata at `assets/bettershulker/layouts/*.json` for custom slot layouts
+- Provides X/Y slot offsets and bottom-cap controls in the settings screen for unusual packs
 - Tested showcase packs include:
   - Recolourful Containers
   - Default Dark Mode
   - GUI Retextures
   - Translucent GUI and HUD
-### This Packs Has Been Tested And 100% Working Other Packs Might Face Some Issues. 
+### Custom resource-pack layout metadata
+
+Resource packs that move the storage grid can add a JSON profile under
+`assets/bettershulker/layouts/`. The profile format is documented in
+`docs/resource-pack-layout-example.json`. The `match.texture` value may use `*` as a wildcard.
+If no profile is found, the mod uses a safe standard 9×3 layout and the in-game offsets can be
+used for small adjustments.
 
 ---
 

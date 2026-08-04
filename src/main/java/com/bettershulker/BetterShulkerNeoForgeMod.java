@@ -54,7 +54,7 @@ public final class BetterShulkerNeoForgeMod {
         if (!(context.player() instanceof ServerPlayer player)) {
             return;
         }
-        BetterShulkerMod.handleEnderChestSyncRequest(player);
+        BetterShulkerMod.handleEnderChestSyncRequest(player, payload.sourceSlotId());
     }
 
     private void handleContainerInteract(ContainerInteractPayload payload, IPayloadContext context) {

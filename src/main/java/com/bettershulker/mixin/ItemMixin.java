@@ -101,13 +101,14 @@ public abstract class ItemMixin {
                         }
                     }
                 } else {
-                    // Client side: return true if we can extract, to prevent client-server mismatch
+                    // Client side: only consume the click when the cached contents prove that an
+                    // extraction can happen. An unknown cache must fall through to vanilla; the
+                    // old unconditional true swallowed the click while the server was still
+                    // waiting for the first sync response.
                     NonNullList<ItemStack> cached = bettershulker$getClientEnderChestContents();
-                    if (cached != null) {
-                        if (bettershulker$firstOccupiedSlot(cached) != -1) {
-                            ci.setReturnValue(true);
-                        }
-                    } else {
+                    int extractionIndex = cached == null ? -1 : bettershulker$firstOccupiedSlot(cached);
+                    if (extractionIndex != -1
+                            && bettershulker$canReceiveStack(player, slot, cached.get(extractionIndex))) {
                         ci.setReturnValue(true);
                     }
                 }
@@ -123,7 +124,9 @@ public abstract class ItemMixin {
                         bettershulker$playLevelSound(player, slotStack, true);
                         ci.setReturnValue(true);
                     }
-                } else {
+                } else if (bettershulker$canInsertIntoEnderChest(bettershulker$getClientEnderChestContents(), slotStack)) {
+                    // Do not swallow a full/incompatible or not-yet-synchronised Ender Chest
+                    // click. The server will handle the operation after a confirmed cache state.
                     ci.setReturnValue(true);
                 }
             }
@@ -170,7 +173,8 @@ public abstract class ItemMixin {
                         // SlotAccess can reject a write; never retain a transferred item in that case.
                         bettershulker$restoreEnderChestContents(serverPlayer, originalContents);
                     }
-                } else {
+                } else if (bettershulker$canInsertIntoEnderChest(
+                        bettershulker$getClientEnderChestContents(), other)) {
                     ci.setReturnValue(true);
                 }
             }
@@ -186,7 +190,7 @@ public abstract class ItemMixin {
         if (stack.isEmpty() || !slot.isActive() || slot.isFake() || !slot.mayPlace(stack)) {
             return stack;
         }
-        if (!slot.getItem().isEmpty() && !slot.allowModification(player)) {
+        if (!slot.allowModification(player)) {
             return stack;
         }
         return slot.safeInsert(stack);
@@ -225,11 +229,41 @@ public abstract class ItemMixin {
                 || player.isSpectator()) {
             return false;
         }
-        if (slot.container != player.getInventory() || !slot.isActive() || slot.isFake()) {
+        if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                || !slot.allowModification(player)) {
             return false;
         }
         return player.level().isClientSide()
                 || (player instanceof ServerPlayer serverPlayer && BetterShulkerMod.consumeInteraction(serverPlayer));
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private boolean bettershulker$canReceiveStack(Player player, Slot slot, ItemStack stack) {
+        return !stack.isEmpty()
+                && ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                && slot.allowModification(player)
+                && slot.mayPlace(stack);
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private boolean bettershulker$canInsertIntoEnderChest(NonNullList<ItemStack> cached, ItemStack stack) {
+        if (cached == null || stack == null || stack.isEmpty()) return false;
+
+        ItemStack remainder = stack.copy();
+        for (ItemStack existing : cached) {
+            if (existing.isEmpty() || !ItemStack.isSameItemSameComponents(existing, remainder)) continue;
+            int space = existing.getMaxStackSize() - existing.getCount();
+            if (space > 0) {
+                remainder.shrink(Math.min(space, remainder.getCount()));
+            }
+            if (remainder.isEmpty()) return true;
+        }
+        for (ItemStack existing : cached) {
+            if (existing.isEmpty()) {
+                return true;
+            }
+        }
+        return remainder.getCount() < stack.getCount();
     }
 
     @org.spongepowered.asm.mixin.Unique
@@ -281,7 +315,7 @@ public abstract class ItemMixin {
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$playLevelSound(Player player, ItemStack stack, boolean isInsert) {
         float volume = player.level().isClientSide()
-                ? BetterShulkerConfig.soundVolume
+                ? BetterShulkerConfig.getSoundVolume()
                 : 0.3F;
         ContainerHelper.playInteractionSound(player, stack, isInsert, volume);
     }

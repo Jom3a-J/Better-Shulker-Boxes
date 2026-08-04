@@ -1,6 +1,9 @@
 package com.bettershulker.client;
 
 import com.bettershulker.BetterShulkerConfig;
+import com.bettershulker.client.render.ResourcePackContainerTextures;
+import com.bettershulker.client.render.ResourcePackLayout;
+import com.bettershulker.client.render.ResourcePackLayoutProfiles;
 
 import me.shedaniel.clothconfig2.api.AbstractConfigListEntry;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
@@ -75,6 +78,7 @@ public final class BetterShulkerClothConfigScreen {
         var font = Minecraft.getInstance().font;
         int y = 38;
         int h = screen.height - 76;
+        refreshResourcePackPreview(state);
         PreviewColors colors = resolvePreviewColors(state);
         int nameText = colors.nameText();
         int sel = colors.selection();
@@ -82,13 +86,28 @@ public final class BetterShulkerClothConfigScreen {
         // Integrated preview column: no separate dark modal/card background. Keep it visually part
         // of the Theme & Colors category and use only a subtle divider/title.
         graphics.fill(x - 10, y - 8, x - 9, y + h + 8, 0x55FFFFFF);
-        graphics.centeredText(font, text("Live Theme Preview"), x + w / 2, y, 0xFFE6E6E6);
+        graphics.centeredText(font, text("Live Tooltip Preview"), x + w / 2, y, 0xFFE6E6E6);
 
-        int fullW = 176;
-        int fullH = 68;
+        BetterShulkerConfig.ResourcePackMode selectedResourcePackMode = state.resourcePackMode == null
+                ? BetterShulkerConfig.getResourcePackMode()
+                : state.resourcePackMode.getValue();
+        boolean useResourcePackPreview = state.resourceReady()
+                && (selectedResourcePackMode == BetterShulkerConfig.ResourcePackMode.ENABLED
+                || (selectedResourcePackMode == BetterShulkerConfig.ResourcePackMode.AUTO
+                && state.resourcePackDetected));
+        ResourcePackLayout resourceLayout = useResourcePackPreview
+                ? state.resourcePackLayout.withOutputAdjustments(state.resourcePackOffsetX.getValue(),
+                        state.resourcePackOffsetY.getValue(), state.resourcePackCapHeight.getValue())
+                : null;
+        int fullW = resourceLayout == null ? 176 : resourceLayout.panelWidth(resourceLayout.columns());
+        int fullH = resourceLayout == null ? 68 : resourceLayout.panelHeight(resourceLayout.rows());
         int panelX = x + (w - fullW) / 2;
         int panelY = y + 22;
-        drawFullThemePreviewPanel(graphics, colors, panelX, panelY, fullW, fullH, sel);
+        if (resourceLayout == null) {
+            drawFullThemePreviewPanel(graphics, colors, panelX, panelY, fullW, fullH, sel);
+        } else {
+            drawResourcePackLayoutPreview(graphics, state, resourceLayout, panelX, panelY, false);
+        }
 
         int nameY = panelY + fullH + 14;
         drawSelectedNamePreview(graphics, font, colors, x, w, nameY, nameText);
@@ -98,6 +117,67 @@ public final class BetterShulkerClothConfigScreen {
         int compactX = x + (w - compactW) / 2;
         int compactY = nameY + 34;
         drawCompactThemePreview(graphics, font, colors, compactX, compactY, compactW, compactH, sel);
+    }
+
+    private static void drawResourcePackLayoutPreview(GuiGraphicsExtractor graphics,
+                                                       CustomPreviewState state,
+                                                       ResourcePackLayout layout, int panelX,
+                                                       int panelY, boolean showOffsets) {
+        int columns = layout.columns();
+        int rows = layout.rows();
+        int panelW = layout.panelWidth(columns);
+        int panelH = layout.panelHeight(rows);
+        Identifier texture = state.resourcePackTexture;
+
+        drawResourcePackPreviewSlices(graphics, texture, layout, panelX, panelY,
+                layout.sourcePanelY(), layout.outputSlotY(), columns, panelW);
+        drawResourcePackPreviewSlices(graphics, texture, layout, panelX,
+                panelY + layout.outputSlotY(), layout.sourceSlotY(), rows * layout.slotSize(),
+                columns, panelW);
+        int capY = panelY + layout.outputSlotY() + rows * layout.slotSize();
+        for (int row = 0; row < layout.bottomCapHeight(); row++) {
+            drawResourcePackPreviewSlices(graphics, texture, layout, panelX, capY + row,
+                    layout.bottomCapSourceY(), 1, columns, panelW);
+        }
+
+        int selectedX = panelX + layout.outputSlotX() + 3 * layout.slotSize();
+        int selectedY = panelY + layout.outputSlotY() + layout.slotSize();
+        drawStaticFrame(graphics, selectedX, selectedY, layout.slotSize(), layout.slotSize(), 0xFFFFD700);
+        graphics.fill(selectedX + 1, selectedY + 1,
+                selectedX + layout.slotSize() - 1, selectedY + layout.slotSize() - 1, 0x35FFD700);
+
+        if (showOffsets) {
+            String offsets = "X " + state.resourcePackOffsetX.getValue()
+                    + "  Y " + state.resourcePackOffsetY.getValue()
+                    + "  Cap " + (state.resourcePackCapHeight.getValue() < 0
+                    ? "Auto" : state.resourcePackCapHeight.getValue());
+            graphics.centeredText(Minecraft.getInstance().font, text(offsets),
+                    panelX + panelW / 2, panelY + panelH + 4, 0xFFBDBDBD);
+        }
+    }
+
+    private static void drawResourcePackPreviewSlices(GuiGraphicsExtractor graphics, Identifier texture,
+                                                      ResourcePackLayout layout, int panelX, int y,
+                                                      int sourceY, int height, int columns, int panelW) {
+        int leftW = layout.outputSlotX();
+        int slotsW = columns * layout.slotSize();
+        int outputRightW = Math.max(0, panelW - leftW - slotsW);
+        int sourceRightW = Math.min(outputRightW, layout.sourceRightWidth());
+        blitResourcePackPreviewSlice(graphics, texture, layout,
+                panelX, y, layout.sourcePanelX(), sourceY, leftW, height);
+        blitResourcePackPreviewSlice(graphics, texture, layout,
+                panelX + leftW, y, layout.sourceSlotX(), sourceY, slotsW, height);
+        blitResourcePackPreviewSlice(graphics, texture, layout,
+                panelX + leftW + slotsW, y, layout.sourceRightX(), sourceY, sourceRightW, height);
+    }
+
+    private static void blitResourcePackPreviewSlice(GuiGraphicsExtractor graphics, Identifier texture,
+                                                     ResourcePackLayout layout, int x, int y,
+                                                     int u, int v, int width, int height) {
+        if (width <= 0 || height <= 0) return;
+        graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y,
+                (float) u, (float) v, width, height,
+                layout.textureWidth(), layout.textureHeight(), 0xFFFFFFFF);
     }
 
     private static void drawFullThemePreviewPanel(GuiGraphicsExtractor graphics, PreviewColors colors,
@@ -417,6 +497,15 @@ public final class BetterShulkerClothConfigScreen {
 
     private static void addThemeCategory(ConfigBuilder builder, ConfigEntryBuilder entry, CustomPreviewState previewState) {
         ConfigCategory category = builder.getOrCreateCategory(text("Theme & Colors"));
+        previewState.resourcePackMode = entry.startSelector(text("Resource Pack GUI Mode"),
+                        BetterShulkerConfig.ResourcePackMode.values(), BetterShulkerConfig.getResourcePackMode())
+                .setDefaultValue(BetterShulkerConfig.ResourcePackMode.AUTO)
+                .setNameProvider(value -> text(value.getDisplayName()))
+                .setSaveConsumer(BetterShulkerConfig::setResourcePackMode)
+                .setTooltip(text("Automatic follows detected resource-pack GUI textures; Always Enabled shows the resource-pack layout even without a pack; Disabled keeps the normal tooltip layout."))
+                .build();
+        category.addEntry(previewState.resourcePackMode);
+        addResourcePackLayoutSettings(category, entry, previewState);
         previewState.theme = entry.startSelector(text("Tooltip Theme"), BetterShulkerConfig.TooltipTheme.values(), BetterShulkerConfig.getTooltipTheme())
                 .setDefaultValue(BetterShulkerConfig.TooltipTheme.ORIGINAL)
                 .setNameProvider(value -> text(value.getDisplayName()))
@@ -439,6 +528,51 @@ public final class BetterShulkerClothConfigScreen {
                 BetterShulkerConfig::getCustomNameTextColor, BetterShulkerConfig::setCustomNameTextColor);
         previewState.selection = addRgbSliders(category, entry, "Selection Square", BetterShulkerConfig.getCustomSelectionSquareColor(), 0xFFFFD700,
                 BetterShulkerConfig::getCustomSelectionSquareColor, BetterShulkerConfig::setCustomSelectionSquareColor);
+    }
+
+    private static void addResourcePackLayoutSettings(ConfigCategory category, ConfigEntryBuilder entry,
+                                                      CustomPreviewState previewState) {
+        ResourcePackContainerTextures.Panel panel = ResourcePackContainerTextures.resolveDetected(null, false);
+        previewState.resourcePackTexture = panel.texture();
+        previewState.resourcePackLayout = ResourcePackLayoutProfiles.resolveBase(panel.texture());
+        previewState.resourcePackDetected = panel.suppliedByPack();
+
+        var sub = entry.startSubCategory(text("Resource Pack Layout"));
+        previewState.resourcePackOffsetX = entry.startIntSlider(text("Slot X Offset"), BetterShulkerConfig.getResourcePackLayoutOffsetX(), -32, 32)
+                .setDefaultValue(0)
+                .setTextGetter(value -> text(value + " px"))
+                .setSaveConsumer(BetterShulkerConfig::setResourcePackLayoutOffsetX)
+                .setTooltip(text("Moves the detected resource-pack slot grid horizontally inside the tooltip."))
+                .build();
+        previewState.resourcePackOffsetY = entry.startIntSlider(text("Slot Y Offset"), BetterShulkerConfig.getResourcePackLayoutOffsetY(), -32, 32)
+                .setDefaultValue(0)
+                .setTextGetter(value -> text(value + " px"))
+                .setSaveConsumer(BetterShulkerConfig::setResourcePackLayoutOffsetY)
+                .setTooltip(text("Moves the detected resource-pack slot grid vertically inside the tooltip."))
+                .build();
+        previewState.resourcePackCapHeight = entry.startIntSlider(text("Bottom Cap Height"), BetterShulkerConfig.getResourcePackLayoutBottomCapHeight(), -1, 16)
+                .setDefaultValue(-1)
+                .setTextGetter(value -> text(value < 0 ? "Auto" : value + " px"))
+                .setSaveConsumer(BetterShulkerConfig::setResourcePackLayoutBottomCapHeight)
+                .setTooltip(text("Auto uses the selected layout profile. Override this only when the pack's lower edge needs more or less space."))
+                .build();
+        sub.add(previewState.resourcePackOffsetX);
+        sub.add(previewState.resourcePackOffsetY);
+        sub.add(previewState.resourcePackCapHeight);
+        category.addEntry(sub.setExpanded(false).build());
+    }
+
+    private static void refreshResourcePackPreview(CustomPreviewState previewState) {
+        if (previewState.resourcePackOffsetX == null
+                || previewState.resourcePackOffsetY == null
+                || previewState.resourcePackCapHeight == null) {
+            return;
+        }
+
+        ResourcePackContainerTextures.Panel panel = ResourcePackContainerTextures.resolveDetected(null, false);
+        previewState.resourcePackTexture = panel.texture();
+        previewState.resourcePackLayout = ResourcePackLayoutProfiles.resolveBase(panel.texture());
+        previewState.resourcePackDetected = panel.suppliedByPack();
     }
 
     private static void addControlsCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {
@@ -482,6 +616,7 @@ public final class BetterShulkerClothConfigScreen {
     }
 
     private static final class CustomPreviewState {
+        private AbstractConfigListEntry<BetterShulkerConfig.ResourcePackMode> resourcePackMode;
         private AbstractConfigListEntry<BetterShulkerConfig.TooltipTheme> theme;
         private ColorSliders background;
         private ColorSliders border;
@@ -489,9 +624,21 @@ public final class BetterShulkerClothConfigScreen {
         private ColorSliders nameBorder;
         private ColorSliders nameText;
         private ColorSliders selection;
+        private Identifier resourcePackTexture;
+        private ResourcePackLayout resourcePackLayout;
+        private boolean resourcePackDetected;
+        private IntegerSliderEntry resourcePackOffsetX;
+        private IntegerSliderEntry resourcePackOffsetY;
+        private IntegerSliderEntry resourcePackCapHeight;
 
         private boolean ready() {
             return theme != null && background != null && border != null && nameBackground != null && nameBorder != null && nameText != null && selection != null;
+        }
+
+        private boolean resourceReady() {
+            return resourcePackTexture != null && resourcePackLayout != null
+                    && resourcePackOffsetX != null && resourcePackOffsetY != null
+                    && resourcePackCapHeight != null;
         }
     }
 

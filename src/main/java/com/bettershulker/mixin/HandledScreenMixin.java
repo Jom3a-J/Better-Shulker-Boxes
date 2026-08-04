@@ -5,6 +5,7 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.network.ContainerInteractPayload;
+import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 
@@ -181,17 +182,22 @@ public abstract class HandledScreenMixin extends Screen {
             return new bettershulker$ActiveContainer(ItemStack.EMPTY, -1);
         }
 
-        ItemStack containerStack = BetterShulkerClient.getActiveContainerStack();
-        if (containerStack.isEmpty()) {
-            ItemStack carried = bettershulker$self().getMenu().getCarried();
-            if (this.hoveredSlot != null && this.hoveredSlot.hasItem() && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-                containerStack = this.hoveredSlot.getItem();
-            } else if (ContainerHelper.isContainer(carried)) {
-                containerStack = carried;
-            }
+        ItemStack carried = bettershulker$self().getMenu().getCarried();
+        ItemStack containerStack = ItemStack.EMPTY;
+        // Always prefer the live menu stack. Prediction and server menu sync can replace the
+        // ItemStack object while the tooltip state still holds the previous frame's copy.
+        if (this.hoveredSlot != null && this.hoveredSlot.hasItem()
+                && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
+            containerStack = this.hoveredSlot.getItem();
+        } else if (ContainerHelper.isContainer(carried)) {
+            containerStack = carried;
+        } else if (!BetterShulkerClient.getActiveContainerStack().isEmpty()) {
+            containerStack = BetterShulkerClient.getActiveContainerStack();
         }
 
-        Slot sourceSlot = this.hoveredSlot != null && this.hoveredSlot.getItem() == containerStack
+        Slot sourceSlot = this.hoveredSlot != null && this.hoveredSlot.hasItem()
+                && ContainerHelper.isContainer(this.hoveredSlot.getItem())
+                && ItemStack.isSameItemSameComponents(this.hoveredSlot.getItem(), containerStack)
                 ? this.hoveredSlot
                 : null;
         if (!ContainerHelper.canAccessContainer(containerStack, player)
@@ -240,7 +246,7 @@ public abstract class HandledScreenMixin extends Screen {
             && this.hoveredSlot.hasItem()
             && bettershulker$canModifyContainerSlot(this.hoveredSlot)
             && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
-            bettershulker$extractFromSlotToInventory(self, this.hoveredSlot);
+            if (!bettershulker$extractFromSlotToInventory(self, this.hoveredSlot)) return;
             bettershulker$tapHandled = true;
             ci.setReturnValue(true);
             ci.cancel();
@@ -260,7 +266,7 @@ public abstract class HandledScreenMixin extends Screen {
                 return;
             }
 
-            bettershulker$insertFromCursorToContainer(self, this.hoveredSlot, carried);
+            if (!bettershulker$insertFromCursorToContainer(self, this.hoveredSlot, carried)) return;
             bettershulker$tapHandled = true;
             ci.setReturnValue(true);
             ci.cancel();
@@ -306,7 +312,12 @@ public abstract class HandledScreenMixin extends Screen {
                 // Right-click tap → extract selected item to hovered slot. Tiny mouse jitter can fire
                 // mouseDragged before release, so treat any no-work drag as a normal tap.
                 if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
-                    bettershulker$tapExtractToSlot(self, this.hoveredSlot);
+                    if (!bettershulker$tapExtractToSlot(self, this.hoveredSlot)) {
+                        // The custom action had no valid destination or source. The initial
+                        // mouseClicked was intercepted to start the drag, so replay the
+                        // vanilla click instead of swallowing a no-op right-click.
+                        this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, button, ContainerInput.PICKUP);
+                    }
                 }
             } else if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
                 // Left-click tap → simulate vanilla click to grab/place the carried container.
@@ -361,6 +372,13 @@ public abstract class HandledScreenMixin extends Screen {
 
         ItemStack carried = self.getMenu().getCarried();
         boolean ctrlHeld = bettershulker$isCtrlDown();
+        var player = Minecraft.getInstance().player;
+        // SWEEP_INSERT is defined for player-inventory source slots only. Leave
+        // crafting, armor, result, fake, and other menu slots to vanilla instead
+        // of marking an invalid custom drag as handled.
+        if (player == null
+                || !ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                || !slot.allowModification(player)) return;
 
         if (ContainerHelper.isContainer(carried)) {
             // Safety check: Prevent nesting a Shulker Box inside another Shulker Box
@@ -381,36 +399,16 @@ public abstract class HandledScreenMixin extends Screen {
         ItemStack carried = self.getMenu().getCarried();
         ItemStack slotStack = slot.getItem();
         boolean ctrlHeld = bettershulker$isCtrlDown();
-        // Detect Shift for batch extraction
-        boolean shiftHeld = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_SHIFT)
-                || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_RIGHT_SHIFT);
 
         if (!ContainerHelper.isContainer(carried)) return;
 
         // Right-click drag over empty slot → extract (use scroll‑selected slot)
         if (slotStack.isEmpty()) {
-            // If Shift is held, extract *all* items from the carried container
-            if (shiftHeld) {
-                ItemStack firstItem = ItemStack.EMPTY;
-                NonNullList<ItemStack> contents = bettershulker$getContents(carried);
-                for (int i = 0; i < contents.size(); i++) {
-                    if (!contents.get(i).isEmpty()) {
-                        if (firstItem.isEmpty()) {
-                            firstItem = contents.get(i);
-                        }
-                        bettershulker$processedDragSlots.add(slot.index);
-                        bettershulker$dragDidWork = true;
-                        bettershulker$sendInteractPayload(
-                            -1, i, ContainerInteractPayload.InteractType.EXTRACT_ONE.toId(), slot.index);
-                    }
-                }
-                // Play a single sound after batch extraction
-                bettershulker$playClientSound(firstItem, false);
-                return;
-            }
             int extractionIndex = bettershulker$getExtractionIndex(carried);
             if (extractionIndex == -1) return;
             ItemStack extractedStack = bettershulker$getContents(carried).get(extractionIndex);
+            ItemStack destinationStack = ctrlHeld ? extractedStack.copyWithCount(1) : extractedStack;
+            if (!bettershulker$canInsertIntoPlayerSlot(slot, destinationStack)) return;
             bettershulker$processedDragSlots.add(slot.index);
             bettershulker$dragDidWork = true;
             bettershulker$sendInteractPayload(
@@ -421,6 +419,7 @@ public abstract class HandledScreenMixin extends Screen {
             int matchingIndex = bettershulker$findMatchingIndex(carried, slotStack);
             if (matchingIndex == -1) return;
             ItemStack extractedStack = bettershulker$getContents(carried).get(matchingIndex);
+            if (!bettershulker$canInsertIntoPlayerSlot(slot, extractedStack.copyWithCount(1))) return;
             bettershulker$processedDragSlots.add(slot.index);
             bettershulker$dragDidWork = true;
             bettershulker$sendInteractPayload(
@@ -436,43 +435,81 @@ public abstract class HandledScreenMixin extends Screen {
     // =========================================================================
 
     @Unique
-    private void bettershulker$extractFromSlotToInventory(AbstractContainerScreen<?> self, Slot containerSlot) {
+    private boolean bettershulker$extractFromSlotToInventory(AbstractContainerScreen<?> self, Slot containerSlot) {
         int extractionIndex = bettershulker$getExtractionIndex(containerSlot.getItem());
-        if (extractionIndex == -1) return;
+        if (extractionIndex == -1) return false;
         ItemStack extractedStack = bettershulker$getContents(containerSlot.getItem()).get(extractionIndex);
         boolean ctrlHeld = bettershulker$isCtrlDown();
         bettershulker$sendInteractPayload(
             containerSlot.index, extractionIndex,
             ctrlHeld ? ContainerInteractPayload.InteractType.EXTRACT_ONE.toId() : ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId(), -1);
         bettershulker$playClientSound(extractedStack, false);
+        return true;
     }
 
     @Unique
-    private void bettershulker$insertFromCursorToContainer(AbstractContainerScreen<?> self, Slot containerSlot, ItemStack cursorStack) {
+    private boolean bettershulker$insertFromCursorToContainer(AbstractContainerScreen<?> self, Slot containerSlot, ItemStack cursorStack) {
         boolean ctrlHeld = bettershulker$isCtrlDown();
+        if (cursorStack.isEmpty()) return false;
+
+        // Use a copy for the capacity check so a full/invalid container does not consume
+        // the vanilla right-click. Ender chest contents may be unavailable before sync;
+        // in that case the empty preview is only a best-effort client-side check.
+        NonNullList<ItemStack> preview = bettershulker$getContents(containerSlot.getItem());
+        NonNullList<ItemStack> previewCopy = NonNullList.withSize(preview.size(), ItemStack.EMPTY);
+        for (int i = 0; i < preview.size(); i++) {
+            previewCopy.set(i, preview.get(i).copy());
+        }
+        ItemStack remainder = ContainerHelper.tryInsert(previewCopy, cursorStack.copy(), ctrlHeld);
+        if (remainder.getCount() >= cursorStack.getCount()) return false;
+
         bettershulker$sendInteractPayload(
             containerSlot.index, -1,
             ctrlHeld ? ContainerInteractPayload.InteractType.INSERT_ONE.toId() : ContainerInteractPayload.InteractType.INSERT.toId(), -1);
         bettershulker$playClientSound(cursorStack, true);
+        return true;
     }
 
     @Unique
-    private void bettershulker$tapExtractToSlot(AbstractContainerScreen<?> self, Slot slot) {
+    private boolean bettershulker$tapExtractToSlot(AbstractContainerScreen<?> self, Slot slot) {
         ItemStack carried = self.getMenu().getCarried();
         boolean ctrlHeld = bettershulker$isCtrlDown();
         int extractionIndex = bettershulker$getExtractionIndex(carried);
-        if (extractionIndex == -1) return;
+        if (extractionIndex == -1) return false;
         ItemStack extractedStack = bettershulker$getContents(carried).get(extractionIndex);
+        ItemStack destinationStack = ctrlHeld ? extractedStack.copyWithCount(1) : extractedStack;
+        if (!bettershulker$canInsertIntoPlayerSlot(slot, destinationStack)) return false;
         int action = ctrlHeld
             ? ContainerInteractPayload.InteractType.EXTRACT_ONE.toId()
             : ContainerInteractPayload.InteractType.SWEEP_EXTRACT.toId();
         bettershulker$sendInteractPayload(-1, extractionIndex, action, slot.index);
         bettershulker$playClientSound(extractedStack, false);
+        return true;
+    }
+
+    @Unique
+    private boolean bettershulker$canInsertIntoPlayerSlot(Slot slot, ItemStack stack) {
+        var player = Minecraft.getInstance().player;
+        if (player == null || stack.isEmpty()
+                || !ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                || !slot.allowModification(player)
+                || !slot.mayPlace(stack)) {
+            return false;
+        }
+
+        ItemStack existing = slot.getItem();
+        if (existing.isEmpty()) return true;
+        if (!ItemStack.isSameItemSameComponents(existing, stack)) {
+            return false;
+        }
+
+        return existing.getCount() < Math.min(existing.getMaxStackSize(), slot.getMaxStackSize(stack));
     }
 
     @Unique
     private void bettershulker$playClientSound(ItemStack stack, boolean isInsert) {
-        ContainerHelper.playInteractionSound(Minecraft.getInstance().player, stack, isInsert, BetterShulkerConfig.soundVolume);
+        ContainerHelper.playInteractionSound(Minecraft.getInstance().player, stack, isInsert,
+                BetterShulkerConfig.getSoundVolume());
     }
 
 
@@ -789,6 +826,21 @@ public abstract class HandledScreenMixin extends Screen {
     //  Render — tooltip + fill overlay
     // =========================================================================
 
+    @Inject(method = "extractTooltip", at = @At("HEAD"))
+    private void bettershulker$setEnderChestTooltipSource(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                                                           CallbackInfo ci) {
+        ItemStack carried = bettershulker$self().getMenu().getCarried();
+        int sourceSlotId = EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE;
+        if (this.hoveredSlot != null
+                && this.hoveredSlot.hasItem()
+                && ContainerHelper.isEnderChest(this.hoveredSlot.getItem())) {
+            sourceSlotId = this.hoveredSlot.index;
+        } else if (ContainerHelper.isEnderChest(carried)) {
+            sourceSlotId = EnderChestRequestPayload.CARRIED_SOURCE_SLOT;
+        }
+        BetterShulkerClient.setEnderChestTooltipSourceSlot(sourceSlotId);
+    }
+
     @Inject(method = "extractTooltip", at = @At("RETURN"))
     private void bettershulker$onExtractTooltip(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                                                  CallbackInfo ci) {
@@ -819,6 +871,9 @@ public abstract class HandledScreenMixin extends Screen {
 
         if (altDown && carryingContainer && !hovering) {
             var mc = Minecraft.getInstance();
+            if (ContainerHelper.isEnderChest(carried)) {
+                BetterShulkerClient.requestEnderChestSync(EnderChestRequestPayload.CARRIED_SOURCE_SLOT);
+            }
             var contents = bettershulker$getContents(carried);
             String selectedItemName = "";
             int selectedIndex = BetterShulkerClient.getSelectedSlotIndex();
@@ -833,15 +888,15 @@ public abstract class HandledScreenMixin extends Screen {
                 ContainerHelper.isEnderChest(carried),
                 selectedItemName,
                 carried.getHoverName().getString());
-            // Cursor/held Alt-Force tooltips bypass ItemStack#getTooltipLines, so compact mode
-            // must hide the vanilla container name here too. Otherwise "Shulker Box" remains
-            // behind the selected item name and visually merges into labels like "Shulke Emerald".
-            List<Component> textLines = BetterShulkerClient.isCompactModeActive()
-                ? List.of()
-                : List.of(carried.getDisplayName());
+            // Cursor/held Alt-Force tooltips bypass ItemStack#getTooltipLines, so add the
+            // container name explicitly. The selected-item label is rendered by the custom
+            // component and is anchored to the preview panel's upper edge below this line.
+            List<Component> textLines = List.of(carried.getDisplayName());
             graphics.setTooltipForNextFrame(mc.font,
-                textLines, Optional.of(data), mouseX, mouseY);
+                    textLines, Optional.of(data), mouseX, mouseY);
         }
+
+        BetterShulkerClient.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
     }
 
     @Inject(method = "getTooltipFromContainerItem", at = @At("RETURN"), cancellable = true)
@@ -851,6 +906,9 @@ public abstract class HandledScreenMixin extends Screen {
         if (!ContainerHelper.isContainer(stack)) return;
         List<Component> lines = ci.getReturnValue();
         if (lines.isEmpty()) return;
+        // Keep the first vanilla line: it is the container's own name (for example,
+        // "Shulker Box"). The custom selected-item label is drawn separately and attached
+        // to the preview panel edge, so it does not replace this container name.
         ci.setReturnValue(List.of(lines.getFirst()));
     }
 
@@ -956,7 +1014,9 @@ public abstract class HandledScreenMixin extends Screen {
 
         // First pass: try to merge with existing slots that have room
         for (Slot slot : slots) {
-            if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)) continue;
+            if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                    || !slot.allowModification(player)
+                    || !slot.mayPlace(stack)) continue;
             
             ItemStack virtualStack = virtualInv.get(slot.index);
             if (virtualStack != null && !virtualStack.isEmpty()) {
@@ -977,7 +1037,9 @@ public abstract class HandledScreenMixin extends Screen {
 
         // Second pass: put into the first empty slot
         for (Slot slot : slots) {
-            if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)) continue;
+            if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                    || !slot.allowModification(player)
+                    || !slot.mayPlace(stack)) continue;
             
             ItemStack virtualStack = virtualInv.get(slot.index);
             if (virtualStack == null || virtualStack.isEmpty()) {
@@ -1078,6 +1140,9 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$tapHandled = false;
         bettershulker$selectKeyWasDown = false;
         bettershulker$lastTooltipScrollTime = 0L;
+        BetterShulkerClient.setTooltipActive(false);
+        BetterShulkerClient.setActiveContainerStack(ItemStack.EMPTY);
+        BetterShulkerClient.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
         BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
         BetterShulkerClient.clearSelectedSlotsSet();
     }
@@ -1163,7 +1228,8 @@ public abstract class HandledScreenMixin extends Screen {
         var player = Minecraft.getInstance().player;
         if (player == null || slotId < 0 || slotId >= self.getMenu().slots.size()) return null;
         Slot slot = self.getMenu().slots.get(slotId);
-        return slot.container == player.getInventory() && slot.isActive() && !slot.isFake() ? slot : null;
+        return ContainerHelper.isPlayerInventorySlot(slot, player, 36)
+                && slot.allowModification(player) ? slot : null;
     }
 
     @Unique

@@ -1,0 +1,28 @@
+{
+  "id": "my-pack-shulker-layout",
+  "match": {
+    "texture": "my_namespace:gui/shulkers/shulker.png"
+  },
+  "textureWidth": 256,
+  "textureHeight": 256,
+  "source": {
+    "x": 0,
+    "y": 0,
+    "width": 176,
+    "height": 166
+  },
+  "slots": {
+    "x": 8,
+    "y": 18,
+    "size": 18,
+    "columns": 9,
+    "rows": 3
+  },
+  "output": {
+    "width": 176,
+    "slotX": 8,
+    "slotY": 7,
+    "bottomCapSourceY": 71,
+    "bottomCapHeight": 7
+  }
+}

@@ -34,12 +34,24 @@ public class BetterShulkerConfig {
     
     // -- Themes & Colors --
     public static TooltipTheme tooltipTheme = TooltipTheme.ORIGINAL;
+    public static ResourcePackMode resourcePackMode = ResourcePackMode.AUTO;
+    /** Output-only adjustments for resource-pack layout profiles; -1 keeps the profile cap. */
+    public static int resourcePackLayoutOffsetX = 0;
+    public static int resourcePackLayoutOffsetY = 0;
+    public static int resourcePackLayoutBottomCapHeight = -1;
     public static int customBackgroundColor = 0xFF1A1A1A;
     public static int customBorderColor = 0xFF8932B8;
     public static int customNameBgColor = 0xF0100010;
     public static int customNameBorderColor = 0xFF8932B8;
     public static int customNameTextColor = 0xFFFFFFFF;
     public static int customSelectionSquareColor = 0xFFFFD700;
+
+    private static final float MIN_SOUND_VOLUME = 0.0f;
+    private static final float MAX_SOUND_VOLUME = 1.0f;
+    private static final int MIN_LAYOUT_OFFSET = -32;
+    private static final int MAX_LAYOUT_OFFSET = 32;
+    private static final int MIN_LAYOUT_CAP_HEIGHT = -1;
+    private static final int MAX_LAYOUT_CAP_HEIGHT = 16;
 
     // =========================================================================
     //  Enums
@@ -58,6 +70,17 @@ public class BetterShulkerConfig {
 
         private final String displayName;
         TooltipTheme(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
+    }
+
+    /** Controls whether the compact resource-pack-aware panel layout is used. */
+    public enum ResourcePackMode {
+        AUTO("Automatic"),
+        ENABLED("Always Enabled"),
+        DISABLED("Disabled");
+
+        private final String displayName;
+        ResourcePackMode(String displayName) { this.displayName = displayName; }
         public String getDisplayName() { return displayName; }
     }
 
@@ -118,14 +141,52 @@ public class BetterShulkerConfig {
     public static boolean isRareItemWobbleEnabled() { return rareItemWobbleEnabled; }
     public static void setRareItemWobbleEnabled(boolean v) { rareItemWobbleEnabled = v; }
     
-    public static float getSoundVolume() { return soundVolume; }
-    public static void setSoundVolume(float v) { soundVolume = v; }
+    public static float getSoundVolume() {
+        return Float.isFinite(soundVolume)
+                ? clamp(soundVolume, MIN_SOUND_VOLUME, MAX_SOUND_VOLUME)
+                : 0.3f;
+    }
+    public static void setSoundVolume(float v) {
+        soundVolume = Float.isFinite(v) ? clamp(v, MIN_SOUND_VOLUME, MAX_SOUND_VOLUME) : 0.3f;
+    }
     
-    public static SoundOption getSoundOption() { return soundOption; }
-    public static void setSoundOption(SoundOption s) { soundOption = s; }
+    public static SoundOption getSoundOption() {
+        return soundOption == null ? SoundOption.ITEM_PICKUP : soundOption;
+    }
+    public static void setSoundOption(SoundOption s) { soundOption = s == null ? SoundOption.ITEM_PICKUP : s; }
     
-    public static TooltipTheme getTooltipTheme() { return tooltipTheme; }
-    public static void setTooltipTheme(TooltipTheme t) { tooltipTheme = t; }
+    public static TooltipTheme getTooltipTheme() {
+        return tooltipTheme == null ? TooltipTheme.ORIGINAL : tooltipTheme;
+    }
+    public static void setTooltipTheme(TooltipTheme t) { tooltipTheme = t == null ? TooltipTheme.ORIGINAL : t; }
+
+    public static ResourcePackMode getResourcePackMode() {
+        return resourcePackMode == null ? ResourcePackMode.AUTO : resourcePackMode;
+    }
+    public static void setResourcePackMode(ResourcePackMode mode) {
+        resourcePackMode = mode == null ? ResourcePackMode.AUTO : mode;
+    }
+
+    public static int getResourcePackLayoutOffsetX() {
+        return clamp(resourcePackLayoutOffsetX, MIN_LAYOUT_OFFSET, MAX_LAYOUT_OFFSET);
+    }
+    public static void setResourcePackLayoutOffsetX(int value) {
+        resourcePackLayoutOffsetX = clamp(value, MIN_LAYOUT_OFFSET, MAX_LAYOUT_OFFSET);
+    }
+
+    public static int getResourcePackLayoutOffsetY() {
+        return clamp(resourcePackLayoutOffsetY, MIN_LAYOUT_OFFSET, MAX_LAYOUT_OFFSET);
+    }
+    public static void setResourcePackLayoutOffsetY(int value) {
+        resourcePackLayoutOffsetY = clamp(value, MIN_LAYOUT_OFFSET, MAX_LAYOUT_OFFSET);
+    }
+
+    public static int getResourcePackLayoutBottomCapHeight() {
+        return clamp(resourcePackLayoutBottomCapHeight, MIN_LAYOUT_CAP_HEIGHT, MAX_LAYOUT_CAP_HEIGHT);
+    }
+    public static void setResourcePackLayoutBottomCapHeight(int value) {
+        resourcePackLayoutBottomCapHeight = clamp(value, MIN_LAYOUT_CAP_HEIGHT, MAX_LAYOUT_CAP_HEIGHT);
+    }
     
     public static int getCustomBackgroundColor() { return customBackgroundColor; }
     public static void setCustomBackgroundColor(int v) { customBackgroundColor = v; }
@@ -167,9 +228,13 @@ public class BetterShulkerConfig {
             selectionGlideEnabled   = bool(props, "selectionGlideEnabled", selectionGlideEnabled);
             hoverAnimationsEnabled  = bool(props, "hoverAnimationsEnabled", hoverAnimationsEnabled);
             rareItemWobbleEnabled   = bool(props, "rareItemWobbleEnabled", rareItemWobbleEnabled);
-            soundVolume             = floatVal(props, "soundVolume", soundVolume);
-            soundOption             = enumVal(props, "soundOption", SoundOption.class, soundOption);
-            tooltipTheme            = enumVal(props, "tooltipTheme", TooltipTheme.class, tooltipTheme);
+            setSoundVolume(floatVal(props, "soundVolume", soundVolume));
+            setSoundOption(enumVal(props, "soundOption", SoundOption.class, soundOption));
+            setTooltipTheme(enumVal(props, "tooltipTheme", TooltipTheme.class, tooltipTheme));
+            setResourcePackMode(enumVal(props, "resourcePackMode", ResourcePackMode.class, resourcePackMode));
+            setResourcePackLayoutOffsetX(intVal(props, "resourcePackLayoutOffsetX", resourcePackLayoutOffsetX));
+            setResourcePackLayoutOffsetY(intVal(props, "resourcePackLayoutOffsetY", resourcePackLayoutOffsetY));
+            setResourcePackLayoutBottomCapHeight(intVal(props, "resourcePackLayoutBottomCapHeight", resourcePackLayoutBottomCapHeight));
             customBackgroundColor = hexVal(props, "customBackgroundColor", customBackgroundColor);
             customBorderColor     = hexVal(props, "customBorderColor", customBorderColor);
             customNameBgColor     = hexVal(props, "customNameBgColor", customNameBgColor);
@@ -185,6 +250,15 @@ public class BetterShulkerConfig {
     /** Save current config properties to disk. */
     public static void save() {
         try {
+            // These fields are public for compatibility with older integrations, so normalize
+            // them here as well as in the UI setters before serializing the file.
+            setSoundVolume(soundVolume);
+            setSoundOption(soundOption);
+            setTooltipTheme(tooltipTheme);
+            setResourcePackMode(resourcePackMode);
+            setResourcePackLayoutOffsetX(resourcePackLayoutOffsetX);
+            setResourcePackLayoutOffsetY(resourcePackLayoutOffsetY);
+            setResourcePackLayoutBottomCapHeight(resourcePackLayoutBottomCapHeight);
             Files.createDirectories(CONFIG_PATH.getParent());
             Properties props = new Properties();
             props.setProperty("tooltipEnabled", String.valueOf(tooltipEnabled));
@@ -200,6 +274,10 @@ public class BetterShulkerConfig {
             props.setProperty("soundVolume", String.valueOf(soundVolume));
             props.setProperty("soundOption", soundOption.name());
             props.setProperty("tooltipTheme", tooltipTheme.name());
+            props.setProperty("resourcePackMode", resourcePackMode.name());
+            props.setProperty("resourcePackLayoutOffsetX", String.valueOf(resourcePackLayoutOffsetX));
+            props.setProperty("resourcePackLayoutOffsetY", String.valueOf(resourcePackLayoutOffsetY));
+            props.setProperty("resourcePackLayoutBottomCapHeight", String.valueOf(resourcePackLayoutBottomCapHeight));
             props.setProperty("customBackgroundColor", String.format("0x%08X", customBackgroundColor));
             props.setProperty("customBorderColor", String.format("0x%08X", customBorderColor));
             props.setProperty("customNameBgColor", String.format("0x%08X", customNameBgColor));
@@ -227,7 +305,16 @@ public class BetterShulkerConfig {
     private static float floatVal(Properties p, String key, float def) {
         String v = p.getProperty(key);
         if (v == null) return def;
-        try { return Float.parseFloat(v); } catch (NumberFormatException e) { return def; }
+        try {
+            float value = Float.parseFloat(v);
+            return Float.isFinite(value) ? value : def;
+        } catch (NumberFormatException e) { return def; }
+    }
+
+    private static int intVal(Properties p, String key, int def) {
+        String v = p.getProperty(key);
+        if (v == null) return def;
+        try { return Integer.parseInt(v); } catch (NumberFormatException e) { return def; }
     }
 
     private static <E extends Enum<E>> E enumVal(Properties p, String key, Class<E> cls, E def) {
@@ -243,5 +330,13 @@ public class BetterShulkerConfig {
             String hex = (v.startsWith("0x") || v.startsWith("0X")) ? v.substring(2) : v;
             return (int) Long.parseLong(hex, 16);
         } catch (NumberFormatException e) { return def; }
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

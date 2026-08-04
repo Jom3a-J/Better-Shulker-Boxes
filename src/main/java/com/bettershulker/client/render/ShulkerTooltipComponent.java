@@ -45,15 +45,18 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int PANEL_HEIGHT = 68;
     private static final int SLOT_START_X = 8;
     private static final int SLOT_START_Y = 7;
-    private static final int RESOURCE_PACK_SLOT_START_Y = 18;
-    private static final int RESOURCE_PACK_SLOT_AREA_BOTTOM = RESOURCE_PACK_SLOT_START_Y + GRID_ROWS * SLOT_SIZE;
     private static final int TOOLTIP_BOTTOM_PADDING = 6;
     private static final int COMPACT_SLOT_START_X = 7;
     private static final int COMPACT_SLOT_START_Y = 7;
     private static final int COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET = 0;
     private static final int COMPACT_HINT_HEIGHT = 13;
     private static final int NAME_BADGE_HEIGHT = 14;
-    private static final int NAME_BADGE_OVERLAP = 4;
+    private static final int NAME_BADGE_GAP = 2;
+    // ClientTextTooltip is ten pixels high and GuiGraphicsExtractor adds a two-pixel
+    // gap after the first text line. Keep the custom name badge aligned with the
+    // vanilla selected-item tooltip above the container title.
+    private static final int CONTAINER_NAME_LINE_HEIGHT = 10;
+    private static final int CONTAINER_NAME_LINE_GAP = 2;
 
     private static final Identifier SHULKER_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
     private static final int ENDER_ACCENT_COLOR = 0xFF00E6C8;
@@ -81,6 +84,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final int panelHeight;
 
     private final int borderColor;
+    private final int nameBorderColor;
     private final int tintColor;
     private final int textColor;
     private final int badgeBgColor;
@@ -107,31 +111,37 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
         this.isContainerEmpty = empty;
         this.compactMode = BetterShulkerClient.isCompactModeActive();
-        this.panelTexture = ResourcePackContainerTextures.resolve(this.color, this.isEnderChest);
+        this.panelTexture = ResourcePackContainerTextures.resolve(this.color, this.isEnderChest, this.containerName);
         this.resourcePackOverridesPanel = this.panelTexture.suppliedByPack();
         DisplayLayout displayLayout = buildDisplayLayout();
         this.displaySlots = displayLayout.slots();
         this.displayCounts = displayLayout.counts();
         this.displayCols = this.compactMode
                 ? Math.min(COMPACT_MAX_SLOTS, Math.max(1, this.displaySlots.size()))
-                : GRID_COLS;
+                : (this.resourcePackOverridesPanel ? this.panelTexture.layout().columns() : GRID_COLS);
         this.displayRows = this.compactMode
                 ? Math.max(1, (this.displaySlots.size() + this.displayCols - 1) / this.displayCols)
-                : GRID_ROWS;
-        int compactCellSize = SLOT_SIZE;
+                : (this.resourcePackOverridesPanel ? this.panelTexture.layout().rows() : GRID_ROWS);
+        int compactCellSize = getRenderedSlotSize();
+        int compactResourcePackWidth = this.panelTexture.layout().panelWidth(this.displayCols);
         this.panelWidth = this.compactMode
-                ? (this.isContainerEmpty ? 0 : 14 + (this.displayCols * compactCellSize))
-                : PANEL_WIDTH;
+                ? (this.isContainerEmpty ? 0 : (this.resourcePackOverridesPanel
+                        ? compactResourcePackWidth
+                        : 14 + (this.displayCols * compactCellSize)))
+                : (this.resourcePackOverridesPanel
+                        ? this.panelTexture.layout().panelWidth(this.displayCols)
+                        : PANEL_WIDTH);
         this.panelHeight = this.compactMode
                 ? (this.isContainerEmpty ? 0 : (this.resourcePackOverridesPanel
-                        ? RESOURCE_PACK_SLOT_START_Y + (this.displayRows * compactCellSize) + this.panelTexture.bottomCapHeight()
+                        ? this.panelTexture.layout().panelHeight(this.displayRows)
                         : 14 + (this.displayRows * compactCellSize)))
                 : (this.resourcePackOverridesPanel
-                        ? RESOURCE_PACK_SLOT_AREA_BOTTOM + this.panelTexture.bottomCapHeight()
+                        ? this.panelTexture.layout().panelHeight(this.displayRows)
                         : PANEL_HEIGHT);
 
         ThemePalette palette = buildThemePalette();
         this.borderColor = palette.borderColor;
+        this.nameBorderColor = palette.nameBorderColor;
         this.tintColor = palette.tintColor;
         this.textColor = palette.textColor;
         this.badgeBgColor = palette.badgeBgColor;
@@ -198,9 +208,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         if (this.compactMode) {
             return getPanelHeight() + COMPACT_HINT_HEIGHT;
         }
-        // The selected-item tab is drawn above the component as a separate tooltip,
-        // so it must not increase the component height or the vanilla tooltip background
-        // will stretch downward whenever a selected name appears.
         return getPanelHeight() + TOOLTIP_BOTTOM_PADDING;
     }
 
@@ -282,14 +289,16 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             return;
         }
 
-        // The preview shows three rows, then closes with its dedicated tooltip bottom cap.
-        context.blit(RenderPipelines.GUI_TEXTURED,
-                texture, panelX, panelY, 0.0F, 0.0F,
-                PANEL_WIDTH, RESOURCE_PACK_SLOT_AREA_BOTTOM, 256, 256, renderColor);
-        context.blit(RenderPipelines.GUI_TEXTURED,
-                this.panelTexture.bottomCapTexture(), panelX, panelY + RESOURCE_PACK_SLOT_AREA_BOTTOM,
-                0.0F, (float) this.panelTexture.bottomCapSourceY(),
-                PANEL_WIDTH, this.panelTexture.bottomCapHeight(), 256, 256, renderColor);
+        ResourcePackLayout layout = this.panelTexture.layout();
+        // The profile keeps the pack's own top edge and storage grid while discarding any
+        // full-screen/player-inventory section below it.
+        drawResourcePackHorizontalSlices(context, texture, panelX, panelY,
+                layout.sourcePanelY(), layout.outputSlotY(), this.displayCols, renderColor);
+        drawResourcePackStorageRows(context, texture, panelX,
+                panelY + layout.outputSlotY(), this.displayRows, renderColor);
+        drawResourcePackRepeatedRow(context, texture, panelX,
+                panelY + layout.outputSlotY() + this.displayRows * layout.slotSize(),
+                layout.bottomCapHeight(), renderColor);
     }
 
     private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -306,34 +315,104 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         Identifier texture = getPanelTexture();
         int renderColor = getPanelRenderColor();
 
-        // Recompose the resource-pack shulker panel instead of simply cropping the top-left.
-        // A raw crop cuts the right/bottom borders in the middle of the full 9x3 GUI.  This keeps
-        // the pack's real left edge, first N slot columns, and real right/bottom caps.
-        int leftW = SLOT_START_X;
-        int rightSourceX = SLOT_START_X + GRID_COLS * SLOT_SIZE;
-        int rightW = PANEL_WIDTH - rightSourceX;
-        int slotsW = this.displayCols * SLOT_SIZE;
-        int topH = RESOURCE_PACK_SLOT_START_Y + this.displayRows * SLOT_SIZE;
+        ResourcePackLayout layout = this.panelTexture.layout();
+        // Recompose the resource-pack panel instead of cropping the top-left. This preserves the
+        // profile's left edge, slot grid, right cap, and bottom cap at compact widths.
+        int leftW = layout.outputSlotX();
+        int slotsW = this.displayCols * layout.slotSize();
+        int rightSourceX = layout.sourceRightX();
+        int rightW = layout.sourceRightWidth();
+        int topH = layout.outputSlotY() + this.displayRows * layout.slotSize();
         int bottomH = Math.max(0, getPanelHeight() - topH);
-        int bottomSourceY = this.panelTexture.bottomCapSourceY();
 
-        blitResourcePackSlice(context, texture, panelX, panelY,
-                0, 0, leftW, topH, renderColor);
-        blitResourcePackSlice(context, texture, panelX + leftW, panelY,
-                SLOT_START_X, 0, slotsW, topH, renderColor);
-        blitResourcePackSlice(context, texture, panelX + leftW + slotsW, panelY,
-                rightSourceX, 0, rightW, topH, renderColor);
+        drawResourcePackHorizontalSlices(context, texture, panelX, panelY,
+                layout.sourcePanelY(), layout.outputSlotY(), this.displayCols, renderColor);
+        drawResourcePackStorageRows(context, texture, panelX,
+                panelY + layout.outputSlotY(), this.displayRows,
+                leftW, slotsW, rightSourceX, rightW, renderColor);
 
         if (bottomH > 0) {
             int bottomY = panelY + topH;
-            Identifier bottomCapTexture = this.panelTexture.bottomCapTexture();
-            blitResourcePackSlice(context, bottomCapTexture, panelX, bottomY,
-                    0, bottomSourceY, leftW, bottomH, renderColor);
-            blitResourcePackSlice(context, bottomCapTexture, panelX + leftW, bottomY,
-                    SLOT_START_X, bottomSourceY, slotsW, bottomH, renderColor);
-            blitResourcePackSlice(context, bottomCapTexture, panelX + leftW + slotsW, bottomY,
-                    rightSourceX, bottomSourceY, rightW, bottomH, renderColor);
+            drawResourcePackRepeatedRow(context, texture, panelX, bottomY, bottomH,
+                    leftW, slotsW, rightSourceX, rightW, renderColor);
         }
+    }
+
+    private void drawResourcePackStorageRows(GuiGraphicsExtractor context, Identifier texture,
+                                             int panelX, int y, int rows, int renderColor) {
+        ResourcePackLayout layout = this.panelTexture.layout();
+        int leftW = layout.outputSlotX();
+        int rightSourceX = layout.sourceRightX();
+        int rightW = layout.sourceRightWidth();
+        int slotsW = this.displayCols * layout.slotSize();
+        drawResourcePackStorageRows(context, texture, panelX, y, rows,
+                leftW, slotsW, rightSourceX, rightW, renderColor);
+    }
+
+    private void drawResourcePackStorageRows(GuiGraphicsExtractor context, Identifier texture,
+                                             int panelX, int y, int rows,
+                                             int leftW, int slotsW, int rightSourceX, int rightW,
+                                             int renderColor) {
+        ResourcePackLayout layout = this.panelTexture.layout();
+        int height = rows * layout.slotSize();
+        int directHeight = Math.min(height, layout.rows() * layout.slotSize());
+        if (directHeight > 0) {
+            blitResourcePackHorizontalSlices(context, texture, panelX, y,
+                    layout.sourceSlotY(), directHeight,
+                    leftW, slotsW, rightSourceX, rightW, renderColor);
+        }
+        for (int row = directHeight; row < height; row++) {
+            blitResourcePackHorizontalSlices(context, texture, panelX, y + row,
+                    layout.bottomCapSourceY(), 1,
+                    leftW, slotsW, rightSourceX, rightW, renderColor);
+        }
+    }
+
+    private void drawResourcePackRepeatedRow(GuiGraphicsExtractor context, Identifier texture,
+                                             int panelX, int y, int height, int renderColor) {
+        ResourcePackLayout layout = this.panelTexture.layout();
+        int leftW = layout.outputSlotX();
+        int rightSourceX = layout.sourceRightX();
+        int rightW = layout.sourceRightWidth();
+        int slotsW = this.displayCols * layout.slotSize();
+        drawResourcePackRepeatedRow(context, texture, panelX, y, height,
+                leftW, slotsW, rightSourceX, rightW, renderColor);
+    }
+
+    private void drawResourcePackRepeatedRow(GuiGraphicsExtractor context, Identifier texture,
+                                             int panelX, int y, int height,
+                                             int leftW, int slotsW, int rightSourceX, int rightW,
+                                             int renderColor) {
+        ResourcePackLayout layout = this.panelTexture.layout();
+        for (int row = 0; row < height; row++) {
+            blitResourcePackHorizontalSlices(context, texture, panelX, y + row,
+                    layout.bottomCapSourceY(), 1,
+                    leftW, slotsW, rightSourceX, rightW, renderColor);
+        }
+    }
+
+    private void drawResourcePackHorizontalSlices(GuiGraphicsExtractor context, Identifier texture,
+                                                   int panelX, int y, int sourceY, int height,
+                                                   int displayColumns, int renderColor) {
+        ResourcePackLayout layout = this.panelTexture.layout();
+        int leftW = layout.outputSlotX();
+        int slotsW = displayColumns * layout.slotSize();
+        int rightW = Math.max(0, getPanelWidth() - leftW - slotsW);
+        blitResourcePackHorizontalSlices(context, texture, panelX, y, sourceY, height,
+                leftW, slotsW, layout.sourceRightX(), Math.min(rightW, layout.sourceRightWidth()), renderColor);
+    }
+
+    private void blitResourcePackHorizontalSlices(GuiGraphicsExtractor context, Identifier texture,
+                                                   int panelX, int y, int sourceY, int height,
+                                                   int leftW, int slotsW, int rightSourceX, int rightW,
+                                                   int renderColor) {
+        ResourcePackLayout layout = this.panelTexture.layout();
+        blitResourcePackSlice(context, texture, panelX, y,
+                layout.sourcePanelX(), sourceY, leftW, height, renderColor);
+        blitResourcePackSlice(context, texture, panelX + leftW, y,
+                layout.sourceSlotX(), sourceY, slotsW, height, renderColor);
+        blitResourcePackSlice(context, texture, panelX + leftW + slotsW, y,
+                rightSourceX, sourceY, rightW, height, renderColor);
     }
 
     private void blitResourcePackSlice(GuiGraphicsExtractor context, Identifier texture, int x, int y,
@@ -347,8 +426,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 (float) v,
                 w,
                 h,
-                256,
-                256,
+                this.panelTexture.layout().textureWidth(),
+                this.panelTexture.layout().textureHeight(),
                 renderColor);
     }
 
@@ -852,7 +931,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         int displayIndex = getDisplayIndexForSlot(selected);
         if (displayIndex < 0) return;
-        int cols = this.compactMode ? this.displayCols : GRID_COLS;
+        int cols = this.compactMode ? this.displayCols
+                : (this.resourcePackOverridesPanel ? this.panelTexture.layout().columns() : GRID_COLS);
         int col = displayIndex % cols;
         int row = displayIndex / cols;
         float renderCol = col;
@@ -877,7 +957,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             renderRow = currentRow;
         }
 
-        int startX = this.compactMode ? (this.resourcePackOverridesPanel ? SLOT_START_X : COMPACT_SLOT_START_X) : SLOT_START_X;
+        int startX = this.compactMode
+                ? (this.resourcePackOverridesPanel ? getSlotStartX() : COMPACT_SLOT_START_X)
+                : getSlotStartX();
         int cellSize = getRenderedSlotSize();
         int slotX = panelX + startX + Math.round(renderCol * cellSize);
         int slotY = panelY + getSlotStartY() + Math.round(renderRow * cellSize);
@@ -949,9 +1031,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         if (this.compactMode) {
             drawCompactSelectedNameTooltip(font, context, panelX, panelY, selectedStack, nameColor);
         } else {
-            // Draw the selected name as a separate tooltip above the preview for both vanilla/theme
-            // and resource-pack modes. This avoids the broken
-            // custom tab path and prevents the main tooltip background from stretching.
+            // Keep the selected name above the container title, matching vanilla tooltip geometry.
             drawVanillaSelectedNameTooltip(font, context, panelX, panelY, selectedStack, nameColor);
         }
     }
@@ -982,6 +1062,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawCompactSelectedNameTooltip(Font font, GuiGraphicsExtractor context, int panelX, int panelY, ItemStack selectedStack, int nameColor) {
+        if (isCustomTheme() && !this.resourcePackOverridesPanel) {
+            drawCustomSelectedNameBadge(font, context, panelX, panelY, selectedStack, nameColor);
+            return;
+        }
+
         Component name = selectedStack.getHoverName().copy().withStyle(style -> style.withColor(nameColor & 0xFFFFFF));
         ClientTooltipComponent selectedNameTooltip = ClientTooltipComponent.create(name.getVisualOrderText());
         int textWidth = font.width(name.getVisualOrderText());
@@ -996,6 +1081,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawVanillaSelectedNameTooltip(Font font, GuiGraphicsExtractor context, int panelX, int panelY, ItemStack selectedStack, int nameColor) {
+        if (isCustomTheme() && !this.resourcePackOverridesPanel) {
+            drawCustomSelectedNameBadge(font, context, panelX, panelY, selectedStack, nameColor);
+            return;
+        }
+
         int panelWidth = getPanelWidth();
         String displayName = fitText(font, selectedStack.getHoverName().getString(), panelWidth - 22);
         Component name = Component.literal(displayName).withStyle(style -> style.withColor(nameColor & 0xFFFFFF));
@@ -1006,7 +1096,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int tooltipAnchorY = panelY - 15;
         int bridgeWidth = Math.min(panelWidth - 24, textWidth + 12);
         int bridgeX = panelX + (panelWidth - bridgeWidth) / 2;
-        int bridgeColor = this.resourcePackOverridesPanel ? 0x55000000 : withAlpha(this.borderColor, 110);
+        int bridgeColor = this.resourcePackOverridesPanel ? 0x55000000 : withAlpha(this.nameBorderColor, 110);
         int bridgeFill = this.resourcePackOverridesPanel ? 0x33FFFFFF : withAlpha(this.badgeBgColor, 145);
         context.fill(bridgeX, panelY - 2, bridgeX + bridgeWidth, panelY + 1, bridgeColor);
         context.fill(bridgeX + 1, panelY - 1, bridgeX + bridgeWidth - 1, panelY + 1, bridgeFill);
@@ -1017,6 +1107,33 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 tooltipAnchorY,
                 DefaultTooltipPositioner.INSTANCE,
                 selectedStack.get(DataComponents.TOOLTIP_STYLE));
+    }
+
+    private void drawCustomSelectedNameBadge(Font font, GuiGraphicsExtractor context,
+                                              int panelX, int panelY, ItemStack selectedStack, int nameColor) {
+        int panelWidth = getPanelWidth();
+        String displayName = fitText(font, selectedStack.getHoverName().getString(), Math.max(1, panelWidth - 22));
+        int textWidth = font.width(displayName);
+        int badgeWidth = Math.min(panelWidth - 8, textWidth + 12);
+        int badgeX = panelX + (panelWidth - badgeWidth) / 2;
+        int badgeY = panelY - CONTAINER_NAME_LINE_HEIGHT - CONTAINER_NAME_LINE_GAP
+                - NAME_BADGE_HEIGHT - NAME_BADGE_GAP;
+
+        int outer = withAlpha(this.nameBorderColor, 255);
+        int inner = normalizeOverlayAlpha(this.badgeBgColor, 230);
+        int highlight = withAlpha(blendColor(this.nameBorderColor, 0xFFFFFFFF, 0.45f), 120);
+        int shadow = withAlpha(blendColor(this.nameBorderColor, 0xFF000000, 0.55f), 160);
+        int textColor = 0xFF000000 | (nameColor & 0x00FFFFFF);
+
+        context.fill(badgeX, badgeY, badgeX + badgeWidth, badgeY + NAME_BADGE_HEIGHT, outer);
+        context.fill(badgeX + 1, badgeY + 1, badgeX + badgeWidth - 1, badgeY + NAME_BADGE_HEIGHT - 1, inner);
+        context.fill(badgeX + 1, badgeY + 1, badgeX + badgeWidth - 1, badgeY + 2, highlight);
+        context.fill(badgeX + 1, badgeY + 2, badgeX + 2, badgeY + NAME_BADGE_HEIGHT - 1, highlight);
+        context.fill(badgeX + 1, badgeY + NAME_BADGE_HEIGHT - 2,
+                badgeX + badgeWidth - 1, badgeY + NAME_BADGE_HEIGHT - 1, shadow);
+        context.fill(badgeX + badgeWidth - 2, badgeY + 2,
+                badgeX + badgeWidth - 1, badgeY + NAME_BADGE_HEIGHT - 1, shadow);
+        context.text(font, Component.literal(displayName), badgeX + 6, badgeY + 3, textColor);
     }
 
     private int getReadableThemeNameColor() {
@@ -1085,7 +1202,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private int getRenderedSlotSize() {
-        return SLOT_SIZE;
+        return this.resourcePackOverridesPanel ? this.panelTexture.layout().slotSize() : SLOT_SIZE;
     }
 
     private int getCompactItemOffset() {
@@ -1093,13 +1210,14 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private int getSlotX(int panelX, int slot) {
-        int cols = this.compactMode ? this.displayCols : GRID_COLS;
-        int startX = SLOT_START_X;
-        return panelX + startX + (slot % cols) * getRenderedSlotSize();
+        int cols = this.compactMode ? this.displayCols
+                : (this.resourcePackOverridesPanel ? this.panelTexture.layout().columns() : GRID_COLS);
+        return panelX + getSlotStartX() + (slot % cols) * getRenderedSlotSize();
     }
 
     private int getSlotY(int panelY, int slot) {
-        int cols = this.compactMode ? this.displayCols : GRID_COLS;
+        int cols = this.compactMode ? this.displayCols
+                : (this.resourcePackOverridesPanel ? this.panelTexture.layout().columns() : GRID_COLS);
         return panelY + getSlotStartY() + (slot / cols) * getRenderedSlotSize();
     }
 
@@ -1122,9 +1240,12 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return -1;
     }
 
+    private int getSlotStartX() {
+        return this.resourcePackOverridesPanel ? this.panelTexture.layout().outputSlotX() : SLOT_START_X;
+    }
+
     private int getSlotStartY() {
-        if (this.compactMode) return this.resourcePackOverridesPanel ? RESOURCE_PACK_SLOT_START_Y : SLOT_START_Y;
-        return this.resourcePackOverridesPanel ? RESOURCE_PACK_SLOT_START_Y : SLOT_START_Y;
+        return this.resourcePackOverridesPanel ? this.panelTexture.layout().outputSlotY() : SLOT_START_Y;
     }
 
 
@@ -1132,8 +1253,13 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return BetterShulkerConfig.getTooltipTheme() == BetterShulkerConfig.TooltipTheme.GLASS;
     }
 
+    private boolean isCustomTheme() {
+        return BetterShulkerConfig.getTooltipTheme() == BetterShulkerConfig.TooltipTheme.CUSTOM;
+    }
+
     private ThemePalette buildThemePalette() {
         int baseBorder;
+        int nameBorder;
         int baseTint;
         int baseText = 0xFFFFFFFF;
         int badgeBg;
@@ -1159,6 +1285,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             badgeBg = 0xE0100018;
             select = 0xFFFFD700;
         }
+        nameBorder = baseBorder;
 
         BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
         switch (theme) {
@@ -1208,6 +1335,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             }
             case CUSTOM -> {
                 baseBorder = BetterShulkerConfig.getCustomBorderColor();
+                nameBorder = BetterShulkerConfig.getCustomNameBorderColor();
                 baseTint = normalizeOverlayAlpha(BetterShulkerConfig.getCustomBackgroundColor(), 112);
                 badgeBg = BetterShulkerConfig.getCustomNameBgColor();
                 baseText = BetterShulkerConfig.getCustomNameTextColor();
@@ -1229,6 +1357,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         if (this.isEnderChest && theme != BetterShulkerConfig.TooltipTheme.CUSTOM) {
             baseBorder = blendColor(baseBorder, ENDER_ACCENT_COLOR, 0.48f);
+            nameBorder = baseBorder;
             baseTint = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.35f), 112);
             badgeBg = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.45f), 230);
             select = ENDER_ACCENT_COLOR;
@@ -1236,12 +1365,13 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             match = 0xFF50FFB8;
         }
 
-        return new ThemePalette(baseBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);
+        return new ThemePalette(baseBorder, nameBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);
     }
 
 
     private record ThemePalette(
             int borderColor,
+            int nameBorderColor,
             int tintColor,
             int textColor,
             int badgeBgColor,

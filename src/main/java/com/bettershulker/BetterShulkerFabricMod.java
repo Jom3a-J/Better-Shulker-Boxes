@@ -59,7 +59,8 @@ public final class BetterShulkerFabricMod implements ModInitializer {
                 EnderChestRequestPayload.TYPE,
                 (payload, context) -> {
                     ServerPlayer player = context.player();
-                    context.player().level().getServer().execute(() -> BetterShulkerMod.handleEnderChestSyncRequest(player));
+                    context.player().level().getServer().execute(
+                            () -> BetterShulkerMod.handleEnderChestSyncRequest(player, payload.sourceSlotId()));
                 }
         );
     }

@@ -7,8 +7,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /** Server-to-client diff sync for ender chest contents. */
 public record EnderChestSyncPayload(List<EnderChestDiff> diffs) implements CustomPacketPayload {
@@ -52,25 +53,33 @@ public record EnderChestSyncPayload(List<EnderChestDiff> diffs) implements Custo
 
                 @Override
                 public void encode(RegistryFriendlyByteBuf buf, EnderChestSyncPayload payload) {
-                    List<EnderChestDiff> diffs = payload.diffs();
-                    int bitmask = 0;
-                    for (EnderChestDiff diff : diffs) {
-                        if (diff.slotIndex() >= 0 && diff.slotIndex() < 27) {
-                            bitmask |= (1 << diff.slotIndex());
+                    // Normalize before writing. The bitmask represents unique slots, so writing
+                    // invalid or duplicate entries alongside it would make the decoder consume a
+                    // different number of RLE values and corrupt the packet stream.
+                    Map<Integer, ItemStack> normalized = new TreeMap<>();
+                    if (payload.diffs() != null) {
+                        for (EnderChestDiff diff : payload.diffs()) {
+                            if (diff == null || diff.slotIndex() < 0 || diff.slotIndex() >= 27) continue;
+                            normalized.put(diff.slotIndex(),
+                                    diff.stack() == null ? ItemStack.EMPTY : diff.stack().copy());
                         }
+                    }
+
+                    int bitmask = 0;
+                    for (int slotIndex : normalized.keySet()) {
+                        bitmask |= (1 << slotIndex);
                     }
                     buf.writeInt(bitmask);
 
-                    List<EnderChestDiff> sortedDiffs = new ArrayList<>(diffs);
-                    sortedDiffs.sort(Comparator.comparingInt(EnderChestDiff::slotIndex));
+                    List<ItemStack> sortedStacks = new ArrayList<>(normalized.values());
 
                     int index = 0;
-                    while (index < sortedDiffs.size()) {
-                        ItemStack currentStack = sortedDiffs.get(index).stack();
+                    while (index < sortedStacks.size()) {
+                        ItemStack currentStack = sortedStacks.get(index);
                         int runLength = 1;
-                        while (index + runLength < sortedDiffs.size()
+                        while (index + runLength < sortedStacks.size()
                                 // RLE is valid only when the full serialized stack, including count, matches.
-                                && ItemStack.matches(sortedDiffs.get(index + runLength).stack(), currentStack)) {
+                                && ItemStack.matches(sortedStacks.get(index + runLength), currentStack)) {
                             runLength++;
                         }
                         buf.writeVarInt(runLength);

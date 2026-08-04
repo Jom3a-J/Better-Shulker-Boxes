@@ -570,11 +570,12 @@ public final class ContainerHelper {
         if (player == null || volume <= 0.0f) return;
 
         SoundEvent soundEvent = SoundEvents.ITEM_PICKUP;
-        if (BetterShulkerConfig.soundOption == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
+        BetterShulkerConfig.SoundOption configuredSound = BetterShulkerConfig.getSoundOption();
+        if (configuredSound == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
             soundEvent = getContextualSound(stack, isInsert);
         } else {
             try {
-                String[] split = BetterShulkerConfig.soundOption.getSoundId().split(":", 2);
+                String[] split = configuredSound.getSoundId().split(":", 2);
                 var soundLoc = Identifier.fromNamespaceAndPath(split[0], split[1]);
                 var soundHolderOpt = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
                 if (soundHolderOpt.isPresent()) {

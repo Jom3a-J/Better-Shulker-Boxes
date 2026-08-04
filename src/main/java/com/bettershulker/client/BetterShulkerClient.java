@@ -74,6 +74,7 @@ public class BetterShulkerClient {
     private static int lastMouseY = 0;
     private static long lastEnderChestRequestTime = 0;
     private static final long ENDER_CHEST_REQUEST_COOLDOWN_MS = 500;
+    private static int enderChestTooltipSourceSlot = EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE;
 
     // =========================================================================
     //  Visual Animations State
@@ -223,12 +224,21 @@ public class BetterShulkerClient {
 
     /** Sends C2S ender chest sync payload request to server. */
     public static void requestEnderChestSync() {
+        requestEnderChestSync(enderChestTooltipSourceSlot);
+    }
+
+    /** Sends a C2S Ender Chest sync request tied to the current tooltip source. */
+    public static void requestEnderChestSync(int sourceSlotId) {
         long now = System.currentTimeMillis();
         if (now - lastEnderChestRequestTime >= ENDER_CHEST_REQUEST_COOLDOWN_MS) {
             lastEnderChestRequestTime = now;
-            PlatformNetworking.sendToServer(new EnderChestRequestPayload());
+            PlatformNetworking.sendToServer(new EnderChestRequestPayload(sourceSlotId));
             BetterShulkerMod.LOGGER.debug("[BetterShulker] Sent ender chest sync request to server");
         }
+    }
+
+    public static void setEnderChestTooltipSourceSlot(int sourceSlotId) {
+        enderChestTooltipSourceSlot = sourceSlotId;
     }
 
     public static void clearEnderChestCache() {
@@ -248,7 +258,7 @@ public class BetterShulkerClient {
     }
  
     public static void setActiveContainerStack(ItemStack stack) {
-        activeContainerStack = stack;
+        activeContainerStack = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
     }
 
     public static ItemStack getFilterItemStack() {
@@ -414,6 +424,7 @@ public class BetterShulkerClient {
         selectedSlotsSet.clear();
         lastMouseX = 0;
         lastMouseY = 0;
+        enderChestTooltipSourceSlot = EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE;
 
         // Reset Category 1 visual animation state
         currentSelectedCol = -1f;
