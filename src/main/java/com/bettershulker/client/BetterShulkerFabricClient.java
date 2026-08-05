@@ -7,6 +7,7 @@ import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.client.render.ResourcePackCacheReloader;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -73,7 +74,16 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         );
 
         ClientTickEvents.END_CLIENT_TICK.register(BetterShulkerClient::handleClientTick);
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> BetterShulkerClient.resetState());
+        String currentVersion = FabricLoader.getInstance()
+                .getModContainer(BetterShulkerMod.MOD_ID)
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                .orElse("");
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
+                UpdateChecker.checkForUpdates(client, currentVersion));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            BetterShulkerClient.resetState();
+            UpdateChecker.onDisconnect();
+        });
 
         BetterShulkerMod.LOGGER.info("[BetterShulker] Fabric client module initialized successfully");
     }

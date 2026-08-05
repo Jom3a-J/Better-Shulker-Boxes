@@ -32,7 +32,10 @@ import org.lwjgl.glfw.GLFW;
  */
 @Mod(value = BetterShulkerMod.MOD_ID, dist = Dist.CLIENT)
 public final class BetterShulkerNeoForgeClient {
+    private final ModContainer modContainer;
+
     public BetterShulkerNeoForgeClient(IEventBus modBus, ModContainer modContainer) {
+        this.modContainer = modContainer;
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing NeoForge client module");
 
         BetterShulkerConfig.load();
@@ -58,6 +61,7 @@ public final class BetterShulkerNeoForgeClient {
         modBus.addListener(this::registerClientReloadListeners);
 
         NeoForge.EVENT_BUS.addListener(this::onClientTick);
+        NeoForge.EVENT_BUS.addListener(this::onClientLoggingIn);
         NeoForge.EVENT_BUS.addListener(this::onClientLoggingOut);
     }
 
@@ -103,7 +107,15 @@ public final class BetterShulkerNeoForgeClient {
         BetterShulkerClient.handleClientTick(Minecraft.getInstance());
     }
 
+    private void onClientLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        UpdateChecker.checkForUpdates(
+                Minecraft.getInstance(),
+                modContainer.getModInfo().getVersion().toString()
+        );
+    }
+
     private void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         BetterShulkerClient.resetState();
+        UpdateChecker.onDisconnect();
     }
 }
