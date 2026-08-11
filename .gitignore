@@ -3,3 +3,6 @@
 **/build/
 **/run/
 assets for modrenth/
+
+# Local dependency jars; every dependency is resolved from a repository in build.gradle.
+libs/
