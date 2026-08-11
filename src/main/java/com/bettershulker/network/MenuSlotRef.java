@@ -1,5 +1,6 @@
 package com.bettershulker.network;
 
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -35,22 +36,87 @@ public final class MenuSlotRef {
 
     private MenuSlotRef() {}
 
+    /**
+     * Returns the slot's real position inside the player's inventory, or -1 if it is not one.
+     *
+     * <p>A screen may wrap another menu's slots and pass the wrapper's own index to the Slot
+     * constructor, so {@code getContainerSlot()} reports that index instead of an inventory
+     * position. The creative inventory tab does exactly this. The declared value is therefore
+     * only trusted when it actually points at this slot's stack; otherwise it is treated as an
+     * index into the player's inventory menu, whose own slots do carry real positions.</p>
+     *
+     * <p>Both encoding and resolution go through here so the two stay symmetric. They must: a ref
+     * produced by one and matched by the other has to describe the same slot.</p>
+     */
+    public static int playerInventoryPosition(@Nullable Slot slot, @Nullable Player player) {
+        if (slot == null || player == null || slot.container != player.getInventory()) return -1;
+
+        Container inventory = player.getInventory();
+        int declared = slot.getContainerSlot();
+        if (declared < 0) return -1;
+
+        if (declared < inventory.getContainerSize() && inventory.getItem(declared) == slot.getItem()) {
+            return declared;
+        }
+
+        // Wrapped slot. Falling back to slot.index is no use here: such screens add their slots
+        // directly to the list rather than through addSlot, so index is never assigned and stays
+        // 0 for every one of them.
+        AbstractContainerMenu inventoryMenu = player.inventoryMenu;
+        if (declared < inventoryMenu.slots.size()) {
+            Slot backing = inventoryMenu.slots.get(declared);
+            if (backing.container == inventory && backing.getContainerSlot() >= 0) {
+                return backing.getContainerSlot();
+            }
+        }
+        return -1;
+    }
+
     /** Encodes a slot so the server can resolve it without sharing the client's menu layout. */
     public static int encode(@Nullable Slot slot, @Nullable Player player) {
         if (slot == null || player == null) return NONE;
 
-        if (slot.container == player.getInventory()) {
-            int containerSlot = slot.getContainerSlot();
-            if (containerSlot >= 0) {
-                return PLAYER_INVENTORY_BASE + containerSlot;
-            }
-        }
-        return slot.index;
+        int position = playerInventoryPosition(slot, player);
+        return position >= 0 ? PLAYER_INVENTORY_BASE + position : slot.index;
     }
 
     /** Whether a reference names a slot at all, as opposed to a sentinel. */
     public static boolean isSlot(int ref) {
         return ref >= 0;
+    }
+
+    /** Builds a reference to a player-inventory position captured earlier. */
+    public static int forPlayerPosition(int position) {
+        return position < 0 ? NONE : PLAYER_INVENTORY_BASE + position;
+    }
+
+    /**
+     * Whether the slot's inventory position is certain rather than merely probable.
+     *
+     * <p>{@link #playerInventoryPosition} decides whether the declared value is a real position by
+     * checking that it points at this slot's stack. That test cannot separate the two readings
+     * when the slot is empty, because every empty slot holds the same stack instance. Callers that
+     * would write to the position - rather than just read from it - need to know that, since
+     * writing to the wrong one destroys whatever is there.</p>
+     */
+    public static boolean hasUnambiguousPlayerPosition(@Nullable Slot slot, @Nullable Player player) {
+        int position = playerInventoryPosition(slot, player);
+        if (position < 0) return false;
+        if (!slot.getItem().isEmpty()) return true;
+
+        // Empty: treat the declared value as suspect if reading it as an inventory-menu index
+        // would name a different position.
+        int declared = slot.getContainerSlot();
+        AbstractContainerMenu inventoryMenu = player.inventoryMenu;
+        if (declared >= 0 && declared < inventoryMenu.slots.size()) {
+            Slot backing = inventoryMenu.slots.get(declared);
+            if (backing.container == player.getInventory()
+                    && backing.getContainerSlot() >= 0
+                    && backing.getContainerSlot() != declared) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Resolves a reference against the given menu, or null when it names no slot there. */
@@ -59,9 +125,9 @@ public final class MenuSlotRef {
         if (menu == null || player == null || ref < 0) return null;
 
         if (ref >= PLAYER_INVENTORY_BASE) {
-            int containerSlot = ref - PLAYER_INVENTORY_BASE;
+            int position = ref - PLAYER_INVENTORY_BASE;
             for (Slot slot : menu.slots) {
-                if (slot.container == player.getInventory() && slot.getContainerSlot() == containerSlot) {
+                if (playerInventoryPosition(slot, player) == position) {
                     return slot;
                 }
             }

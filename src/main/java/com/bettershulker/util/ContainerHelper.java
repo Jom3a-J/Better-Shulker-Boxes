@@ -1,6 +1,7 @@
 package com.bettershulker.util;
 
 import com.bettershulker.BetterShulkerConfig;
+import com.bettershulker.network.MenuSlotRef;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -100,12 +101,20 @@ public final class ContainerHelper {
         return lock == null || lock.canUnlock(player);
     }
 
+    /**
+     * Whether the slot exposes one of the player's own inventory positions below {@code slotLimit}.
+     *
+     * <p>The position comes from {@link MenuSlotRef}, not from {@code getContainerSlot()} directly:
+     * a screen may wrap another menu's slots and report that menu's index there instead of a real
+     * inventory position, which would misjudge which slots belong to the player. Server-side menus
+     * never wrap, so this resolves to the same answer as before for them.</p>
+     */
     public static boolean isPlayerInventorySlot(Slot slot, Player player, int slotLimit) {
-        return slot.container == player.getInventory()
+        int position = MenuSlotRef.playerInventoryPosition(slot, player);
+        return position >= 0
+                && position < slotLimit
                 && slot.isActive()
-                && !slot.isFake()
-                && slot.getContainerSlot() >= 0
-                && slot.getContainerSlot() < slotLimit;
+                && !slot.isFake();
     }
 
     // =========================================================================

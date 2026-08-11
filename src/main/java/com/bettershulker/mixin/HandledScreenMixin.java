@@ -71,7 +71,6 @@ public abstract class HandledScreenMixin extends Screen {
     protected abstract void slotClicked(Slot slot, int slotId, int mouseButton, ContainerInput clickType);
 
 
-
     // =========================================================================
     //  State Tracking Fields
     // =========================================================================
@@ -237,7 +236,6 @@ public abstract class HandledScreenMixin extends Screen {
     private void bettershulker$onMouseClicked(MouseButtonEvent event, boolean handled, CallbackInfoReturnable<Boolean> ci) {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
-
 
 
         // Right-click on a container in inventory while carrying nothing → extract selected item
@@ -520,7 +518,6 @@ public abstract class HandledScreenMixin extends Screen {
         ContainerHelper.playInteractionSound(Minecraft.getInstance().player, stack, isInsert,
                 BetterShulkerConfig.getSoundVolume());
     }
-
 
     // =========================================================================
     //  Scroll wheel — cycle through tooltip selected item
@@ -1114,7 +1111,6 @@ public abstract class HandledScreenMixin extends Screen {
             active.slotId(), -1, actionType.toId(), -1);
     }
 
-
     @Inject(method = "removed", at = @At("HEAD"))
     private void bettershulker$onRemoved(CallbackInfo ci) {
         bettershulker$resetDragState();
@@ -1130,8 +1126,140 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private void bettershulker$sendInteractPayload(int containerSlotId, int targetIndex, int actionId, int inventorySlotId) {
+        if (bettershulker$handleCreatively(containerSlotId, targetIndex, actionId, inventorySlotId)) {
+            return;
+        }
+
         bettershulker$predictAction(containerSlotId, targetIndex, actionId, inventorySlotId);
         PlatformNetworking.sendToServer(new ContainerInteractPayload(containerSlotId, targetIndex, actionId, inventorySlotId));
+    }
+
+    /**
+     * Handles an interaction locally in creative mode, returning whether it consumed it.
+     *
+     * <p>The validated path cannot serve creative at all. The cursor there is client-only, so the
+     * server sees an empty one and any action naming it does nothing - and the rejection resyncs
+     * the player, which overwrites the client's own cursor and looks like the held item being
+     * deleted. So nothing is sent from creative; a shulker box is instead updated in place and
+     * committed with the packet vanilla itself uses for creative slot edits.</p>
+     *
+     * <p>Deliberately narrow. Only actions whose sole inventory-slot effect is on the container
+     * itself qualify, so exactly one slot is ever written, and that slot holds the box and is
+     * therefore never empty. That matters because a slot's real inventory position cannot be
+     * recovered reliably when it is both empty and wrapped by another menu, and writing a
+     * creative packet to a wrong position would destroy whatever was there. Actions with a
+     * separate source or destination slot, and Ender Chests, stay unsupported here.</p>
+     */
+    @Unique
+    private boolean bettershulker$handleCreatively(int containerSlotId, int targetIndex,
+                                                    int actionId, int inventorySlotId) {
+        var mc = Minecraft.getInstance();
+        var player = mc.player;
+        if (player == null || mc.gameMode == null || !player.hasInfiniteMaterials()) return false;
+
+        // Every return below is true: nothing may be sent from creative even when it cannot be
+        // handled here, because the payload could only be rejected and the rejection resyncs.
+        var self = bettershulker$self();
+
+        // The container is either a player-inventory slot or the carried stack. A carried box
+        // needs no packet of its own: it stays on the client's cursor until placed, and vanilla
+        // syncs it then, contents included.
+        boolean carriedContainer = containerSlotId == MenuSlotRef.NONE;
+        Slot containerSlot = null;
+        int containerPosition = -1;
+        ItemStack containerStack;
+        if (carriedContainer) {
+            containerStack = self.getMenu().getCarried();
+        } else {
+            containerSlot = MenuSlotRef.resolve(containerSlotId, self.getMenu(), player);
+            containerPosition = MenuSlotRef.playerInventoryPosition(containerSlot, player);
+            if (containerSlot == null || containerPosition < 0 || containerPosition >= 36) {
+                return true;
+            }
+            containerStack = containerSlot.getItem();
+        }
+
+        if (!ContainerHelper.isShulkerBox(containerStack)
+                || !ContainerHelper.canAccessContainer(containerStack, player)) {
+            return true;
+        }
+
+        ContainerInteractPayload.InteractType action;
+        try {
+            action = ContainerInteractPayload.InteractType.fromId(actionId);
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
+
+        // Every occupied player-inventory slot, pinned to a position now, while it still holds the
+        // stack that makes that position certain. This covers the container slot and both of the
+        // multi-slot actions: restock and deposit only move items between the box and slots that
+        // are already occupied, so neither ever writes to one that was empty.
+        List<bettershulker$WatchedSlot> watched = new ArrayList<>();
+        for (Slot candidate : self.getMenu().slots) {
+            if (candidate.getItem().isEmpty()) continue;
+            int position = MenuSlotRef.playerInventoryPosition(candidate, player);
+            if (position >= 0 && position < 36) {
+                watched.add(new bettershulker$WatchedSlot(candidate, position, candidate.getItem().copy()));
+            }
+        }
+
+        // Extraction to a named slot is the one case that can write to a slot which was empty
+        // beforehand, so it needs the stricter test: an empty slot on a wrapping screen cannot be
+        // pinned to one position, and clearing the wrong one would destroy what is there.
+        boolean usesOtherSlot = switch (action) {
+            case SWEEP_INSERT -> true;
+            case EXTRACT_ONE, SWEEP_EXTRACT -> inventorySlotId != MenuSlotRef.NONE;
+            default -> false;
+        };
+        Slot otherSlot = null;
+        int otherPosition = -1;
+        ItemStack otherBefore = ItemStack.EMPTY;
+        if (usesOtherSlot) {
+            otherSlot = MenuSlotRef.resolve(inventorySlotId, self.getMenu(), player);
+            otherPosition = MenuSlotRef.playerInventoryPosition(otherSlot, player);
+            if (otherSlot == null || otherPosition < 0 || otherPosition >= 36
+                    || !MenuSlotRef.hasUnambiguousPlayerPosition(otherSlot, player)) {
+                return true;
+            }
+            otherBefore = otherSlot.getItem().copy();
+        }
+
+        ItemStack working = containerStack.copy();
+        bettershulker$predictShulkerBox(0L, containerSlotId, working, targetIndex, action, inventorySlotId);
+
+        // A carried box needs no packet and is absent from the watched list anyway, the cursor
+        // not being a slot.
+        Set<Integer> committed = new HashSet<>();
+        for (bettershulker$WatchedSlot entry : watched) {
+            if (ItemStack.matches(entry.before(), entry.slot().getItem())) continue;
+            if (committed.add(entry.position())) {
+                bettershulker$commitCreativeSlot(mc, player, entry.slot(), entry.position());
+            }
+        }
+        if (otherSlot != null
+                && !ItemStack.matches(otherBefore, otherSlot.getItem())
+                && committed.add(otherPosition)) {
+            bettershulker$commitCreativeSlot(mc, player, otherSlot, otherPosition);
+        }
+        return true;
+    }
+
+    /** An occupied slot with the position it resolved to before a simulation ran. */
+    @Unique
+    private record bettershulker$WatchedSlot(Slot slot, int position, ItemStack before) {}
+
+
+    /** Pushes one slot's current contents to the server using the creative slot packet. */
+    @Unique
+    private void bettershulker$commitCreativeSlot(Minecraft mc, net.minecraft.world.entity.player.Player player,
+                                                   Slot slot, int position) {
+        Slot target = MenuSlotRef.resolve(MenuSlotRef.forPlayerPosition(position), player.inventoryMenu, player);
+        // The server accepts inventory-menu slot numbers 1-45; 0 is the crafting result.
+        if (target == null || target.index < 1 || target.index > 45) return;
+
+        ItemStack updated = slot.getItem();
+        mc.gameMode.handleCreativeModeItemAdd(updated.copy(), target.index);
     }
 
     @Unique
