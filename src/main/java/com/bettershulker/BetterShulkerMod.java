@@ -320,7 +320,13 @@ public class BetterShulkerMod {
         // treated as real container items. In particular, crafting result stacks are only
         // previews until ResultSlot.onTake consumes the recipe inputs.
         Slot containerSlot = null;
-        if (MenuSlotRef.isSlot(containerSlotId)) {
+        if (containerSlotId != MenuSlotRef.NONE) {
+            // Only the exact sentinel means "the carried stack". Any other negative is malformed
+            // and must not silently fall through to the carried path.
+            if (!MenuSlotRef.isSlot(containerSlotId)) {
+                warnRejectedInteraction(player, "sent invalid container slot ID: " + containerSlotId);
+                return;
+            }
             containerSlot = MenuSlotRef.resolve(containerSlotId, menu, player);
             if (containerSlot == null) {
                 warnRejectedInteraction(player, "sent unresolvable container slot ID: " + containerSlotId);
