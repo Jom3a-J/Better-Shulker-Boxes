@@ -49,7 +49,7 @@ public abstract class ItemMixin {
                     ItemStack soundStack = extracted.copy();
                     int originalCount = extracted.getCount();
                     ItemStack remainder = bettershulker$safeInsertIntoSlot(player, slot, extracted);
-                    bettershulker$restoreExtractedStack(contents, extractionIndex, remainder);
+                    bettershulker$restoreExtractedStack(player, contents, extractionIndex, remainder);
                     if (remainder.getCount() < originalCount) {
                         ContainerHelper.setContainerContents(stack, contents);
                         bettershulker$playLevelSound(player, soundStack, false);
@@ -197,7 +197,8 @@ public abstract class ItemMixin {
     }
 
     @org.spongepowered.asm.mixin.Unique
-    private void bettershulker$restoreExtractedStack(NonNullList<ItemStack> contents, int index, ItemStack remainder) {
+    private void bettershulker$restoreExtractedStack(Player player, NonNullList<ItemStack> contents,
+                                                      int index, ItemStack remainder) {
         if (remainder.isEmpty()) return;
 
         ItemStack current = contents.get(index);
@@ -205,6 +206,13 @@ public abstract class ItemMixin {
             contents.set(index, remainder);
         } else if (ItemStack.isSameItemSameComponents(current, remainder)) {
             current.grow(remainder.getCount());
+        } else if (!player.level().isClientSide()) {
+            // Unreachable by construction: the remainder came from this very slot. Falling
+            // through silently would have deleted the stack, so hand it back to the player.
+            BetterShulkerMod.LOGGER.error("[BetterShulker] Extracted stack no longer matches its"
+                    + " source slot for player {}; returning {} to their inventory",
+                    player.getName().getString(), remainder);
+            player.getInventory().placeItemBackInInventory(remainder);
         }
     }
 
@@ -321,14 +329,10 @@ public abstract class ItemMixin {
     }
 
     @org.spongepowered.asm.mixin.Unique
-    @SuppressWarnings("unchecked")
     private NonNullList<ItemStack> bettershulker$getClientEnderChestContents() {
-        try {
-            Class<?> clientClass = Class.forName("com.bettershulker.client.BetterShulkerClient");
-            java.lang.reflect.Method method = clientClass.getMethod("getEnderChestContents");
-            return (NonNullList<ItemStack>) method.invoke(null);
-        } catch (Exception e) {
-            return null;
-        }
+        // Reads a supplier the client entrypoint installed. The previous reflection did this on
+        // every right-click, and caught only Exception, so a NoClassDefFoundError from loading a
+        // client class would have escaped rather than degrading to "no cache".
+        return BetterShulkerMod.getClientEnderChestContents();
     }
 }

@@ -9,8 +9,6 @@ import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -24,7 +22,6 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -40,17 +37,10 @@ public final class BetterShulkerNeoForgeClient {
 
         BetterShulkerConfig.load();
 
-        PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
-            @Override
-            public void sendToServer(CustomPacketPayload payload) {
-                ClientPacketDistributor.sendToServer(payload);
-            }
-
-            @Override
-            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
-                PacketDistributor.sendToPlayer(player, payload);
-            }
-        });
+        // Only the client direction. BetterShulkerNeoForgeMod installs the server sender, on this
+        // dist too, which is what the integrated server uses.
+        PlatformNetworking.setClientSender(payload -> ClientPacketDistributor.sendToServer(payload));
+        BetterShulkerMod.setClientEnderChestSupplier(BetterShulkerClient::getEnderChestContents);
 
         IConfigScreenFactory configScreenFactory = (container, parent) -> BetterShulkerClothConfigScreen.create(parent);
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, configScreenFactory);

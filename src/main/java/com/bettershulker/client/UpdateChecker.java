@@ -1,5 +1,6 @@
 package com.bettershulker.client;
 
+import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -17,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Checks Modrinth for a newer release after the client joins a world or server. */
@@ -26,6 +28,10 @@ public final class UpdateChecker {
     private static final URI MODRINTH_PROJECT_URI =
             URI.create("https://modrinth.com/mod/better-shulker-boxes");
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
+    /** Modrinth version strings are short; anything longer is not a version worth rendering. */
+    private static final int MAX_VERSION_LENGTH = 64;
+    /** Caps how much of a response is buffered, so a hostile endpoint cannot exhaust memory. */
+    private static final long MAX_RESPONSE_BYTES = 2L * 1024 * 1024;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(REQUEST_TIMEOUT)
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -34,12 +40,32 @@ public final class UpdateChecker {
     /** Invalidates results that finish after the player has left the current connection. */
     private static final AtomicLong connectionSequence = new AtomicLong();
 
+    /** Guards against overlapping requests while one is still in flight. */
+    private static final AtomicBoolean checkInFlight = new AtomicBoolean();
+
+    /** Set once an outcome has actually reached a connected player, at most once per launch. */
+    private static volatile boolean deliveredThisSession = false;
+
     private UpdateChecker() {
     }
 
-    /** Starts one non-blocking update check for the current client connection. */
+    /**
+     * Starts one non-blocking update check for the current client connection.
+     *
+     * <p>At most one request is made per game launch. This fires on every world join, including
+     * single-player, so rejoining repeatedly would otherwise contact Modrinth once per join for
+     * a result that cannot have changed. The flag is only set once an outcome reaches a connected
+     * player, so a disconnect or network failure mid-check still allows a retry on the next
+     * join.</p>
+     */
     public static void checkForUpdates(Minecraft client, String currentVersion) {
         if (client == null || currentVersion == null || currentVersion.isBlank()) {
+            return;
+        }
+        if (!BetterShulkerConfig.isUpdateCheckEnabled() || deliveredThisSession) {
+            return;
+        }
+        if (!checkInFlight.compareAndSet(false, true)) {
             return;
         }
 
@@ -53,7 +79,7 @@ public final class UpdateChecker {
                 .GET()
                 .build();
 
-        HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        HTTP_CLIENT.sendAsync(request, UpdateChecker::limitedUtf8Body)
                 .thenApply(response -> {
                     if (response.statusCode() != 200) {
                         throw new UpdateCheckException("Modrinth returned HTTP " + response.statusCode());
@@ -61,14 +87,20 @@ public final class UpdateChecker {
                     return findLatestRelease(response.body(), minecraftVersion);
                 })
                 .thenAccept(latestVersion -> client.execute(() -> {
+                    // Leave the session flag clear when the result arrives too late to show, so
+                    // the next join retries instead of silently swallowing the notification.
                     if (connectionId != connectionSequence.get() || client.player == null) {
+                        checkInFlight.set(false);
                         return;
                     }
+                    deliveredThisSession = true;
+                    checkInFlight.set(false);
                     if (latestVersion != null && compareVersions(latestVersion, currentVersion) > 0) {
                         showUpdateMessage(client, currentVersion, latestVersion);
                     }
                 }))
                 .exceptionally(error -> {
+                    checkInFlight.set(false);
                     BetterShulkerMod.LOGGER.debug(
                             "[BetterShulker] Update check failed: {}",
                             error.getMessage()
@@ -80,6 +112,14 @@ public final class UpdateChecker {
     /** Invalidates an in-flight result when the client leaves its world or server. */
     public static void onDisconnect() {
         connectionSequence.incrementAndGet();
+    }
+
+    /** Reads the body as UTF-8, failing the request rather than buffering past the cap. */
+    private static HttpResponse.BodySubscriber<String> limitedUtf8Body(HttpResponse.ResponseInfo responseInfo) {
+        return HttpResponse.BodySubscribers.mapping(
+                HttpResponse.BodySubscribers.limiting(
+                        HttpResponse.BodySubscribers.ofByteArray(), MAX_RESPONSE_BYTES),
+                bytes -> new String(bytes, StandardCharsets.UTF_8));
     }
 
     private static String findLatestRelease(String responseBody, String minecraftVersion) {
@@ -147,6 +187,13 @@ public final class UpdateChecker {
         }
 
         String normalized = normalizeVersion(version);
+        // Validate the whole string, not just the numeric head. This is remote text that ends up
+        // inside a chat component, and the prerelease/build suffix after '-' or '+' is otherwise
+        // unconstrained: it could carry section-sign formatting codes or run to any length.
+        if (normalized.length() > MAX_VERSION_LENGTH || !isSafeVersionCharset(normalized)) {
+            return false;
+        }
+
         String numericPart = normalized.split("[-+]", 2)[0];
         if (numericPart.isEmpty()) {
             return false;
@@ -154,6 +201,21 @@ public final class UpdateChecker {
 
         for (String part : numericPart.split("\\.")) {
             if (part.isEmpty() || !part.chars().allMatch(Character::isDigit)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Semantic-version characters only: digits, ASCII letters, dot, hyphen, plus. */
+    private static boolean isSafeVersionCharset(String version) {
+        for (int i = 0; i < version.length(); i++) {
+            char c = version.charAt(i);
+            boolean allowed = (c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || c == '.' || c == '-' || c == '+';
+            if (!allowed) {
                 return false;
             }
         }

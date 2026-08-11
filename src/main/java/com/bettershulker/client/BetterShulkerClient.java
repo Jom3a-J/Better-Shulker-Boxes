@@ -91,50 +91,32 @@ public class BetterShulkerClient {
     //  Prediction & Rollbacks State Classes
     // =========================================================================
 
+    /**
+     * A prediction carries no Ender Chest snapshot on purpose. Rolling one back on the client
+     * cannot be done safely: the acceptance test below is deliberately loose, so a valid action
+     * could be undone, and restoring a 27-slot snapshot would also discard any newer prediction
+     * made while this one was in flight. The server instead reconciles the cache with a full
+     * authoritative snapshot after every interaction.
+     */
     public static class PredictionTransaction {
         public final long id;
         public final long timestamp;
         public final ItemStack originalCarried;
         public final ItemStack originalContainer;
         public final int containerSlotId;
-        public NonNullList<ItemStack> originalEnderChest = null;
         public final Map<Integer, ItemStack> originalSlots = new HashMap<>();
 
-        public PredictionTransaction(long id, ItemStack carried, ItemStack container, int containerSlotId, NonNullList<ItemStack> enderChest) {
+        public PredictionTransaction(long id, ItemStack carried, ItemStack container, int containerSlotId) {
             this.id = id;
             this.timestamp = System.currentTimeMillis();
             this.originalCarried = carried.copy();
             this.originalContainer = container.copy();
             this.containerSlotId = containerSlotId;
-            if (enderChest != null) {
-                this.originalEnderChest = NonNullList.withSize(27, ItemStack.EMPTY);
-                for (int i = 0; i < 27; i++) {
-                    this.originalEnderChest.set(i, enderChest.get(i).copy());
-                }
-            }
-        }
-    }
-
-    public static class RollbackAnimation {
-        public final ItemStack stack;
-        public final double startX, startY;
-        public final double endX, endY;
-        public final long startTime;
-        public final long durationMs = 250;
-
-        public RollbackAnimation(ItemStack stack, double startX, double startY, double endX, double endY) {
-            this.stack = stack.copy();
-            this.startX = startX;
-            this.startY = startY;
-            this.endX = endX;
-            this.endY = endY;
-            this.startTime = System.currentTimeMillis();
         }
     }
 
     private static long nextTransactionId = 1L;
     private static final List<PredictionTransaction> activeTransactions = new ArrayList<>();
-    private static final List<RollbackAnimation> activeRollbacks = new ArrayList<>();
 
     // =========================================================================
     //  Loader-neutral Client Initialization Hooks
@@ -379,9 +361,9 @@ public class BetterShulkerClient {
     //  Prediction Methods
     // =========================================================================
 
-    public static long startPrediction(ItemStack carried, ItemStack container, int containerSlotId, NonNullList<ItemStack> enderChest) {
+    public static long startPrediction(ItemStack carried, ItemStack container, int containerSlotId) {
         long id = nextTransactionId++;
-        activeTransactions.add(new PredictionTransaction(id, carried, container, containerSlotId, enderChest));
+        activeTransactions.add(new PredictionTransaction(id, carried, container, containerSlotId));
         return id;
     }
 
@@ -396,14 +378,6 @@ public class BetterShulkerClient {
 
     public static List<PredictionTransaction> getActiveTransactions() {
         return activeTransactions;
-    }
-
-    public static List<RollbackAnimation> getActiveRollbacks() {
-        return activeRollbacks;
-    }
-
-    public static void triggerRollbackAnimation(ItemStack stack, double startX, double startY, double endX, double endY) {
-        activeRollbacks.add(new RollbackAnimation(stack, startX, startY, endX, endY));
     }
 
     // =========================================================================
@@ -435,7 +409,6 @@ public class BetterShulkerClient {
 
         // Reset Category 5 Prediction state
         activeTransactions.clear();
-        activeRollbacks.clear();
     }
 
 }

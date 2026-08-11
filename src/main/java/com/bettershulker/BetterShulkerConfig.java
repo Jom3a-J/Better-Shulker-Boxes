@@ -22,7 +22,9 @@ public class BetterShulkerConfig {
     public static boolean altForceTooltipEnabled = true;
     public static boolean selectedItemNameEnabled = true;
     public static boolean compactTooltipEnabled = false;
-    
+    /** Whether to contact Modrinth once per session to look for a newer release. */
+    public static boolean updateCheckEnabled = true;
+
     // -- Visuals & Animations --
     public static boolean selectionGlideEnabled = true;
     public static boolean hoverAnimationsEnabled = true;
@@ -131,7 +133,10 @@ public class BetterShulkerConfig {
     
     public static boolean isCompactTooltipEnabled() { return compactTooltipEnabled; }
     public static void setCompactTooltipEnabled(boolean v) { compactTooltipEnabled = v; }
-    
+
+    public static boolean isUpdateCheckEnabled() { return updateCheckEnabled; }
+    public static void setUpdateCheckEnabled(boolean v) { updateCheckEnabled = v; }
+
     public static boolean isSelectionGlideEnabled() { return selectionGlideEnabled; }
     public static void setSelectionGlideEnabled(boolean v) { selectionGlideEnabled = v; }
     
@@ -225,6 +230,7 @@ public class BetterShulkerConfig {
             altForceTooltipEnabled  = bool(props, "altForceTooltipEnabled", altForceTooltipEnabled);
             selectedItemNameEnabled = bool(props, "selectedItemNameEnabled", selectedItemNameEnabled);
             compactTooltipEnabled   = bool(props, "compactTooltipEnabled", compactTooltipEnabled);
+            updateCheckEnabled      = bool(props, "updateCheckEnabled", updateCheckEnabled);
             selectionGlideEnabled   = bool(props, "selectionGlideEnabled", selectionGlideEnabled);
             hoverAnimationsEnabled  = bool(props, "hoverAnimationsEnabled", hoverAnimationsEnabled);
             rareItemWobbleEnabled   = bool(props, "rareItemWobbleEnabled", rareItemWobbleEnabled);
@@ -268,6 +274,7 @@ public class BetterShulkerConfig {
             props.setProperty("altForceTooltipEnabled", String.valueOf(altForceTooltipEnabled));
             props.setProperty("selectedItemNameEnabled", String.valueOf(selectedItemNameEnabled));
             props.setProperty("compactTooltipEnabled", String.valueOf(compactTooltipEnabled));
+            props.setProperty("updateCheckEnabled", String.valueOf(updateCheckEnabled));
             props.setProperty("selectionGlideEnabled", String.valueOf(selectionGlideEnabled));
             props.setProperty("hoverAnimationsEnabled", String.valueOf(hoverAnimationsEnabled));
             props.setProperty("rareItemWobbleEnabled", String.valueOf(rareItemWobbleEnabled));

@@ -8,7 +8,6 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -19,17 +18,9 @@ public final class BetterShulkerFabricMod implements ModInitializer {
     public void onInitialize() {
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing Fabric module for Minecraft 26.2");
 
-        PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
-            @Override
-            public void sendToServer(CustomPacketPayload payload) {
-                throw new IllegalStateException("Cannot send serverbound Better Shulker payload from the physical server");
-            }
-
-            @Override
-            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
-                ServerPlayNetworking.send(player, payload);
-            }
-        });
+        // Only the server direction. The client entrypoint installs the other half, and neither
+        // can clobber the other regardless of which initializer runs first.
+        PlatformNetworking.setServerSender(ServerPlayNetworking::send);
 
         PayloadTypeRegistry.serverboundPlay().register(
                 EnderChestRequestPayload.TYPE,

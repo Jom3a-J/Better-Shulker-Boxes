@@ -462,6 +462,12 @@ public final class BetterShulkerClothConfigScreen {
                 .setDefaultValue(false)
                 .setSaveConsumer(BetterShulkerConfig::setCompactTooltipEnabled)
                 .build());
+        category.addEntry(entry.startBooleanToggle(text("Check for Updates"), BetterShulkerConfig.isUpdateCheckEnabled())
+                .setDefaultValue(true)
+                .setTooltip(text("Contacts modrinth.com once per session, the first time you join a world,"
+                        + " to see whether a newer release exists."))
+                .setSaveConsumer(BetterShulkerConfig::setUpdateCheckEnabled)
+                .build());
     }
 
     private static void addVisualsCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {

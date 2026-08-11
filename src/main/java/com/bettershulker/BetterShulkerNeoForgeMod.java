@@ -4,7 +4,6 @@ import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -23,17 +22,9 @@ public final class BetterShulkerNeoForgeMod {
     public BetterShulkerNeoForgeMod(IEventBus modBus) {
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing NeoForge module for Minecraft 26.2");
 
-        PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
-            @Override
-            public void sendToServer(CustomPacketPayload payload) {
-                throw new IllegalStateException("Cannot send serverbound Better Shulker payload from the physical server");
-            }
-
-            @Override
-            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
-                PacketDistributor.sendToPlayer(player, payload);
-            }
-        });
+        // Only the server direction. BetterShulkerNeoForgeClient installs the client sender, and
+        // FML may construct these two @Mod classes in either order.
+        PlatformNetworking.setServerSender((player, payload) -> PacketDistributor.sendToPlayer(player, payload));
 
         modBus.addListener(this::registerPayloadHandlers);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);

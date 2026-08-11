@@ -18,8 +18,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallback;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.packs.PackType;
 import org.lwjgl.glfw.GLFW;
 
@@ -36,17 +34,10 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
                 ResourcePackCacheReloader.ID, ResourcePackCacheReloader.create());
 
-        PlatformNetworking.setDelegate(new PlatformNetworking.Delegate() {
-            @Override
-            public void sendToServer(CustomPacketPayload payload) {
-                ClientPlayNetworking.send(payload);
-            }
-
-            @Override
-            public void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
-                net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, payload);
-            }
-        });
+        // Only the client direction. The common entrypoint installs the server sender, on this
+        // dist too, which is what the integrated server uses.
+        PlatformNetworking.setClientSender(ClientPlayNetworking::send);
+        BetterShulkerMod.setClientEnderChestSupplier(BetterShulkerClient::getEnderChestContents);
 
         ClientTooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof ShulkerTooltipData shulkerData) {

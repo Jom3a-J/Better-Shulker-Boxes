@@ -356,13 +356,33 @@ public final class ContainerHelper {
      * @return the best empty slot index, or -1 if no empty slots exist
      */
     public static int findSmartMergeEmptySlot(List<ItemStack> contents, ItemStack toInsert) {
+        int size = contents.size();
         int bestSlot = -1;
         int bestSameItemDist = 999;
         int bestCategoryDist = 999;
 
         String targetCategory = getCategoryKey(toInsert);
 
-        for (int i = 0; i < contents.size(); i++) {
+        // Classify every occupied slot once up front. Both predicates are independent of which
+        // empty slot is being scored, and getCategoryKey costs a registry lookup plus a chain of
+        // substring scans. Evaluating them inside the scan below repeated that work for every
+        // empty/occupied slot pair, which is hot enough to matter on the server: DEPOSIT and
+        // RESTOCK reach this method once per inventory slot they touch.
+        int occupiedCount = 0;
+        int[] occupiedIndices = new int[size];
+        boolean[] occupiedSameItem = new boolean[size];
+        boolean[] occupiedSameCategory = new boolean[size];
+        for (int j = 0; j < size; j++) {
+            ItemStack jStack = contents.get(j);
+            if (jStack.isEmpty()) continue;
+
+            occupiedIndices[occupiedCount] = j;
+            occupiedSameItem[occupiedCount] = ItemStack.isSameItemSameComponents(jStack, toInsert);
+            occupiedSameCategory[occupiedCount] = getCategoryKey(jStack).equals(targetCategory);
+            occupiedCount++;
+        }
+
+        for (int i = 0; i < size; i++) {
             if (!contents.get(i).isEmpty()) continue;
 
             // This slot i is empty! Evaluate its score.
@@ -372,26 +392,20 @@ public final class ContainerHelper {
             int colE = i % 9;
             int rowE = i / 9;
 
-            for (int j = 0; j < contents.size(); j++) {
-                ItemStack jStack = contents.get(j);
-                if (jStack.isEmpty()) continue;
-
+            for (int o = 0; o < occupiedCount; o++) {
+                int j = occupiedIndices[o];
                 int colJ = j % 9;
                 int rowJ = j / 9;
                 int dist = Math.abs(colE - colJ) + Math.abs(rowE - rowJ);
 
                 // Check if exact same item
-                if (ItemStack.isSameItemSameComponents(jStack, toInsert)) {
-                    if (dist < minSameItemDist) {
-                        minSameItemDist = dist;
-                    }
+                if (occupiedSameItem[o] && dist < minSameItemDist) {
+                    minSameItemDist = dist;
                 }
 
                 // Check if same category
-                if (getCategoryKey(jStack).equals(targetCategory)) {
-                    if (dist < minCategoryDist) {
-                        minCategoryDist = dist;
-                    }
+                if (occupiedSameCategory[o] && dist < minCategoryDist) {
+                    minCategoryDist = dist;
                 }
             }
 

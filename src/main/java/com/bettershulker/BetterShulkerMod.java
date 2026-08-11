@@ -3,6 +3,7 @@ package com.bettershulker;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
@@ -10,6 +11,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.function.Supplier;
 
 /**
  * Better Shulker — Main server/common entry point.
@@ -51,6 +54,9 @@ public class BetterShulkerMod {
     /** Last server tick on which each player requested a full Ender Chest tooltip sync. */
     private static final Map<UUID, Long> lastEnderChestSyncRequestTick = new HashMap<>();
 
+    /** Last server tick on which a dropped interaction triggered a corrective resync per player. */
+    private static final Map<UUID, Long> lastInteractionDropResyncTick = new HashMap<>();
+
     private static final long INTERACTION_WARNING_COOLDOWN_TICKS = 100L;
 
     /** Matches the normal client's 500 ms request cooldown at 20 ticks per second. */
@@ -72,10 +78,31 @@ public class BetterShulkerMod {
         interactionCountsThisTick.remove(uuid);
         lastInteractionWarningTick.remove(uuid);
         lastEnderChestSyncRequestTick.remove(uuid);
+        lastInteractionDropResyncTick.remove(uuid);
     }
 
     public static void resetEnderChestSync(UUID uuid) {
         lastSyncedEnderChest.remove(uuid);
+    }
+
+    /**
+     * Reads the client's cached Ender Chest contents, installed by the client entrypoint.
+     *
+     * <p>Common code cannot name the client class directly: it lives in the same jar on a
+     * dedicated server, where its client-only supertypes are absent, so referencing it risks a
+     * {@code NoClassDefFoundError} during verification. Injecting a supplier keeps the reference
+     * client-side, and leaves this null on a server rather than failing at load.</p>
+     */
+    private static volatile Supplier<NonNullList<ItemStack>> clientEnderChestSupplier;
+
+    public static void setClientEnderChestSupplier(Supplier<NonNullList<ItemStack>> supplier) {
+        clientEnderChestSupplier = supplier;
+    }
+
+    @Nullable
+    public static NonNullList<ItemStack> getClientEnderChestContents() {
+        Supplier<NonNullList<ItemStack>> supplier = clientEnderChestSupplier;
+        return supplier == null ? null : supplier.get();
     }
 
     /** Returns whether the player has an Ender Chest item they may actually use. */
@@ -114,10 +141,10 @@ public class BetterShulkerMod {
             return isAccessibleEnderChest(carried, player);
         }
 
-        if (sourceSlotId >= 0) {
-            if (sourceSlotId >= menu.slots.size()) return false;
-            Slot sourceSlot = menu.slots.get(sourceSlotId);
-            return isUsableSlot(sourceSlot)
+        if (MenuSlotRef.isSlot(sourceSlotId)) {
+            Slot sourceSlot = MenuSlotRef.resolve(sourceSlotId, menu, player);
+            return sourceSlot != null
+                    && isUsableSlot(sourceSlot)
                     && sourceSlot.allowModification(player)
                     && isAccessibleEnderChest(sourceSlot.getItem(), player);
         }
@@ -179,9 +206,23 @@ public class BetterShulkerMod {
             return;
         }
 
-        resetEnderChestSync(uuid);
-        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
+        sendAuthoritativeEnderChestSync(player);
         LOGGER.debug("[BetterShulker] Synced ender chest for player {}", player.getName().getString());
+    }
+
+    /**
+     * Pushes a complete, authoritative Ender Chest snapshot to the client.
+     *
+     * <p>A diff sync is computed against the last state the server sent, which cannot describe
+     * what the client's optimistic prediction wrote into its own cache. Once a prediction has run
+     * the two have diverged by an unknown amount: a rejected action yields an empty diff, and an
+     * accepted one only names the slots the server touched, so a prediction that guessed a
+     * different slot is left stranded there. Resetting the baseline transmits every slot, which
+     * replaces the client cache instead of patching it.</p>
+     */
+    private static void sendAuthoritativeEnderChestSync(ServerPlayer player) {
+        resetEnderChestSync(player.getUUID());
+        PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
     }
 
     private static void clearEnderChestClientCache(ServerPlayer player) {
@@ -195,9 +236,34 @@ public class BetterShulkerMod {
     public static void handleRateLimitedContainerInteraction(ServerPlayer player, ContainerInteractPayload payload) {
         if (!consumeInteraction(player)) {
             warnRejectedInteraction(player, "exceeded interaction rate limit; dropping packets");
+            resyncDroppedInteraction(player);
             return;
         }
         handleContainerInteraction(player, payload);
+    }
+
+    /**
+     * Corrects the client after the rate limiter discards a packet.
+     *
+     * <p>The client applies its prediction before sending and never rolls it back on its own, so
+     * a silent drop would leave items on screen that the server never moved. A single correction
+     * per tick covers every packet that tick discarded while stopping a packet flood from being
+     * amplified into an equally large flood of resyncs.</p>
+     */
+    private static void resyncDroppedInteraction(ServerPlayer player) {
+        long currentTick = player.level().getGameTime();
+        UUID uuid = player.getUUID();
+        Long lastResyncTick = lastInteractionDropResyncTick.get(uuid);
+        if (lastResyncTick != null && lastResyncTick == currentTick) {
+            return;
+        }
+        lastInteractionDropResyncTick.put(uuid, currentTick);
+
+        resyncPlayer(player);
+
+        // broadcastFullState cannot reach the mod's separate Ender Chest cache, so correct it
+        // explicitly: a predicted Ender Chest edit must not survive the drop.
+        sendAuthoritativeEnderChestSync(player);
     }
 
     //  Interaction Logic Handler & Validation
@@ -224,12 +290,6 @@ public class BetterShulkerMod {
         // fundamental player/menu checks before touching any inventory state.
         if (!player.isAlive() || player.isSpectator() || !menu.stillValid(player)) {
             resyncPlayer(player);
-            return;
-        }
-
-        // -- Validate Slot Bounds
-        if (containerSlotId != -1 && (containerSlotId < 0 || containerSlotId >= menu.slots.size())) {
-            warnRejectedInteraction(player, "sent invalid container slot ID: " + containerSlotId);
             return;
         }
 
@@ -260,8 +320,12 @@ public class BetterShulkerMod {
         // treated as real container items. In particular, crafting result stacks are only
         // previews until ResultSlot.onTake consumes the recipe inputs.
         Slot containerSlot = null;
-        if (containerSlotId != -1) {
-            containerSlot = menu.slots.get(containerSlotId);
+        if (MenuSlotRef.isSlot(containerSlotId)) {
+            containerSlot = MenuSlotRef.resolve(containerSlotId, menu, player);
+            if (containerSlot == null) {
+                warnRejectedInteraction(player, "sent unresolvable container slot ID: " + containerSlotId);
+                return;
+            }
             if (!isUsableSlot(containerSlot) || !containerSlot.allowModification(player)) {
                 warnRejectedInteraction(player, "referenced non-modifiable container slot: " + containerSlotId);
                 resyncPlayer(player);
@@ -360,12 +424,12 @@ public class BetterShulkerMod {
                     if (inventorySlotId != -1) {
                         Slot destination = getPlayerInventorySlot(player, inventorySlotId, "slot extraction");
                         if (destination == null) {
-                            restoreExtractedStack(contents, targetIndex, extracted);
+                            restoreExtractedStack(player, contents, targetIndex, extracted);
                             return;
                         }
                         int originalCount = extracted.getCount();
                         ItemStack remainder = safeInsertIntoSlot(player, destination, extracted);
-                        restoreExtractedStack(contents, targetIndex, remainder);
+                        restoreExtractedStack(player, contents, targetIndex, remainder);
                         success = remainder.getCount() < originalCount;
                     } else if (cursorStack.isEmpty()) {
                         player.containerMenu.setCarried(extracted);
@@ -374,7 +438,7 @@ public class BetterShulkerMod {
                         cursorStack.grow(1);
                         success = true;
                     } else {
-                        restoreExtractedStack(contents, targetIndex, extracted);
+                        restoreExtractedStack(player, contents, targetIndex, extracted);
                         return;
                     }
                 }
@@ -422,7 +486,7 @@ public class BetterShulkerMod {
                     ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
                     int originalCount = extracted.getCount();
                     ItemStack remainder = safeInsertIntoSlot(player, destination, extracted);
-                    restoreExtractedStack(contents, targetIndex, remainder);
+                    restoreExtractedStack(player, contents, targetIndex, remainder);
                     success = remainder.getCount() < originalCount;
                 }
             }
@@ -457,12 +521,12 @@ public class BetterShulkerMod {
     }
 
     private static Slot getPlayerInventorySlot(ServerPlayer player, int slotId, String actionDescription) {
-        if (slotId < 0 || slotId >= player.containerMenu.slots.size()) {
+        Slot slot = MenuSlotRef.resolve(slotId, player);
+        if (slot == null) {
             warnRejectedInteraction(player, "tried " + actionDescription + " with invalid inventory slot: " + slotId);
             return null;
         }
 
-        Slot slot = player.containerMenu.slots.get(slotId);
         if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)
                 || !slot.allowModification(player)) {
             warnRejectedInteraction(player, "tried " + actionDescription
@@ -486,7 +550,18 @@ public class BetterShulkerMod {
         return slot.safeInsert(stack);
     }
 
-    private static void restoreExtractedStack(NonNullList<ItemStack> contents, int index, ItemStack remainder) {
+    /**
+     * Returns an un-inserted remainder to the container copy.
+     *
+     * <p>The mismatch branch is unreachable by construction, since the remainder always
+     * originates from the very slot being restored. It is handled rather than asserted because
+     * this runs inside a task on the server thread, where an uncaught throw takes down the tick
+     * loop instead of the single interaction that caused it. The stack goes to the player because
+     * that conserves it exactly: discarding it would delete items, and abandoning the operation
+     * after the destination slot was already written would duplicate them.</p>
+     */
+    private static void restoreExtractedStack(ServerPlayer player, NonNullList<ItemStack> contents,
+                                              int index, ItemStack remainder) {
         if (remainder.isEmpty()) return;
 
         ItemStack current = contents.get(index);
@@ -495,7 +570,10 @@ public class BetterShulkerMod {
         } else if (ItemStack.isSameItemSameComponents(current, remainder)) {
             current.grow(remainder.getCount());
         } else {
-            throw new IllegalStateException("Extracted stack no longer matches its source slot");
+            LOGGER.error("[BetterShulker] Extracted stack no longer matches its source slot for"
+                    + " player {}; returning {} to their inventory",
+                    player.getName().getString(), remainder);
+            player.getInventory().placeItemBackInInventory(remainder);
         }
     }
 
@@ -526,45 +604,26 @@ public class BetterShulkerMod {
         }
     }
 
-    private static boolean enderChestContentsChanged(ServerPlayer player, NonNullList<ItemStack> before) {
-        var enderInv = player.getEnderChestInventory();
-        if (enderInv.getContainerSize() != before.size()) return true;
-        for (int i = 0; i < before.size(); i++) {
-            if (hasStackChanged(enderInv.getItem(i), before.get(i))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     //  Ender Chest Operations
     // =========================================================================
 
     /**
      * Processes ender chest insertion/extraction on the server and reconciles both the normal
-     * menu and the separate client-side Ender Chest cache. Rejected extraction predictions get
-     * one authoritative target-slot update without amplifying a no-op packet into a 27-slot sync.
+     * menu and the separate client-side Ender Chest cache.
+     *
+     * <p>The reconciliation is always a full snapshot rather than a diff. The client mutates its
+     * cache optimistically before this packet arrives, and the server has no record of what that
+     * prediction wrote, so a diff cannot describe the correction: rejected actions produce an
+     * empty one, and accepted actions only cover the slots the server itself touched. Sending
+     * every slot is the only reconciliation that holds regardless of what the client guessed.</p>
      */
     private static void handleEnderChestInteraction(ServerPlayer player, Slot containerSlot, int targetIndex,
                                              ContainerInteractPayload.InteractType action, int inventorySlotId) {
-        NonNullList<ItemStack> before = copyEnderChestContents(player);
         try {
             performEnderChestInteraction(player, containerSlot, targetIndex, action, inventorySlotId);
         } finally {
             player.containerMenu.broadcastFullState();
-            boolean changed = enderChestContentsChanged(player, before);
-            boolean extractionAction = action == ContainerInteractPayload.InteractType.EXTRACT
-                    || action == ContainerInteractPayload.InteractType.EXTRACT_ONE
-                    || action == ContainerInteractPayload.InteractType.SWEEP_EXTRACT;
-            if (!changed && extractionAction && targetIndex >= 0
-                    && targetIndex < player.getEnderChestInventory().getContainerSize()) {
-                ItemStack authoritative = player.getEnderChestInventory().getItem(targetIndex).copy();
-                PlatformNetworking.sendToPlayer(player, new EnderChestSyncPayload(List.of(
-                        new EnderChestSyncPayload.EnderChestDiff(targetIndex, authoritative)
-                )));
-            } else {
-                PlatformNetworking.sendToPlayer(player, buildEnderChestSyncPayload(player));
-            }
+            sendAuthoritativeEnderChestSync(player);
         }
     }
 
