@@ -52,6 +52,14 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int COMPACT_HINT_HEIGHT = 13;
     private static final int NAME_BADGE_HEIGHT = 14;
     private static final int NAME_BADGE_GAP = 2;
+    // Modern name tab. Its text sits at tabY + 4, which lands exactly on the vanilla
+    // container-name line (panelY - CONTAINER_NAME_LINE_HEIGHT - CONTAINER_NAME_LINE_GAP).
+    private static final int NAME_TAB_HEIGHT = 16;
+    /** Below this the selected-name tab would be all padding and an ellipsis, so it is dropped. */
+    private static final int MIN_SELECTED_TAB_WIDTH = 28;
+    private static final int NAME_TAB_GAP = 2;
+    /** Below this the card is too dark to derive shades by darkening; they are lightened instead. */
+    private static final float MODERN_DARK_FILL_LUMINANCE = 0.15f;
     // ClientTextTooltip is ten pixels high and GuiGraphicsExtractor adds a two-pixel
     // gap after the first text line. Keep the custom name badge aligned with the
     // vanilla selected-item tooltip above the container title.
@@ -237,20 +245,30 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         boolean resourcePackMode = this.resourcePackOverridesPanel;
         boolean hasCompactPreview = this.compactMode && !this.isContainerEmpty && !this.displaySlots.isEmpty();
+        // The Modern card is drawn from scratch, so the vanilla-texture aura/overlay/accent
+        // passes below would only fight its flat rounded shape. It still honours an active
+        // resource pack, by taking that pack's colour and slot grid rather than standing down.
+        boolean modernMode = isModernStyle();
 
-        if (!resourcePackMode && (!this.compactMode || hasCompactPreview)) {
+        if (!resourcePackMode && !modernMode && (!this.compactMode || hasCompactPreview)) {
             drawPanelAura(context, panelX, panelY, getPanelWidth(), getPanelHeight(), now);
         }
         if (this.compactMode) {
             if (hasCompactPreview) {
                 drawCompactPanel(textRenderer, context, panelX, panelY);
             }
+        } else if (modernMode) {
+            // displayCols/Rows already carry the pack's grid when one is active, 9x3 otherwise.
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
         } else if (isGlassTheme() && !resourcePackMode) {
             drawGlassPanel(context, panelX, panelY);
         } else {
             drawResourcePackPanel(context, panelX, panelY);
         }
-        if (!this.compactMode) {
+        if (modernMode && (!this.compactMode || hasCompactPreview)) {
+            drawModernNameTabs(textRenderer, context, tooltipX, panelY, width);
+        }
+        if (!this.compactMode && !modernMode) {
             drawThemeOverlay(context, panelX, panelY);
             drawEnderChestAccents(context, panelX, panelY);
             drawEnderChestAnimation(context, panelX, panelY, now);
@@ -258,9 +276,12 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         int hoveredSlot = updateHoveredSlot(panelX, panelY);
         if (!this.compactMode || hasCompactPreview) {
+            // Highlights sit above the items: an item sprite covers nearly the whole cell, so a
+            // fill underneath it would only show in the few pixels of margin around the edge.
             drawItemsAndSlotOverlays(textRenderer, context, panelX, panelY, hoveredSlot, now);
             drawSelectedSlot(context, panelX, panelY, now);
             drawMultiSelectedSlots(context, panelX, panelY);
+            drawHoverHighlight(context, panelX, panelY, hoveredSlot, now);
             drawHoveredAndSelectedTooltips(textRenderer, context, hoveredSlot);
             drawSelectedNameBadge(textRenderer, context, panelX, panelY);
         }
@@ -302,6 +323,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY) {
+        // Modern is checked first: under a pack it recolours its card instead of deferring.
+        if (isModernStyle()) {
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
+            return;
+        }
         if (this.resourcePackOverridesPanel) {
             drawResourcePackCompactPanel(context, panelX, panelY);
             return;
@@ -443,6 +469,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             case CUSTOM -> opaqueOrDefault(BetterShulkerConfig.getCustomBackgroundColor(), 0xFF1A1A1A);
             case GLASS -> 0xFFEAF7FF;
         };
+        // Modern already derives its face from the dye, so it takes no extra box blend below.
+        if (isModernStyle()) {
+            return getModernPanelFill();
+        }
         int containerColor = getCompactContainerColor();
         if (containerColor == 0 || theme == BetterShulkerConfig.TooltipTheme.HIGH_CONTRAST
                 || theme == BetterShulkerConfig.TooltipTheme.GLASS) {
@@ -471,6 +501,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawFullStyleCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
+        if (isModernStyle()) {
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
+            return;
+        }
+
         if (isGlassTheme()) {
             drawGlassCompactPanel(context, panelX, panelY, getPanelWidth(), getPanelHeight(), getCompactPanelBaseColor());
             return;
@@ -522,7 +557,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawFullStyleCompactOverlay(GuiGraphicsExtractor context, int panelX, int panelY) {
-        if (isGlassTheme() || this.resourcePackOverridesPanel) {
+        if (isGlassTheme() || isModernStyle() || this.resourcePackOverridesPanel) {
             return;
         }
 
@@ -649,6 +684,227 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             context.fill(slotX + 1, slotY + SLOT_SIZE - 2, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1, 0x50000000);
             context.fill(slotX + SLOT_SIZE - 2, slotY + 2, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1, 0x45000000);
         }
+    }
+
+    // =========================================================================
+    //  Modern theme: a flat rounded card with a lattice slot grid, drawn from
+    //  scratch instead of blitting the vanilla container texture. Every colour
+    //  is derived from the container's own dye so each box keeps its identity.
+    // =========================================================================
+
+    /**
+     * Panel texture the active pack supplies for this container, or null when it supplies none.
+     *
+     * <p>Ender chests are asked for separately: they intentionally keep Better Shulker's own
+     * panel in the vanilla styles, so their pack texture never shows up as a panel override.</p>
+     */
+    private Identifier getModernPackPanelTexture() {
+        if (this.resourcePackOverridesPanel) return this.panelTexture.texture();
+        if (this.isEnderChest) return ResourcePackContainerTextures.packSuppliedEnderPanel();
+        return null;
+    }
+
+    private int getModernDyeColor() {
+        if (this.isEnderChest) {
+            return blendColor(ENDER_PURPLE_COLOR, ENDER_ACCENT_COLOR, 0.22f);
+        }
+        if (this.color != null) {
+            return 0xFF000000 | this.color.getTextureDiffuseColor();
+        }
+        return 0xFF8932B8;
+    }
+
+    /** Card face: the pack's own panel colour, or the dye pulled down towards neutral. */
+    private int getModernPanelFill() {
+        Identifier packPanel = getModernPackPanelTexture();
+        if (packPanel != null) {
+            // A sampled pack colour is already a panel colour authored to sit behind items, so
+            // it is used as-is; muting it the way a raw dye needs would just fight the pack.
+            int sampled = ResourcePackPanelColors.dominantColor(packPanel, 0);
+            if (sampled != 0) return sampled;
+        }
+        return blendColor(getModernDyeColor(), 0xFF6A6A72, 0.55f);
+    }
+
+    private int getModernPanelBorder() {
+        return shadeModernFill(0.30f);
+    }
+
+    private int getModernGridLine() {
+        return shadeModernFill(0.20f);
+    }
+
+    private int getModernCellFill() {
+        return shadeModernFill(0.08f);
+    }
+
+    /**
+     * Shifts the card fill by {@code factor} in whichever direction still has contrast left.
+     *
+     * <p>Darkening is multiplicative, so it collapses on a near-black panel: a {@code #141414}
+     * fill darkened 20% lands 4/255 away and the lattice becomes invisible. Dark fills are
+     * lightened instead, which is the only direction with headroom.</p>
+     */
+    private int shadeModernFill(float factor) {
+        int fill = getModernPanelFill();
+        return luminance(fill) < MODERN_DARK_FILL_LUMINANCE
+                ? blendColor(fill, 0xFFFFFFFF, factor)
+                : blendColor(fill, 0xFF000000, factor);
+    }
+
+    /** Perceived luminance of an opaque colour, 0 (black) to 1 (white). */
+    private static float luminance(int color) {
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+        return (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
+    }
+
+    private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows) {
+        int w = getPanelWidth();
+        int h = getPanelHeight();
+        if (w <= 0 || h <= 0) return;
+
+        int fill = getModernPanelFill();
+        fillRounded(context, panelX, panelY, w, h, getModernPanelBorder());
+        fillRounded(context, panelX + 2, panelY + 2, w - 4, h - 4, fill);
+
+        // A one-pixel lift on top and a matching shade on the bottom keep the flat
+        // card from reading as a plain rectangle.
+        context.fill(panelX + 3, panelY + 2, panelX + w - 3, panelY + 3, blendColor(fill, 0xFFFFFFFF, 0.16f));
+        context.fill(panelX + 3, panelY + h - 3, panelX + w - 3, panelY + h - 2, blendColor(fill, 0xFF000000, 0.18f));
+
+        drawModernGrid(context, panelX, panelY, cols, rows);
+    }
+
+    /** Slots are a shared lattice of single-pixel rules rather than 27 embossed wells. */
+    private void drawModernGrid(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows) {
+        // Cell size follows the pack's layout when one is active, so the lattice lands exactly
+        // where the items are drawn.
+        int cell = getRenderedSlotSize();
+        int gridX = panelX + getSlotStartX();
+        int gridY = panelY + getSlotStartY();
+        int gridW = cols * cell;
+        int gridH = rows * cell;
+
+        context.fill(gridX, gridY, gridX + gridW, gridY + gridH, getModernCellFill());
+
+        int line = getModernGridLine();
+        for (int col = 0; col <= cols; col++) {
+            int lineX = gridX + col * cell;
+            context.fill(lineX, gridY, lineX + 1, gridY + gridH + 1, line);
+        }
+        for (int row = 0; row <= rows; row++) {
+            int lineY = gridY + row * cell;
+            context.fill(gridX, lineY, gridX + gridW + 1, lineY + 1, line);
+        }
+    }
+
+    /**
+     * Paints the container name and the selected item name into two tabs sharing one row on top
+     * of the card: container on the left, selected item on the right.
+     *
+     * <p>The tooltip framework already drew the container name as a plain text line directly
+     * above us, and text is rendered before images, so the left tab covers that line and
+     * reprints it in place. The left tab is anchored to the tooltip's own left edge rather than
+     * the panel's, because a long custom name widens the tooltip past the panel and re-centres
+     * the panel away from that text.</p>
+     */
+    private void drawModernNameTabs(Font font, GuiGraphicsExtractor context, int tooltipX, int panelY, int tooltipWidth) {
+        if (getPanelWidth() <= 0) return;
+
+        int tabY = panelY - NAME_TAB_HEIGHT;
+        // Runs two pixels past the card's top border so tab and card read as one shape.
+        int tabHeight = panelY + 2 - tabY;
+
+        boolean hasContainerName = this.containerName != null && !this.containerName.isEmpty();
+        String selectedName = getModernSelectedTabName();
+
+        int containerTabWidth = 0;
+        int selectedTabWidth = 0;
+        if (hasContainerName && selectedName != null) {
+            int available = tooltipWidth - NAME_TAB_GAP;
+            int containerNeed = font.width(this.containerName) + 12;
+            int selectedNeed = font.width(selectedName) + 12;
+
+            if (containerNeed + selectedNeed <= available) {
+                containerTabWidth = containerNeed;
+                selectedTabWidth = selectedNeed;
+            } else {
+                // Neither tab may take more than half unless the other one wants less than that,
+                // in which case the leftover goes to whichever is still short.
+                int half = available / 2;
+                if (containerNeed <= half) {
+                    containerTabWidth = containerNeed;
+                    selectedTabWidth = available - containerTabWidth;
+                } else if (selectedNeed <= half) {
+                    selectedTabWidth = selectedNeed;
+                    containerTabWidth = available - selectedTabWidth;
+                } else {
+                    containerTabWidth = half;
+                    selectedTabWidth = available - half;
+                }
+            }
+
+            // A tab squeezed below this is all padding and an ellipsis; give the row back instead.
+            if (selectedTabWidth < MIN_SELECTED_TAB_WIDTH) {
+                selectedTabWidth = 0;
+                containerTabWidth = Math.min(tooltipWidth, containerNeed);
+            }
+        } else if (hasContainerName) {
+            containerTabWidth = Math.min(tooltipWidth, font.width(this.containerName) + 12);
+        } else if (selectedName != null) {
+            selectedTabWidth = Math.min(tooltipWidth, font.width(selectedName) + 12);
+        }
+
+        if (containerTabWidth > 0) {
+            drawModernTab(font, context, tooltipX, tabY, containerTabWidth, tabHeight,
+                    fitText(font, this.containerName, Math.max(1, containerTabWidth - 12)));
+        }
+        if (selectedTabWidth > 0) {
+            drawModernTab(font, context, tooltipX + tooltipWidth - selectedTabWidth, tabY,
+                    selectedTabWidth, tabHeight,
+                    fitText(font, selectedName, Math.max(1, selectedTabWidth - 12)));
+        }
+    }
+
+    /** Name for the right-hand tab, or null when there is nothing to show there. */
+    private String getModernSelectedTabName() {
+        if (!BetterShulkerConfig.selectedItemNameEnabled) return null;
+        ItemStack selectedStack = this.compactMode ? getCompactNameStack() : getSelectedNameStack();
+        if (selectedStack.isEmpty()) return null;
+        String name = selectedStack.getHoverName().getString();
+        return name.isEmpty() ? null : name;
+    }
+
+    private void drawModernTab(Font font, GuiGraphicsExtractor context, int x, int y, int w, int h, String label) {
+        fillTopRounded(context, x, y, w, h, getModernPanelBorder());
+        fillTopRounded(context, x + 2, y + 2, w - 4, h, getModernPanelFill());
+        context.text(font, Component.literal(label), x + 6, y + 4, 0xFFFFFFFF);
+    }
+
+    private void fillRounded(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
+        if (w <= 0 || h <= 0) return;
+        if (w <= 4 || h <= 4) {
+            context.fill(x, y, x + w, y + h, color);
+            return;
+        }
+        context.fill(x + 2, y, x + w - 2, y + 1, color);
+        context.fill(x + 1, y + 1, x + w - 1, y + 2, color);
+        context.fill(x, y + 2, x + w, y + h - 2, color);
+        context.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, color);
+        context.fill(x + 2, y + h - 1, x + w - 2, y + h, color);
+    }
+
+    private void fillTopRounded(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
+        if (w <= 0 || h <= 0) return;
+        if (w <= 4 || h <= 2) {
+            context.fill(x, y, x + w, y + h, color);
+            return;
+        }
+        context.fill(x + 2, y, x + w - 2, y + 1, color);
+        context.fill(x + 1, y + 1, x + w - 1, y + 2, color);
+        context.fill(x, y + 2, x + w, y + h, color);
     }
 
     private Identifier getPanelTexture() {
@@ -840,10 +1096,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 }
                 float scale = i >= 0 && i < slotScales.length ? slotScales[i] : targetScale;
 
-                if (hoverZoom) {
-                    drawHoverGlow(context, slotX, slotY, now);
-                }
-
                 if (wobble || scale > 1.01f) {
                     context.pose().pushMatrix();
                     if (wobble) {
@@ -889,26 +1141,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 }
             }
 
-            if (displayPos == animatedDisplay && BetterShulkerConfig.hoverAnimationsEnabled) {
-                int hover = withAlpha(this.selectionColor, 150 + (int) (70 * Math.sin(now / 140.0)));
-                drawSlotOutline(context, slotX, slotY, hover, true);
-            }
         }
-    }
-
-    private void drawHoverGlow(GuiGraphicsExtractor context, int slotX, int slotY, long now) {
-        int pulse = 155 + (int) (70 * (Math.sin(now / 120.0) * 0.5f + 0.5f));
-        int hot = withAlpha(this.selectionColor, pulse);
-        int soft = withAlpha(this.selectionColor, Math.max(45, pulse / 3));
-        int size = getRenderedSlotSize();
-        context.fill(slotX - 3, slotY - 3, slotX + size + 3, slotY - 2, soft);
-        context.fill(slotX - 3, slotY + size + 2, slotX + size + 3, slotY + size + 3, soft);
-        context.fill(slotX - 3, slotY - 2, slotX - 2, slotY + size + 2, soft);
-        context.fill(slotX + size + 2, slotY - 2, slotX + size + 3, slotY + size + 2, soft);
-        context.fill(slotX - 1, slotY - 1, slotX + size + 1, slotY, hot);
-        context.fill(slotX - 1, slotY + size, slotX + size + 1, slotY + size + 1, hot);
-        context.fill(slotX - 1, slotY, slotX, slotY + size, hot);
-        context.fill(slotX + size, slotY, slotX + size + 1, slotY + size, hot);
     }
 
     private int getDisplayItemCount(int displayPos) {
@@ -963,11 +1196,29 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int cellSize = getRenderedSlotSize();
         int slotX = panelX + startX + Math.round(renderCol * cellSize);
         int slotY = panelY + getSlotStartY() + Math.round(renderRow * cellSize);
-        int pulse = withAlpha(this.selectionColor, 185 + (int) (45 * Math.sin(now / 150.0)));
-        drawSlotOutline(context, slotX, slotY, pulse, true);
+        // Borderless: the cell itself lights up instead of being framed. Kept light because the
+        // fill lands on top of the item, and a saturated colour replaces its hue rather than
+        // just dimming it.
         int size = getRenderedSlotSize();
         context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1,
-                withAlpha(this.selectionColor, 34 + (int) (12 * Math.sin(now / 160.0))));
+                withAlpha(this.selectionColor, 64 + (int) (18 * Math.sin(now / 300.0))));
+    }
+
+    /** Borderless hover wash, drawn beneath the item like the selection highlight. */
+    private void drawHoverHighlight(GuiGraphicsExtractor context, int panelX, int panelY,
+                                    int hoveredSlot, long now) {
+        if (hoveredSlot < 0 || hoveredSlot == BetterShulkerClient.getSelectedSlotIndex()) return;
+        int displayIndex = getDisplayIndexForSlot(hoveredSlot);
+        if (displayIndex < 0) return;
+
+        int slotX = getSlotX(panelX, displayIndex);
+        int slotY = getSlotY(panelY, displayIndex);
+        int size = getRenderedSlotSize();
+        int alpha = BetterShulkerConfig.hoverAnimationsEnabled
+                ? 40 + (int) (12 * Math.sin(now / 260.0))
+                : 40;
+        context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1,
+                withAlpha(this.selectionColor, alpha));
     }
 
     private void drawMultiSelectedSlots(GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -977,9 +1228,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             if (displayIndex < 0) continue;
             int slotX = getSlotX(panelX, displayIndex);
             int slotY = getSlotY(panelY, displayIndex);
-            drawSlotOutline(context, slotX, slotY, this.multiSelectColor, true);
             int size = getRenderedSlotSize();
-            context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, withAlpha(this.multiSelectColor, 38));
+            // Kept below the selected slot's alpha so the two stay distinguishable.
+            context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1,
+                    withAlpha(this.multiSelectColor, 56));
         }
     }
 
@@ -1020,6 +1272,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private void drawSelectedNameBadge(Font font, GuiGraphicsExtractor context, int panelX, int panelY) {
         if (!BetterShulkerConfig.selectedItemNameEnabled) return;
+        // Modern shows the selected name in its own tab beside the container tab, so the
+        // vanilla-framed floating label would only duplicate it in a clashing style.
+        if (isModernStyle()) return;
         if (!this.compactMode && !hasSelectedNameBadge()) return;
 
         ItemStack selectedStack = this.compactMode
@@ -1257,6 +1512,20 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return BetterShulkerConfig.getTooltipTheme() == BetterShulkerConfig.TooltipTheme.CUSTOM;
     }
 
+    private boolean isModernStyle() {
+        return BetterShulkerConfig.getTooltipStyle() == BetterShulkerConfig.TooltipStyle.MODERN;
+    }
+
+    /**
+     * True when this tooltip paints a complete panel of its own and needs no vanilla frame.
+     *
+     * <p>Only the Modern card does that. It holds under a resource pack too, because the card is
+     * still drawn there — recoloured from the pack rather than replaced by it.</p>
+     */
+    public boolean drawsOwnPanel() {
+        return isModernStyle();
+    }
+
     private ThemePalette buildThemePalette() {
         int baseBorder;
         int nameBorder;
@@ -1363,6 +1632,20 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             select = ENDER_ACCENT_COLOR;
             multi = 0xFFB35CFF;
             match = 0xFF50FFB8;
+        }
+
+        // Modern derives everything from the container's dye and ignores the theme entirely,
+        // which is why the settings screen greys the theme selector out under this style.
+        if (isModernStyle()) {
+            baseBorder = blendColor(getModernPanelFill(), 0xFFFFFFFF, 0.35f);
+            nameBorder = getModernPanelBorder();
+            baseTint = withAlpha(getModernPanelFill(), 0);
+            badgeBg = withAlpha(getModernPanelBorder(), 235);
+            baseText = 0xFFFFFFFF;
+            select = this.isEnderChest ? ENDER_ACCENT_COLOR : 0xFFFFD700;
+            multi = 0xFF7FD8FF;
+            match = 0xFF7DFF6A;
+            shadow = getModernPanelBorder();
         }
 
         return new ThemePalette(baseBorder, nameBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);

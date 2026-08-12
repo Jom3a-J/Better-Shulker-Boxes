@@ -387,6 +387,26 @@ public final class ResourcePackContainerTextures {
         }
     }
 
+    /**
+     * Ender panel a resource pack supplies, or null when none does.
+     *
+     * <p>Ender previews keep Better Shulker's own panel rather than being replaced by a pack, so
+     * {@link Panel#suppliedByPack()} stays false for them. This exposes the pack's texture
+     * separately, purely so the Modern card can take its colour from it.</p>
+     */
+    public static Identifier packSuppliedEnderPanel() {
+        if (BetterShulkerConfig.getResourcePackMode() == BetterShulkerConfig.ResourcePackMode.DISABLED) {
+            return null;
+        }
+        Identifier custom = firstAvailable(List.of(
+                "optifine/gui/container/ender_chest.png",
+                "textures/gui/container/ender_chest.png"
+        ));
+        if (custom != null && hasExternalResource(custom)) return custom;
+        // The Ender screen is a normal six-row chest, so packs recolour it via generic_54.
+        return hasExternalResource(GENERIC_54_PANEL) ? GENERIC_54_PANEL : null;
+    }
+
     private static Identifier firstAvailable(List<String> paths) {
         return firstAvailable("minecraft", paths);
     }

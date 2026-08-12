@@ -22,7 +22,10 @@ public final class ResourcePackCacheReloader {
                                                    PreparationBarrier barrier,
                                                    Executor reloadExecutor) {
                 CompletableFuture<Void> prepared = barrier.wait(null);
-                return prepared.thenRunAsync(ResourcePackContainerTextures::clearCache, reloadExecutor);
+                return prepared.thenRunAsync(() -> {
+                    ResourcePackContainerTextures.clearCache();
+                    ResourcePackPanelColors.clearCache();
+                }, reloadExecutor);
             }
 
             @Override
