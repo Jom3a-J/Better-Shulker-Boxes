@@ -103,7 +103,15 @@ public abstract class HandledScreenMixin extends Screen {
     private static final Set<Integer> bettershulker$processedDragSlots = new HashSet<>();
 
     @Unique
-    private boolean bettershulker$wigglePushed = false;
+    private boolean bettershulker$bouncePushed = false;
+
+    /** One hop of the "drop this in me" bounce, in milliseconds. */
+    @Unique
+    private static final long BOUNCE_PERIOD_MS = 1500L;
+
+    /** Peak lift of that hop, in GUI pixels. */
+    @Unique
+    private static final float BOUNCE_HEIGHT = 2.0f;
 
     protected HandledScreenMixin(Component title) {
         super(title);
@@ -923,9 +931,9 @@ public abstract class HandledScreenMixin extends Screen {
                                                   float delta, CallbackInfo ci) {
         bettershulker$verifyPredictions();
         bettershulker$renderContainerOverlay(graphics);
-        if (this.bettershulker$wigglePushed) {
+        if (this.bettershulker$bouncePushed) {
             graphics.pose().popMatrix();
-            this.bettershulker$wigglePushed = false;
+            this.bettershulker$bouncePushed = false;
         }
     }
 
@@ -1693,24 +1701,24 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Inject(method = "extractSlot", at = @At("HEAD"))
     private void bettershulker$onExtractSlotHead(GuiGraphicsExtractor graphics, Slot slot, int x, int y, CallbackInfo ci) {
-        if (!BetterShulkerConfig.tooltipEnabled) return;
+        if (!BetterShulkerConfig.tooltipEnabled || !BetterShulkerConfig.containerBounceEnabled) return;
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
         if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
-            if (this.bettershulker$wigglePushed) {
+            if (this.bettershulker$bouncePushed) {
                 graphics.pose().popMatrix();
-                this.bettershulker$wigglePushed = false;
+                this.bettershulker$bouncePushed = false;
             }
-            // Apply organic figure-8 wiggle translation
+            // Slow vertical hop. One half-sine per cycle lifts the box and sets it back down,
+            // resting at zero between hops; a full sine would drift it up and down forever and
+            // read as a hover rather than a bounce.
             long time = System.currentTimeMillis();
-            double angle = (time % 250) * (2 * Math.PI / 250.0);
-            float wiggleRange = 0.8f;
-            float wobbleX = (float) Math.sin(angle) * wiggleRange;
-            float wobbleY = (float) Math.cos(angle * 2) * (wiggleRange * 0.5f);
+            double phase = (time % BOUNCE_PERIOD_MS) * (Math.PI / BOUNCE_PERIOD_MS);
+            float bounceY = -(float) Math.sin(phase) * BOUNCE_HEIGHT;
 
             graphics.pose().pushMatrix();
-            graphics.pose().translate(wobbleX, wobbleY);
-            this.bettershulker$wigglePushed = true;
+            graphics.pose().translate(0.0f, bounceY);
+            this.bettershulker$bouncePushed = true;
         }
     }
 
@@ -1720,10 +1728,10 @@ public abstract class HandledScreenMixin extends Screen {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
         if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
-            if (this.bettershulker$wigglePushed) {
-                // Pop the wiggle translation matrix
+            if (this.bettershulker$bouncePushed) {
+                // Pop the bounce translation matrix
                 graphics.pose().popMatrix();
-                this.bettershulker$wigglePushed = false;
+                this.bettershulker$bouncePushed = false;
             }
 
             // Draw a gorgeous pixel-perfect emerald green plus icon with a white center dot and black shadow in top-right corner

@@ -555,6 +555,11 @@ public final class BetterShulkerClothConfigScreen {
                 .setDefaultValue(true)
                 .setSaveConsumer(BetterShulkerConfig::setRareItemWobbleEnabled)
                 .build());
+        category.addEntry(entry.startBooleanToggle(text("Container Bounce"), BetterShulkerConfig.isContainerBounceEnabled())
+                .setDefaultValue(true)
+                .setSaveConsumer(BetterShulkerConfig::setContainerBounceEnabled)
+                .setTooltip(text("Bounce a Shulker Box in its slot while you carry an item that can be dropped into it."))
+                .build());
     }
 
     private static void addAudioCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {
