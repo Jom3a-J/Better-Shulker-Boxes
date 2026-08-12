@@ -46,8 +46,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int SLOT_START_X = 8;
     private static final int SLOT_START_Y = 7;
     private static final int TOOLTIP_BOTTOM_PADDING = 6;
-    private static final int COMPACT_SLOT_START_X = 7;
-    private static final int COMPACT_SLOT_START_Y = 7;
     private static final int COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET = 0;
     private static final int COMPACT_HINT_HEIGHT = 13;
     private static final int NAME_BADGE_HEIGHT = 14;
@@ -222,7 +220,13 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     @Override
     public int getWidth(Font textRenderer) {
         if (this.compactMode) {
-            return Math.max(getPanelWidth(), textRenderer.width(getCompactFullHintText()) + 12);
+            int compactWidth = Math.max(getPanelWidth(), textRenderer.width(getCompactFullHintText()) + 12);
+            if (this.containerName != null && !this.containerName.isEmpty()) {
+                // Room for the name tab's own padding. Without it the tooltip is only as wide as
+                // the bare name line, and the tab has to ellipsise a name that would have fit.
+                compactWidth = Math.max(compactWidth, textRenderer.width(this.containerName) + 12);
+            }
+            return compactWidth;
         }
         int width = getPanelWidth();
         if (this.containerName != null && !this.containerName.isEmpty()) {
@@ -1195,9 +1199,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             renderRow = currentRow;
         }
 
-        int startX = this.compactMode
-                ? (this.resourcePackOverridesPanel ? getSlotStartX() : COMPACT_SLOT_START_X)
-                : getSlotStartX();
+        // Same origin the items, lattice, hover and multi-select all use. Compact used to start
+        // a pixel to the left here, which left the fill straddling the edge of its own cell.
+        int startX = getSlotStartX();
         int cellSize = getRenderedSlotSize();
         int slotX = panelX + startX + Math.round(renderCol * cellSize);
         int slotY = panelY + getSlotStartY() + Math.round(renderRow * cellSize);
