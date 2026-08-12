@@ -589,36 +589,40 @@ public final class BetterShulkerClothConfigScreen {
         category.addEntry(previewState.resourcePackMode);
         addResourcePackLayoutSettings(category, entry, previewState);
         previewState.style = entry.startSelector(text("Tooltip Style"), BetterShulkerConfig.TooltipStyle.values(), BetterShulkerConfig.getTooltipStyle())
-                .setDefaultValue(BetterShulkerConfig.TooltipStyle.VANILLA)
+                .setDefaultValue(BetterShulkerConfig.TooltipStyle.MODERN)
                 .setNameProvider(value -> text(value.getDisplayName()))
                 .setSaveConsumer(BetterShulkerConfig::setTooltipStyle)
-                .setTooltip(text("Vanilla builds the panel from the container GUI texture and is coloured by the theme below. Modern draws a self-contained rounded card coloured by the container's own dye, and greys the theme out."))
+                .setTooltip(text("Modern draws a self-contained rounded card coloured by the container's own dye, or by an active resource pack. Vanilla builds the panel from the container GUI texture and is coloured by the theme and sliders below, which Modern greys out."))
                 .build();
         category.addEntry(previewState.style);
+
+        // Modern derives every colour itself, so nothing below it applies while it is selected.
+        Requirement vanillaStyle = Requirement.isValue(previewState.style,
+                BetterShulkerConfig.TooltipStyle.VANILLA);
+
         previewState.theme = entry.startSelector(text("Tooltip Theme"), BetterShulkerConfig.TooltipTheme.values(), BetterShulkerConfig.getTooltipTheme())
                 .setDefaultValue(BetterShulkerConfig.TooltipTheme.ORIGINAL)
                 .setNameProvider(value -> text(value.getDisplayName()))
                 .setSaveConsumer(BetterShulkerConfig::setTooltipTheme)
                 .setTooltip(text("Use the arrows to choose from the visible theme list. Only applies to the Vanilla tooltip style."))
-                // Modern derives every colour itself, so the theme has nothing to contribute.
-                .setRequirement(Requirement.isValue(previewState.style, BetterShulkerConfig.TooltipStyle.VANILLA))
+                .setRequirement(vanillaStyle)
                 .build();
         category.addEntry(previewState.theme);
-        category.addEntry(entry.startTextDescription(text("The live preview on the right updates for every theme before you press Done. Selected Name Text applies to every theme; the other RGB sliders are used by Custom."))
+        category.addEntry(entry.startTextDescription(text("The live preview on the right updates for every theme before you press Done. Selected Name Text applies to every theme; the other RGB sliders are used by Custom. The theme and all sliders are greyed out under the Modern style, which colours itself."))
                 .build());
 
         previewState.background = addRgbSliders(category, entry, "Custom Background", BetterShulkerConfig.getCustomBackgroundColor(), 0xFF1A1A1A,
-                BetterShulkerConfig::getCustomBackgroundColor, BetterShulkerConfig::setCustomBackgroundColor);
+                BetterShulkerConfig::getCustomBackgroundColor, BetterShulkerConfig::setCustomBackgroundColor, vanillaStyle);
         previewState.border = addRgbSliders(category, entry, "Custom Border", BetterShulkerConfig.getCustomBorderColor(), 0xFF8932B8,
-                BetterShulkerConfig::getCustomBorderColor, BetterShulkerConfig::setCustomBorderColor);
+                BetterShulkerConfig::getCustomBorderColor, BetterShulkerConfig::setCustomBorderColor, vanillaStyle);
         previewState.nameBackground = addRgbSliders(category, entry, "Selected Name Background", BetterShulkerConfig.getCustomNameBgColor(), 0xF0100010,
-                BetterShulkerConfig::getCustomNameBgColor, BetterShulkerConfig::setCustomNameBgColor);
+                BetterShulkerConfig::getCustomNameBgColor, BetterShulkerConfig::setCustomNameBgColor, vanillaStyle);
         previewState.nameBorder = addRgbSliders(category, entry, "Selected Name Border", BetterShulkerConfig.getCustomNameBorderColor(), 0xFF8932B8,
-                BetterShulkerConfig::getCustomNameBorderColor, BetterShulkerConfig::setCustomNameBorderColor);
+                BetterShulkerConfig::getCustomNameBorderColor, BetterShulkerConfig::setCustomNameBorderColor, vanillaStyle);
         previewState.nameText = addRgbSliders(category, entry, "Selected Name Text", BetterShulkerConfig.getCustomNameTextColor(), 0xFFFFFFFF,
-                BetterShulkerConfig::getCustomNameTextColor, BetterShulkerConfig::setCustomNameTextColor);
+                BetterShulkerConfig::getCustomNameTextColor, BetterShulkerConfig::setCustomNameTextColor, vanillaStyle);
         previewState.selection = addRgbSliders(category, entry, "Selection Square", BetterShulkerConfig.getCustomSelectionSquareColor(), 0xFFFFD700,
-                BetterShulkerConfig::getCustomSelectionSquareColor, BetterShulkerConfig::setCustomSelectionSquareColor);
+                BetterShulkerConfig::getCustomSelectionSquareColor, BetterShulkerConfig::setCustomSelectionSquareColor, vanillaStyle);
     }
 
     private static void addResourcePackLayoutSettings(ConfigCategory category, ConfigEntryBuilder entry,
@@ -682,7 +686,8 @@ public final class BetterShulkerClothConfigScreen {
 
     private static ColorSliders addRgbSliders(ConfigCategory category, ConfigEntryBuilder entry, String label, int currentColor, int defaultColor,
                                               IntSupplier currentSupplier,
-                                              IntConsumer saveConsumer) {
+                                              IntConsumer saveConsumer,
+                                              Requirement enableRequirement) {
         var sub = entry.startSubCategory(text(label));
         IntegerSliderEntry red = entry.startIntSlider(text("Red"), red(currentColor), 0, 255)
                 .setDefaultValue(red(defaultColor))
@@ -702,7 +707,8 @@ public final class BetterShulkerClothConfigScreen {
         sub.add(red);
         sub.add(green);
         sub.add(blue);
-        category.addEntry(sub.setExpanded(false).build());
+        // Set on the group rather than each slider, so the whole colour folds out grey together.
+        category.addEntry(sub.setRequirement(enableRequirement).setExpanded(false).build());
         return new ColorSliders(red, green, blue);
     }
 

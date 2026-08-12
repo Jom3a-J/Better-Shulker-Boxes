@@ -38,7 +38,7 @@ public class BetterShulkerConfig {
     
     // -- Themes & Colors --
     public static TooltipTheme tooltipTheme = TooltipTheme.ORIGINAL;
-    public static TooltipStyle tooltipStyle = TooltipStyle.VANILLA;
+    public static TooltipStyle tooltipStyle = TooltipStyle.MODERN;
     public static ResourcePackMode resourcePackMode = ResourcePackMode.AUTO;
     /** Output-only adjustments for resource-pack layout profiles; -1 keeps the profile cap. */
     public static int resourcePackLayoutOffsetX = 0;
@@ -188,9 +188,9 @@ public class BetterShulkerConfig {
     public static void setTooltipTheme(TooltipTheme t) { tooltipTheme = t == null ? TooltipTheme.ORIGINAL : t; }
 
     public static TooltipStyle getTooltipStyle() {
-        return tooltipStyle == null ? TooltipStyle.VANILLA : tooltipStyle;
+        return tooltipStyle == null ? TooltipStyle.MODERN : tooltipStyle;
     }
-    public static void setTooltipStyle(TooltipStyle s) { tooltipStyle = s == null ? TooltipStyle.VANILLA : s; }
+    public static void setTooltipStyle(TooltipStyle s) { tooltipStyle = s == null ? TooltipStyle.MODERN : s; }
 
     public static ResourcePackMode getResourcePackMode() {
         return resourcePackMode == null ? ResourcePackMode.AUTO : resourcePackMode;
