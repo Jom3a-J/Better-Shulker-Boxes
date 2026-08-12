@@ -36,6 +36,7 @@ public class BetterShulkerConfig {
     
     // -- Themes & Colors --
     public static TooltipTheme tooltipTheme = TooltipTheme.ORIGINAL;
+    public static TooltipStyle tooltipStyle = TooltipStyle.VANILLA;
     public static ResourcePackMode resourcePackMode = ResourcePackMode.AUTO;
     /** Output-only adjustments for resource-pack layout profiles; -1 keeps the profile cap. */
     public static int resourcePackLayoutOffsetX = 0;
@@ -72,6 +73,22 @@ public class BetterShulkerConfig {
 
         private final String displayName;
         TooltipTheme(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
+    }
+
+    /**
+     * Shape of the tooltip panel, chosen independently of the colour theme.
+     *
+     * <p>Vanilla builds the panel from the container GUI texture; Modern draws a flat rounded
+     * card with a lattice slot grid instead. The theme still supplies selection and filter
+     * colours under both.</p>
+     */
+    public enum TooltipStyle {
+        VANILLA("Vanilla"),
+        MODERN("Modern");
+
+        private final String displayName;
+        TooltipStyle(String displayName) { this.displayName = displayName; }
         public String getDisplayName() { return displayName; }
     }
 
@@ -130,7 +147,7 @@ public class BetterShulkerConfig {
     
     public static boolean isSelectedItemNameEnabled() { return selectedItemNameEnabled; }
     public static void setSelectedItemNameEnabled(boolean v) { selectedItemNameEnabled = v; }
-    
+
     public static boolean isCompactTooltipEnabled() { return compactTooltipEnabled; }
     public static void setCompactTooltipEnabled(boolean v) { compactTooltipEnabled = v; }
 
@@ -164,6 +181,11 @@ public class BetterShulkerConfig {
         return tooltipTheme == null ? TooltipTheme.ORIGINAL : tooltipTheme;
     }
     public static void setTooltipTheme(TooltipTheme t) { tooltipTheme = t == null ? TooltipTheme.ORIGINAL : t; }
+
+    public static TooltipStyle getTooltipStyle() {
+        return tooltipStyle == null ? TooltipStyle.VANILLA : tooltipStyle;
+    }
+    public static void setTooltipStyle(TooltipStyle s) { tooltipStyle = s == null ? TooltipStyle.VANILLA : s; }
 
     public static ResourcePackMode getResourcePackMode() {
         return resourcePackMode == null ? ResourcePackMode.AUTO : resourcePackMode;
@@ -236,7 +258,16 @@ public class BetterShulkerConfig {
             rareItemWobbleEnabled   = bool(props, "rareItemWobbleEnabled", rareItemWobbleEnabled);
             setSoundVolume(floatVal(props, "soundVolume", soundVolume));
             setSoundOption(enumVal(props, "soundOption", SoundOption.class, soundOption));
-            setTooltipTheme(enumVal(props, "tooltipTheme", TooltipTheme.class, tooltipTheme));
+            // Modern used to be a theme. Configs written back then still say tooltipTheme=MODERN,
+            // which no longer parses; carry them over to the style option instead of resetting.
+            if ("MODERN".equalsIgnoreCase(props.getProperty("tooltipTheme", "").trim())
+                    && props.getProperty("tooltipStyle") == null) {
+                setTooltipTheme(TooltipTheme.ORIGINAL);
+                setTooltipStyle(TooltipStyle.MODERN);
+            } else {
+                setTooltipTheme(enumVal(props, "tooltipTheme", TooltipTheme.class, tooltipTheme));
+                setTooltipStyle(enumVal(props, "tooltipStyle", TooltipStyle.class, tooltipStyle));
+            }
             setResourcePackMode(enumVal(props, "resourcePackMode", ResourcePackMode.class, resourcePackMode));
             setResourcePackLayoutOffsetX(intVal(props, "resourcePackLayoutOffsetX", resourcePackLayoutOffsetX));
             setResourcePackLayoutOffsetY(intVal(props, "resourcePackLayoutOffsetY", resourcePackLayoutOffsetY));
@@ -261,6 +292,7 @@ public class BetterShulkerConfig {
             setSoundVolume(soundVolume);
             setSoundOption(soundOption);
             setTooltipTheme(tooltipTheme);
+            setTooltipStyle(tooltipStyle);
             setResourcePackMode(resourcePackMode);
             setResourcePackLayoutOffsetX(resourcePackLayoutOffsetX);
             setResourcePackLayoutOffsetY(resourcePackLayoutOffsetY);
@@ -281,6 +313,7 @@ public class BetterShulkerConfig {
             props.setProperty("soundVolume", String.valueOf(soundVolume));
             props.setProperty("soundOption", soundOption.name());
             props.setProperty("tooltipTheme", tooltipTheme.name());
+            props.setProperty("tooltipStyle", tooltipStyle.name());
             props.setProperty("resourcePackMode", resourcePackMode.name());
             props.setProperty("resourcePackLayoutOffsetX", String.valueOf(resourcePackLayoutOffsetX));
             props.setProperty("resourcePackLayoutOffsetY", String.valueOf(resourcePackLayoutOffsetY));

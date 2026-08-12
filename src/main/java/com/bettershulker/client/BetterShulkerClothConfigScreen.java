@@ -9,6 +9,7 @@ import me.shedaniel.clothconfig2.api.AbstractConfigListEntry;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
+import me.shedaniel.clothconfig2.api.Requirement;
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 
 import net.minecraft.client.Minecraft;
@@ -34,6 +35,9 @@ public final class BetterShulkerClothConfigScreen {
     private static final Identifier PREVIEW_SHULKER_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
     private static final float PREVIEW_PANEL_TEXTURE_U = 0.0F;
     private static final float PREVIEW_PANEL_TEXTURE_V = 11.0F;
+    // Mirrors ShulkerTooltipComponent's Modern palette for an undyed purple shulker box.
+    private static final int MODERN_PREVIEW_FILL = 0xFF785192;
+    private static final int MODERN_PREVIEW_BORDER = 0xFF543966;
 
     private BetterShulkerClothConfigScreen() {}
 
@@ -182,6 +186,15 @@ public final class BetterShulkerClothConfigScreen {
 
     private static void drawFullThemePreviewPanel(GuiGraphicsExtractor graphics, PreviewColors colors,
                                                   int panelX, int panelY, int fullW, int fullH, int sel) {
+        if (colors.modern()) {
+            drawModernPreviewPanel(graphics, colors, panelX, panelY, fullW, fullH, 9, 3);
+            int modernSelX = panelX + 8 + 3 * 18;
+            int modernSelY = panelY + 7 + 18;
+            drawStaticFrame(graphics, modernSelX, modernSelY, 18, 18, sel);
+            graphics.fill(modernSelX + 1, modernSelY + 1, modernSelX + 17, modernSelY + 17, withAlpha(sel, 45));
+            return;
+        }
+
         if (colors.usesVanillaPanelTexture()) {
             graphics.blit(RenderPipelines.GUI_TEXTURED,
                     PREVIEW_SHULKER_PANEL_TEXTURE,
@@ -247,12 +260,52 @@ public final class BetterShulkerClothConfigScreen {
         graphics.text(font, text(name), nameX + 6, y + 3, nameText);
     }
 
+    private static void drawModernPreviewPanel(GuiGraphicsExtractor graphics, PreviewColors colors,
+                                               int x, int y, int w, int h, int cols, int rows) {
+        int fill = colors.background();
+        int border = colors.border();
+        fillRoundedPreview(graphics, x, y, w, h, border);
+        fillRoundedPreview(graphics, x + 2, y + 2, w - 4, h - 4, fill);
+        graphics.fill(x + 3, y + 2, x + w - 3, y + 3, blendColor(fill, 0xFFFFFFFF, 0.16f));
+        graphics.fill(x + 3, y + h - 3, x + w - 3, y + h - 2, blendColor(fill, 0xFF000000, 0.18f));
+
+        int gridX = x + 8;
+        int gridY = y + 7;
+        int gridW = cols * 18;
+        int gridH = rows * 18;
+        graphics.fill(gridX, gridY, gridX + gridW, gridY + gridH, blendColor(fill, 0xFF000000, 0.08f));
+        int line = blendColor(fill, 0xFF000000, 0.20f);
+        for (int col = 0; col <= cols; col++) {
+            int lineX = gridX + col * 18;
+            graphics.fill(lineX, gridY, lineX + 1, gridY + gridH + 1, line);
+        }
+        for (int row = 0; row <= rows; row++) {
+            int lineY = gridY + row * 18;
+            graphics.fill(gridX, lineY, gridX + gridW + 1, lineY + 1, line);
+        }
+    }
+
+    private static void fillRoundedPreview(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int color) {
+        if (w <= 0 || h <= 0) return;
+        if (w <= 4 || h <= 4) {
+            graphics.fill(x, y, x + w, y + h, color);
+            return;
+        }
+        graphics.fill(x + 2, y, x + w - 2, y + 1, color);
+        graphics.fill(x + 1, y + 1, x + w - 1, y + 2, color);
+        graphics.fill(x, y + 2, x + w, y + h - 2, color);
+        graphics.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, color);
+        graphics.fill(x + 2, y + h - 1, x + w - 2, y + h, color);
+    }
+
     private static void drawCompactThemePreview(GuiGraphicsExtractor graphics, Font font, PreviewColors colors,
                                                 int x, int y, int panelW, int panelH, int sel) {
         int compactBase = colors.compactBase();
         boolean glass = colors.glassCompact();
 
-        if (colors.usesVanillaPanelTexture() && !glass) {
+        if (colors.modern()) {
+            drawModernPreviewPanel(graphics, colors, x, y, panelW, panelH, 5, 1);
+        } else if (colors.usesVanillaPanelTexture() && !glass) {
             // Match ShulkerTooltipComponent's compact path: recompose the normal full tooltip
             // panel texture into compact width, then apply the same full-tooltip overlay.
             int leftW = 8;
@@ -355,14 +408,31 @@ public final class BetterShulkerClothConfigScreen {
                 ? BetterShulkerConfig.getTooltipTheme()
                 : state.theme.getValue();
         int nameText = state.nameText.color();
+        PreviewColors themeColors = resolveThemePreviewColors(state, theme, nameText);
+
+        BetterShulkerConfig.TooltipStyle style = state.style == null || state.style.getValue() == null
+                ? BetterShulkerConfig.getTooltipStyle()
+                : state.style.getValue();
+        if (style != BetterShulkerConfig.TooltipStyle.MODERN) {
+            return themeColors;
+        }
+        // Modern ignores the theme completely; its palette comes from the container dye.
+        return new PreviewColors(MODERN_PREVIEW_FILL, MODERN_PREVIEW_BORDER, MODERN_PREVIEW_BORDER,
+                MODERN_PREVIEW_BORDER, 0xFFFFD700, nameText, 0x00000000, false,
+                MODERN_PREVIEW_FILL, false, true);
+    }
+
+    private static PreviewColors resolveThemePreviewColors(CustomPreviewState state,
+                                                           BetterShulkerConfig.TooltipTheme theme,
+                                                           int nameText) {
         return switch (theme) {
-            case ORIGINAL -> new PreviewColors(0xFF2B0B3A, 0xFF8932B8, 0xE0100018, 0xFF8932B8, 0xFFFFD700, nameText, 0x65100018, true, 0xFF6F2D8F, false);
-            case CLASSIC -> new PreviewColors(0xFF2D4A1A, 0xFF4A7A25, 0xE02D4A1A, 0xFF4A7A25, 0xFFA7E060, nameText, 0x702D4A1A, true, 0xFF2D4A1A, false);
-            case RETRO -> new PreviewColors(0xFF080812, 0xFFFF00FF, 0xE0080812, 0xFFFF00FF, 0xFF00FFFF, nameText, 0x70080812, true, 0xFF1A0028, false);
-            case SOLARIZED_DARK -> new PreviewColors(0xFF002B36, 0xFF268BD2, 0xE0002B36, 0xFF268BD2, 0xFFB58900, nameText, 0x76002B36, true, 0xFF002B36, false);
-            case SOLARIZED_LIGHT -> new PreviewColors(0xFFFDF6E3, 0xFF268BD2, 0xEEFDF6E3, 0xFF268BD2, 0xFFCB4B16, nameText, 0x88FDF6E3, true, 0xFFFDF6E3, false);
-            case HIGH_CONTRAST -> new PreviewColors(0xFF000000, 0xFFFFAA00, 0xF0000000, 0xFFFFAA00, 0xFFFFFF00, nameText, 0x88000000, true, 0xFF000000, false);
-            case GLASS -> new PreviewColors(0xDDEAF7FF, 0xB8FFFFFF, 0xDDEAF7FF, 0xB8FFFFFF, 0xFFFFD700, nameText, 0x32FFFFFF, false, 0xFFEAF7FF, true);
+            case ORIGINAL -> new PreviewColors(0xFF2B0B3A, 0xFF8932B8, 0xE0100018, 0xFF8932B8, 0xFFFFD700, nameText, 0x65100018, true, 0xFF6F2D8F, false, false);
+            case CLASSIC -> new PreviewColors(0xFF2D4A1A, 0xFF4A7A25, 0xE02D4A1A, 0xFF4A7A25, 0xFFA7E060, nameText, 0x702D4A1A, true, 0xFF2D4A1A, false, false);
+            case RETRO -> new PreviewColors(0xFF080812, 0xFFFF00FF, 0xE0080812, 0xFFFF00FF, 0xFF00FFFF, nameText, 0x70080812, true, 0xFF1A0028, false, false);
+            case SOLARIZED_DARK -> new PreviewColors(0xFF002B36, 0xFF268BD2, 0xE0002B36, 0xFF268BD2, 0xFFB58900, nameText, 0x76002B36, true, 0xFF002B36, false, false);
+            case SOLARIZED_LIGHT -> new PreviewColors(0xFFFDF6E3, 0xFF268BD2, 0xEEFDF6E3, 0xFF268BD2, 0xFFCB4B16, nameText, 0x88FDF6E3, true, 0xFFFDF6E3, false, false);
+            case HIGH_CONTRAST -> new PreviewColors(0xFF000000, 0xFFFFAA00, 0xF0000000, 0xFFFFAA00, 0xFFFFFF00, nameText, 0x88000000, true, 0xFF000000, false, false);
+            case GLASS -> new PreviewColors(0xDDEAF7FF, 0xB8FFFFFF, 0xDDEAF7FF, 0xB8FFFFFF, 0xFFFFD700, nameText, 0x32FFFFFF, false, 0xFFEAF7FF, true, false);
             case CUSTOM -> new PreviewColors(
                     state.background.color(),
                     state.border.color(),
@@ -373,6 +443,7 @@ public final class BetterShulkerClothConfigScreen {
                     normalizeOverlayAlpha(state.background.color(), 112),
                     true,
                     0xFF000000 | (state.background.color() & 0x00FFFFFF),
+                    false,
                     false
             );
         };
@@ -380,7 +451,7 @@ public final class BetterShulkerClothConfigScreen {
 
     private record PreviewColors(int background, int border, int nameBackground, int nameBorder, int selection,
                                  int nameText, int fullTint, boolean usesVanillaPanelTexture,
-                                 int compactBase, boolean glassCompact) {}
+                                 int compactBase, boolean glassCompact, boolean modern) {}
 
     private static boolean isThemeCategorySelected(Screen screen) {
         try {
@@ -512,11 +583,20 @@ public final class BetterShulkerClothConfigScreen {
                 .build();
         category.addEntry(previewState.resourcePackMode);
         addResourcePackLayoutSettings(category, entry, previewState);
+        previewState.style = entry.startSelector(text("Tooltip Style"), BetterShulkerConfig.TooltipStyle.values(), BetterShulkerConfig.getTooltipStyle())
+                .setDefaultValue(BetterShulkerConfig.TooltipStyle.VANILLA)
+                .setNameProvider(value -> text(value.getDisplayName()))
+                .setSaveConsumer(BetterShulkerConfig::setTooltipStyle)
+                .setTooltip(text("Vanilla builds the panel from the container GUI texture and is coloured by the theme below. Modern draws a self-contained rounded card coloured by the container's own dye, and greys the theme out."))
+                .build();
+        category.addEntry(previewState.style);
         previewState.theme = entry.startSelector(text("Tooltip Theme"), BetterShulkerConfig.TooltipTheme.values(), BetterShulkerConfig.getTooltipTheme())
                 .setDefaultValue(BetterShulkerConfig.TooltipTheme.ORIGINAL)
                 .setNameProvider(value -> text(value.getDisplayName()))
                 .setSaveConsumer(BetterShulkerConfig::setTooltipTheme)
-                .setTooltip(text("Use the arrows to choose from the visible theme list."))
+                .setTooltip(text("Use the arrows to choose from the visible theme list. Only applies to the Vanilla tooltip style."))
+                // Modern derives every colour itself, so the theme has nothing to contribute.
+                .setRequirement(Requirement.isValue(previewState.style, BetterShulkerConfig.TooltipStyle.VANILLA))
                 .build();
         category.addEntry(previewState.theme);
         category.addEntry(entry.startTextDescription(text("The live preview on the right updates for every theme before you press Done. Selected Name Text applies to every theme; the other RGB sliders are used by Custom."))
@@ -624,6 +704,7 @@ public final class BetterShulkerClothConfigScreen {
     private static final class CustomPreviewState {
         private AbstractConfigListEntry<BetterShulkerConfig.ResourcePackMode> resourcePackMode;
         private AbstractConfigListEntry<BetterShulkerConfig.TooltipTheme> theme;
+        private AbstractConfigListEntry<BetterShulkerConfig.TooltipStyle> style;
         private ColorSliders background;
         private ColorSliders border;
         private ColorSliders nameBackground;
