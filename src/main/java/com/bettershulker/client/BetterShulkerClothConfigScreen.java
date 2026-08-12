@@ -675,7 +675,6 @@ public final class BetterShulkerClothConfigScreen {
         category.addEntry(entry.fillKeybindingField(text("Open Settings"), BetterShulkerClient.getSettingsKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Extract Selected Slots"), BetterShulkerClient.getExtractKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Select Tooltip Slot"), BetterShulkerClient.getSelectSlotKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Filter Item"), BetterShulkerClient.getFilterKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Precision Mode"), BetterShulkerClient.getPrecisionKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Alt Force Tooltip"), BetterShulkerClient.getAltForceKey()).build());
         category.addEntry(entry.fillKeybindingField(text("Selection Left"), BetterShulkerClient.getScrollLeftKey()).build());

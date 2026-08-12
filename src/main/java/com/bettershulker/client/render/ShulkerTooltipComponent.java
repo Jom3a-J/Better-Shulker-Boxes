@@ -100,7 +100,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final int badgeBgColor;
     private final int selectionColor;
     private final int multiSelectColor;
-    private final int matchColor;
     private final int panelShadowColor;
 
     private record DisplayLayout(List<Integer> slots, List<Integer> counts) {}
@@ -157,7 +156,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         this.badgeBgColor = palette.badgeBgColor;
         this.selectionColor = palette.selectionColor;
         this.multiSelectColor = palette.multiSelectColor;
-        this.matchColor = palette.matchColor;
         this.panelShadowColor = palette.panelShadowColor;
     }
 
@@ -1085,8 +1083,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawItemsAndSlotOverlays(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int hoveredSlot, long now) {
-        ItemStack filterStack = BetterShulkerClient.getFilterItemStack();
-        boolean isFiltering = !filterStack.isEmpty();
         int selectedDisplay = getDisplayIndexForSlot(BetterShulkerClient.getSelectedSlotIndex());
         int hoveredDisplay = hoveredSlot >= 0 ? getDisplayIndexForSlot(hoveredSlot) : -1;
         int animatedDisplay = selectedDisplay >= 0 ? selectedDisplay : hoveredDisplay;
@@ -1147,19 +1143,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
                 if (wobble || scale > 1.01f) {
                     context.pose().popMatrix();
-                }
-            }
-
-            boolean matches = true;
-            if (isFiltering) {
-                matches = !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, filterStack);
-            }
-            if (isFiltering) {
-                if (matches) {
-                    drawSlotOutline(context, slotX, slotY, this.matchColor, true);
-                } else {
-                    int size = getRenderedSlotSize();
-                    context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, 0xB0000000);
                 }
             }
 
@@ -1456,21 +1439,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(slotX + size - 4, slotY + 4, slotX + size - 3, slotY + size - 4, hint);
     }
 
-    private void drawSlotOutline(GuiGraphicsExtractor context, int x, int y, int color, boolean doubleLine) {
-        int size = getRenderedSlotSize();
-        context.fill(x, y, x + size, y + 1, color);
-        context.fill(x, y + size - 1, x + size, y + size, color);
-        context.fill(x, y + 1, x + 1, y + size - 1, color);
-        context.fill(x + size - 1, y + 1, x + size, y + size - 1, color);
-        if (doubleLine) {
-            int inner = withAlpha(color, Math.min(255, ((color >>> 24) & 0xFF) / 2));
-            context.fill(x + 1, y + 1, x + size - 1, y + 2, inner);
-            context.fill(x + 1, y + size - 2, x + size - 1, y + size - 1, inner);
-            context.fill(x + 1, y + 2, x + 2, y + size - 2, inner);
-            context.fill(x + size - 2, y + 2, x + size - 1, y + size - 2, inner);
-        }
-    }
-
     private void drawRectFrame(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
         context.fill(x, y, x + w, y + 1, color);
         context.fill(x, y + h - 1, x + w, y + h, color);
@@ -1556,7 +1524,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int badgeBg;
         int select;
         int multi = 0xFF55FFFF;
-        int match = 0xFF55FF55;
         int shadow = 0xFF000000;
 
         if (this.isEnderChest) {
@@ -1589,7 +1556,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 badgeBg = 0xE02D4A1A;
                 baseText = 0xFFD4E8C0;
                 select = 0xFFA7E060;
-                match = 0xFF7DFF6A;
             }
             case RETRO -> {
                 baseBorder = 0xFFFF00FF;
@@ -1598,7 +1564,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = 0xFFFF66FF;
                 select = 0xFF00FFFF;
                 multi = 0xFFFF66FF;
-                match = 0xFF39FF14;
             }
             case SOLARIZED_DARK -> {
                 baseBorder = 0xFF268BD2;
@@ -1622,7 +1587,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = 0xFFFFFF00;
                 select = 0xFFFFFF00;
                 multi = 0xFFFFFFFF;
-                match = 0xFF00FF00;
             }
             case CUSTOM -> {
                 baseBorder = BetterShulkerConfig.getCustomBorderColor();
@@ -1632,7 +1596,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = BetterShulkerConfig.getCustomNameTextColor();
                 select = BetterShulkerConfig.getCustomSelectionSquareColor();
                 multi = blendColor(select, 0xFF55FFFF, 0.45f);
-                match = blendColor(select, 0xFF55FF55, 0.45f);
             }
             case GLASS -> {
                 baseBorder = 0xB8FFFFFF;
@@ -1641,7 +1604,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = 0xFF2A2A2A;
                 select = 0xFFFFD700;
                 multi = 0xFF8EEBFF;
-                match = 0xFFA0FFA0;
                 shadow = 0x80FFFFFF;
             }
         }
@@ -1653,7 +1615,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             badgeBg = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.45f), 230);
             select = ENDER_ACCENT_COLOR;
             multi = 0xFFB35CFF;
-            match = 0xFF50FFB8;
         }
 
         // Modern derives everything from the container's dye and ignores the theme entirely,
@@ -1666,11 +1627,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             baseText = 0xFFFFFFFF;
             select = this.isEnderChest ? ENDER_ACCENT_COLOR : 0xFFFFD700;
             multi = 0xFF7FD8FF;
-            match = 0xFF7DFF6A;
             shadow = getModernPanelBorder();
         }
 
-        return new ThemePalette(baseBorder, nameBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);
+        return new ThemePalette(baseBorder, nameBorder, baseTint, baseText, badgeBg, select, multi, shadow);
     }
 
 
@@ -1682,7 +1642,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             int badgeBgColor,
             int selectionColor,
             int multiSelectColor,
-            int matchColor,
             int panelShadowColor
     ) {}
 }

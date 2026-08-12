@@ -733,52 +733,7 @@ public abstract class HandledScreenMixin extends Screen {
             return;
         }
 
-        // 1. Handle filterKey for item filtering inside container tooltips
-        if (BetterShulkerClient.getFilterKey().matches(keyEvent)) {
-            ItemStack targetStack = ItemStack.EMPTY;
-
-            // Check if hovering a slot inside the container tooltip
-            int hoveredTooltipIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
-            if (hoveredTooltipIdx < 0 && BetterShulkerClient.isTooltipActive()) {
-                hoveredTooltipIdx = BetterShulkerClient.getSelectedSlotIndex();
-            }
-            ItemStack hoveredTooltipContainer = BetterShulkerClient.getActiveContainerStack();
-            if (hoveredTooltipIdx >= 0 && !hoveredTooltipContainer.isEmpty()) {
-                NonNullList<ItemStack> contents = bettershulker$getContents(hoveredTooltipContainer);
-                if (hoveredTooltipIdx < contents.size()) {
-                    targetStack = contents.get(hoveredTooltipIdx);
-                }
-            }
-
-            // If not hovering a tooltip slot, check the hovered slot in the screen itself
-            if (targetStack.isEmpty() && this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
-                targetStack = this.hoveredSlot.getItem();
-            }
-
-            if (!targetStack.isEmpty()) {
-                ItemStack currentFilter = BetterShulkerClient.getFilterItemStack();
-                if (!currentFilter.isEmpty() && ItemStack.isSameItemSameComponents(currentFilter, targetStack)) {
-                    // Toggle off if same item
-                    BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
-                } else {
-                    // Set new filter
-                    BetterShulkerClient.setFilterItemStack(targetStack.copy());
-                }
-                ci.setReturnValue(true);
-                ci.cancel();
-                return;
-            } else {
-                // If pressing filterKey over nothing, clear the filter!
-                if (!BetterShulkerClient.getFilterItemStack().isEmpty()) {
-                    BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
-                    ci.setReturnValue(true);
-                    ci.cancel();
-                    return;
-                }
-            }
-        }
-
-        // 2. Handle arrow-key movement for the tooltip selection square.
+        // Handle arrow-key movement for the tooltip selection square.
         // Left/Right use the configured scroll keys; Up/Down move one row in the 9x3 grid.
         if (BetterShulkerConfig.secondaryTooltipEnabled && BetterShulkerClient.isTooltipActive()) {
             int scrollDelta = 0;
@@ -1128,7 +1083,6 @@ public abstract class HandledScreenMixin extends Screen {
         BetterShulkerClient.setTooltipActive(false);
         BetterShulkerClient.setActiveContainerStack(ItemStack.EMPTY);
         BetterShulkerClient.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
-        BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
         BetterShulkerClient.clearSelectedSlotsSet();
     }
 
