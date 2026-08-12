@@ -60,6 +60,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int NAME_TAB_GAP = 2;
     /** Below this the card is too dark to derive shades by darkening; they are lightened instead. */
     private static final float MODERN_DARK_FILL_LUMINANCE = 0.15f;
+    /** Gap the full 176px card leaves right of its grid: 176 - 8 - 9*18. */
+    private static final int MODERN_GRID_RIGHT_MARGIN = 6;
     // ClientTextTooltip is ten pixels high and GuiGraphicsExtractor adds a two-pixel
     // gap after the first text line. Keep the custom name badge aligned with the
     // vanilla selected-item tooltip above the container title.
@@ -239,8 +241,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     @Override
     public void extractImage(Font textRenderer, int tooltipX, int tooltipY, int width, int height, GuiGraphicsExtractor context) {
-        int panelX = tooltipX + (width - getPanelWidth()) / 2;
-        int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
         long now = System.currentTimeMillis();
 
         boolean resourcePackMode = this.resourcePackOverridesPanel;
@@ -250,16 +250,25 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         // resource pack, by taking that pack's colour and slot grid rather than standing down.
         boolean modernMode = isModernStyle();
 
+        // A compact card is only as wide as its handful of slots, but the tooltip around it is
+        // already as wide as the name line and the hint below force it. Stretching the card to
+        // fill that width costs no extra space and stops the name tabs, which are sized from the
+        // names rather than the slot count, from hanging off both edges of a tiny card.
+        boolean modernCompact = modernMode && this.compactMode;
+        int cardWidth = modernCompact ? width : getPanelWidth();
+        int panelX = modernCompact ? tooltipX : tooltipX + (width - getPanelWidth()) / 2;
+        int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
+
         if (!resourcePackMode && !modernMode && (!this.compactMode || hasCompactPreview)) {
             drawPanelAura(context, panelX, panelY, getPanelWidth(), getPanelHeight(), now);
         }
         if (this.compactMode) {
             if (hasCompactPreview) {
-                drawCompactPanel(textRenderer, context, panelX, panelY);
+                drawCompactPanel(textRenderer, context, panelX, panelY, cardWidth);
             }
         } else if (modernMode) {
             // displayCols/Rows already carry the pack's grid when one is active, 9x3 otherwise.
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth);
         } else if (isGlassTheme() && !resourcePackMode) {
             drawGlassPanel(context, panelX, panelY);
         } else {
@@ -322,10 +331,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 layout.bottomCapHeight(), renderColor);
     }
 
-    private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY) {
+    private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int cardWidth) {
         // Modern is checked first: under a pack it recolours its card instead of deferring.
         if (isModernStyle()) {
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth);
             return;
         }
         if (this.resourcePackOverridesPanel) {
@@ -501,11 +510,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawFullStyleCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
-        if (isModernStyle()) {
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
-            return;
-        }
-
         if (isGlassTheme()) {
             drawGlassCompactPanel(context, panelX, panelY, getPanelWidth(), getPanelHeight(), getCompactPanelBaseColor());
             return;
@@ -760,8 +764,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
     }
 
-    private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows) {
-        int w = getPanelWidth();
+    private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows, int cardWidth) {
+        int w = cardWidth;
         int h = getPanelHeight();
         if (w <= 0 || h <= 0) return;
 
@@ -774,7 +778,21 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(panelX + 3, panelY + 2, panelX + w - 3, panelY + 3, blendColor(fill, 0xFFFFFFFF, 0.16f));
         context.fill(panelX + 3, panelY + h - 3, panelX + w - 3, panelY + h - 2, blendColor(fill, 0xFF000000, 0.18f));
 
-        drawModernGrid(context, panelX, panelY, cols, rows);
+        drawModernGrid(context, panelX, panelY, gridColumnsFor(cols, w), rows);
+    }
+
+    /**
+     * Columns of lattice to draw across a card {@code cardWidth} wide.
+     *
+     * <p>Compact stretches its card to the tooltip width, which is set by the name tab and the
+     * hint rather than by the slot count, so drawing only the occupied columns would leave most
+     * of the card bare. Empty trailing cells are filled in, matching how the full 9x3 card shows
+     * every slot whether or not it holds anything.</p>
+     */
+    private int gridColumnsFor(int cols, int cardWidth) {
+        if (!this.compactMode) return cols;
+        int usable = cardWidth - getSlotStartX() - MODERN_GRID_RIGHT_MARGIN;
+        return Math.max(cols, usable / getRenderedSlotSize());
     }
 
     /** Slots are a shared lattice of single-pixel rules rather than 27 embossed wells. */
@@ -830,6 +848,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             if (containerNeed + selectedNeed <= available) {
                 containerTabWidth = containerNeed;
                 selectedTabWidth = selectedNeed;
+            } else if (this.compactMode) {
+                // A compact row is too narrow to split without reducing both names to an
+                // ellipsis. The container name keeps it; the item name is still one hover away.
+                containerTabWidth = Math.min(tooltipWidth, containerNeed);
             } else {
                 // Neither tab may take more than half unless the other one wants less than that,
                 // in which case the leftover goes to whichever is still short.
