@@ -1,6 +1,7 @@
 package com.bettershulker;
 
 import com.bettershulker.network.ContainerInteractPayload;
+import com.bettershulker.server.EnderChestSync;
 import com.bettershulker.server.EnderChestService;
 import com.bettershulker.server.InteractionRateLimiter;
 import com.bettershulker.server.ShulkerInteractionHandler;
@@ -51,7 +52,7 @@ public class BetterShulkerMod {
     //  Shared Cache / Validation Utilities
 
     public static void clearPlayerCaches(UUID uuid) {
-        EnderChestService.clearPlayer(uuid);
+        EnderChestSync.clearPlayer(uuid);
         InteractionRateLimiter.clearPlayer(uuid);
     }
 

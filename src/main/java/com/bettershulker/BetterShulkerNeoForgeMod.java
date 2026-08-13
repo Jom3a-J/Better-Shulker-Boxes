@@ -3,6 +3,7 @@ package com.bettershulker;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.server.EnderChestSync;
 import com.bettershulker.server.EnderChestService;
 import com.bettershulker.platform.PlatformNetworking;
 import com.bettershulker.server.InteractionRateLimiter;
@@ -48,7 +49,7 @@ public final class BetterShulkerNeoForgeMod {
         if (!(context.player() instanceof ServerPlayer player)) {
             return;
         }
-        EnderChestService.handleEnderChestSyncRequest(player, payload.sourceSlotId());
+        EnderChestSync.handleEnderChestSyncRequest(player, payload.sourceSlotId());
     }
 
     private void handleContainerInteract(ContainerInteractPayload payload, IPayloadContext context) {

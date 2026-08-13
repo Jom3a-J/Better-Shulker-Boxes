@@ -110,6 +110,6 @@ public final class InteractionRateLimiter {
 
         // broadcastFullState cannot reach the mod's separate Ender Chest cache, so correct it
         // explicitly: a predicted Ender Chest edit must not survive the drop.
-        EnderChestService.sendAuthoritativeEnderChestSync(player);
+        EnderChestSync.sendAuthoritativeEnderChestSync(player);
     }
 }
