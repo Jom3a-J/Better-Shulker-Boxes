@@ -80,232 +80,28 @@ public final class EnderChestService {
         }
     }
 
+    /**
+     * Applies one interaction to the player's Ender Chest, then makes the sound it earned.
+     *
+     * <p>Each action lives in {@link EnderChestActions} and reports back rather than assigning to
+     * shared locals. A no-op is silent: the eight cases all abort by reporting no success, which
+     * is what the original's bare returns did by skipping past the sound below.</p>
+     */
     public static void performEnderChestInteraction(ServerPlayer player, Slot containerSlot, int targetIndex,
                                              ContainerInteractPayload.InteractType action, int inventorySlotId) {
-        var enderInv = player.getEnderChestInventory();
-        ItemStack cursorStack = player.containerMenu.getCarried();
-        boolean success = false;
-        boolean isInsert = false;
-        ItemStack soundStack = ItemStack.EMPTY;
+        EnderChestActions.Outcome outcome = switch (action) {
+            case INSERT -> EnderChestActions.insert(player);
+            case INSERT_ONE -> EnderChestActions.insertOne(player);
+            case EXTRACT -> EnderChestActions.extract(player, targetIndex);
+            case EXTRACT_ONE -> EnderChestActions.extractOne(player, targetIndex, inventorySlotId);
+            case SWEEP_INSERT -> EnderChestActions.sweepInsert(player, inventorySlotId);
+            case SWEEP_EXTRACT -> EnderChestActions.sweepExtract(player, targetIndex, inventorySlotId);
+            case RESTOCK -> EnderChestActions.restock(player);
+            case DEPOSIT -> EnderChestActions.deposit(player, containerSlot);
+        };
 
-        switch (action) {
-            case INSERT -> {
-                if (cursorStack.isEmpty()) return;
-                int originalCount = cursorStack.getCount();
-                // Captured before the passes below shrink it. Reading it afterwards named the
-                // remainder, so a stack that fit entirely left an empty one behind and the
-                // contextual sound fell back to its generic default instead of the item's own.
-                ItemStack insertedSource = cursorStack.copy();
-
-                // First pass: merge with existing compatible stacks
-                for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                    ItemStack existing = enderInv.getItem(i);
-                    if (ServerSlots.canMergeInto(existing, cursorStack)) {
-                        int canFit = existing.getMaxStackSize() - existing.getCount();
-                        int toInsert = Math.min(canFit, cursorStack.getCount());
-                        if (toInsert > 0) {
-                            existing.grow(toInsert);
-                            cursorStack.shrink(toInsert);
-                        }
-                    }
-                    if (cursorStack.isEmpty()) break;
-                }
-
-                // Second pass: put into empty slots using smart-merge
-                if (!cursorStack.isEmpty()) {
-                    while (cursorStack.getCount() > 0) {
-                        NonNullList<ItemStack> enderList = copyEnderChestContents(player);
-                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, cursorStack);
-                        if (bestSlot == -1) break;
-
-                        int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
-                        enderInv.setItem(bestSlot, cursorStack.copyWithCount(toInsert));
-                        cursorStack.shrink(toInsert);
-                    }
-                }
-
-                if (cursorStack.getCount() < originalCount) {
-                    success = true;
-                    isInsert = true;
-                    soundStack = insertedSource;
-                }
-            }
-            case INSERT_ONE -> {
-                if (cursorStack.isEmpty()) return;
-                ItemStack singleItem = cursorStack.copyWithCount(1);
-                boolean inserted = false;
-
-                // First pass: merge with existing compatible stacks
-                for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                    ItemStack existing = enderInv.getItem(i);
-                    if (ServerSlots.canMergeInto(existing, singleItem)) {
-                        existing.grow(1);
-                        inserted = true;
-                        break;
-                    }
-                }
-
-                // Second pass: put into empty slots using smart-merge
-                if (!inserted) {
-                    NonNullList<ItemStack> enderList = copyEnderChestContents(player);
-                    int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, singleItem);
-                    if (bestSlot != -1) {
-                        enderInv.setItem(bestSlot, singleItem);
-                        inserted = true;
-                    }
-                }
-
-                if (inserted) {
-                    cursorStack.shrink(1);
-                    success = true;
-                    isInsert = true;
-                    soundStack = singleItem;
-                }
-            }
-            case EXTRACT -> {
-                if (!cursorStack.isEmpty()) return;
-                ItemStack extracted = enderInv.getItem(targetIndex).copy();
-                if (!extracted.isEmpty()) {
-                    enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                    player.containerMenu.setCarried(extracted);
-                    success = true;
-                    soundStack = extracted;
-                }
-            }
-            case EXTRACT_ONE -> {
-                ItemStack slotStack = enderInv.getItem(targetIndex);
-                if (slotStack.isEmpty()) return;
-                ItemStack extracted = slotStack.copyWithCount(1);
-                soundStack = extracted.copy();
-
-                if (inventorySlotId != -1) {
-                    Slot destination = ServerSlots.getPlayerInventorySlot(player, inventorySlotId, "ender chest slot extraction");
-                    if (destination == null) return;
-                    ItemStack remainder = ServerSlots.safeInsertIntoSlot(player, destination, extracted);
-                    if (remainder.isEmpty()) {
-                        slotStack.shrink(1);
-                        if (slotStack.isEmpty()) {
-                            enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                        }
-                        success = true;
-                    }
-                } else if (cursorStack.isEmpty()) {
-                    player.containerMenu.setCarried(extracted);
-                    slotStack.shrink(1);
-                    if (slotStack.isEmpty()) {
-                        enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                    }
-                    success = true;
-                } else if (ServerSlots.canMergeInto(cursorStack, extracted)) {
-                    cursorStack.grow(1);
-                    slotStack.shrink(1);
-                    if (slotStack.isEmpty()) {
-                        enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                    }
-                    success = true;
-                }
-            }
-            case SWEEP_INSERT -> {
-                Slot targetSlot = ServerSlots.getPlayerInventorySlot(player, inventorySlotId, "SWEEP_INSERT");
-                if (targetSlot == null || !targetSlot.allowModification(player)) return;
-                ItemStack originalStack = targetSlot.getItem();
-                if (originalStack.isEmpty()) return;
-                ItemStack invStack = originalStack.copy();
-                int originalCount = invStack.getCount();
-
-                // Auto-insert invStack into the ender chest inventory
-                // First pass: merge with existing compatible stacks
-                for (int i = 0; i < enderInv.getContainerSize(); i++) {
-                    ItemStack existing = enderInv.getItem(i);
-                    if (ServerSlots.canMergeInto(existing, invStack)) {
-                        int canFit = existing.getMaxStackSize() - existing.getCount();
-                        int toInsert = Math.min(canFit, invStack.getCount());
-                        if (toInsert > 0) {
-                            existing.grow(toInsert);
-                            invStack.shrink(toInsert);
-                        }
-                    }
-                    if (invStack.isEmpty()) break;
-                }
-
-                // Second pass: put into empty slots using smart-merge
-                if (!invStack.isEmpty()) {
-                    while (invStack.getCount() > 0) {
-                        NonNullList<ItemStack> enderList = copyEnderChestContents(player);
-                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, invStack);
-                        if (bestSlot == -1) break;
-
-                        int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                        enderInv.setItem(bestSlot, invStack.copyWithCount(toInsert));
-                        invStack.shrink(toInsert);
-                    }
-                }
-
-                // Update the source inventory slot containing the remainder only after insertion succeeds.
-                if (invStack.getCount() < originalCount) {
-                    targetSlot.setByPlayer(invStack, originalStack);
-                    success = true;
-                    isInsert = true;
-                    soundStack = originalStack.copy();
-                }
-            }
-            case SWEEP_EXTRACT -> {
-                ItemStack shulkerStack = enderInv.getItem(targetIndex);
-                if (shulkerStack.isEmpty()) return;
-                soundStack = shulkerStack;
-
-                if (inventorySlotId == -1) {
-                    if (cursorStack.isEmpty()) {
-                        enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                        player.containerMenu.setCarried(shulkerStack.copy());
-                        success = true;
-                    } else if (ServerSlots.canMergeInto(cursorStack, shulkerStack)) {
-                        int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
-                        int toAdd = Math.min(canFit, shulkerStack.getCount());
-                        if (toAdd > 0) {
-                            cursorStack.grow(toAdd);
-                            shulkerStack.shrink(toAdd);
-                            if (shulkerStack.isEmpty()) {
-                                enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                            }
-                            success = true;
-                        }
-                    }
-                } else {
-                    Slot destination = ServerSlots.getPlayerInventorySlot(player, inventorySlotId, "ender chest slot sweep extraction");
-                    if (destination == null) return;
-                    ItemStack transfer = shulkerStack.copy();
-                    int originalCount = transfer.getCount();
-                    ItemStack remainder = ServerSlots.safeInsertIntoSlot(player, destination, transfer);
-                    int moved = originalCount - remainder.getCount();
-                    if (moved > 0) {
-                        shulkerStack.shrink(moved);
-                        if (shulkerStack.isEmpty()) {
-                            enderInv.setItem(targetIndex, ItemStack.EMPTY);
-                        }
-                        success = true;
-                    }
-                }
-            }
-            case RESTOCK -> {
-                NonNullList<ItemStack> contents = copyEnderChestContents(player);
-                success = ContainerTransfer.restockContents(contents, player.containerMenu.slots, player);
-                if (success) {
-                    applyEnderChestContents(player, contents);
-                }
-            }
-            case DEPOSIT -> {
-                NonNullList<ItemStack> contents = copyEnderChestContents(player);
-                success = ContainerTransfer.depositContents(contents, player.containerMenu.slots, containerSlot, player);
-                if (success) {
-                    applyEnderChestContents(player, contents);
-                    isInsert = true;
-                }
-            }
-        }
-
-        if (success) {
-            InteractionSounds.playInteractionSound(player, soundStack, isInsert, 0.3F);
+        if (outcome.success()) {
+            InteractionSounds.playInteractionSound(player, outcome.soundStack(), outcome.isInsert(), 0.3F);
         }
     }
 
