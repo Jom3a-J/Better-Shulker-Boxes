@@ -2,6 +2,7 @@ package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
+import com.bettershulker.server.EnderChestService;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 
@@ -276,7 +277,7 @@ public abstract class ItemMixin {
 
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$syncEnderChest(ServerPlayer player) {
-        PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
+        PlatformNetworking.sendToPlayer(player, EnderChestService.buildEnderChestSyncPayload(player));
     }
 
     @org.spongepowered.asm.mixin.Unique

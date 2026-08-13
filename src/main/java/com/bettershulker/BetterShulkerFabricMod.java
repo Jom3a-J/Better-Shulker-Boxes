@@ -3,6 +3,7 @@ package com.bettershulker;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.server.EnderChestService;
 import com.bettershulker.platform.PlatformNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -51,7 +52,7 @@ public final class BetterShulkerFabricMod implements ModInitializer {
                 (payload, context) -> {
                     ServerPlayer player = context.player();
                     context.player().level().getServer().execute(
-                            () -> BetterShulkerMod.handleEnderChestSyncRequest(player, payload.sourceSlotId()));
+                            () -> EnderChestService.handleEnderChestSyncRequest(player, payload.sourceSlotId()));
                 }
         );
     }
