@@ -2,8 +2,14 @@ package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
+import com.bettershulker.server.EnderChestSync;
+import com.bettershulker.server.EnderChestService;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.InteractionSounds;
+import com.bettershulker.util.ContainerTransfer;
 import com.bettershulker.platform.PlatformNetworking;
+
+import com.bettershulker.server.InteractionRateLimiter;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,7 +51,7 @@ public abstract class ItemMixin {
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
                 int extractionIndex = bettershulker$firstOccupiedSlot(contents);
                 if (extractionIndex != -1) {
-                    ItemStack extracted = ContainerHelper.tryExtract(contents, extractionIndex, false);
+                    ItemStack extracted = ContainerTransfer.tryExtract(contents, extractionIndex, false);
                     ItemStack soundStack = extracted.copy();
                     int originalCount = extracted.getCount();
                     ItemStack remainder = bettershulker$safeInsertIntoSlot(player, slot, extracted);
@@ -60,7 +66,7 @@ public abstract class ItemMixin {
                 // Carried Shulker Box, right-click on stack -> Insert/vacuum stack into Shulker Box.
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(stack);
                 int originalCount = slotStack.getCount();
-                ItemStack remainder = ContainerHelper.tryInsert(contents, slotStack, false);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, slotStack, false);
                 if (remainder.getCount() != originalCount) {
                     slot.setByPlayer(remainder, slotStack);
                     ContainerHelper.setContainerContents(stack, contents);
@@ -149,7 +155,7 @@ public abstract class ItemMixin {
                 ItemStack updatedContainer = stack.copy();
                 NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(updatedContainer);
                 int originalCount = other.getCount();
-                ItemStack remainder = ContainerHelper.tryInsert(contents, other, false);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, other, false);
                 if (remainder.getCount() != originalCount && slotAccess.set(remainder)) {
                     ContainerHelper.setContainerContents(updatedContainer, contents);
                     slot.setByPlayer(updatedContainer, stack);
@@ -242,7 +248,7 @@ public abstract class ItemMixin {
             return false;
         }
         return player.level().isClientSide()
-                || (player instanceof ServerPlayer serverPlayer && BetterShulkerMod.consumeInteraction(serverPlayer));
+                || (player instanceof ServerPlayer serverPlayer && InteractionRateLimiter.consume(serverPlayer));
     }
 
     @org.spongepowered.asm.mixin.Unique
@@ -276,7 +282,7 @@ public abstract class ItemMixin {
 
     @org.spongepowered.asm.mixin.Unique
     private void bettershulker$syncEnderChest(ServerPlayer player) {
-        PlatformNetworking.sendToPlayer(player, BetterShulkerMod.buildEnderChestSyncPayload(player));
+        PlatformNetworking.sendToPlayer(player, EnderChestSync.buildEnderChestSyncPayload(player));
     }
 
     @org.spongepowered.asm.mixin.Unique
@@ -325,7 +331,7 @@ public abstract class ItemMixin {
         float volume = player.level().isClientSide()
                 ? BetterShulkerConfig.getSoundVolume()
                 : 0.3F;
-        ContainerHelper.playInteractionSound(player, stack, isInsert, volume);
+        InteractionSounds.playInteractionSound(player, stack, isInsert, volume);
     }
 
     @org.spongepowered.asm.mixin.Unique

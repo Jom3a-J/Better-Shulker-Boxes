@@ -40,7 +40,7 @@ public final class BetterShulkerNeoForgeClient {
         // Only the client direction. BetterShulkerNeoForgeMod installs the server sender, on this
         // dist too, which is what the integrated server uses.
         PlatformNetworking.setClientSender(payload -> ClientPacketDistributor.sendToServer(payload));
-        BetterShulkerMod.setClientEnderChestSupplier(BetterShulkerClient::getEnderChestContents);
+        BetterShulkerMod.setClientEnderChestSupplier(EnderChestCache::getEnderChestContents);
 
         IConfigScreenFactory configScreenFactory = (container, parent) -> BetterShulkerClothConfigScreen.create(parent);
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, configScreenFactory);
@@ -60,7 +60,7 @@ public final class BetterShulkerNeoForgeClient {
     }
 
     private void registerClientPayloadHandlers(RegisterClientPayloadHandlersEvent event) {
-        event.register(EnderChestSyncPayload.TYPE, (payload, context) -> BetterShulkerClient.applyEnderChestSync(payload));
+        event.register(EnderChestSyncPayload.TYPE, (payload, context) -> EnderChestCache.applyEnderChestSync(payload));
     }
 
     private void registerClientReloadListeners(AddClientReloadListenersEvent event) {
@@ -68,8 +68,8 @@ public final class BetterShulkerNeoForgeClient {
     }
 
     private void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        event.registerCategory(BetterShulkerClient.getCustomCategory());
-        BetterShulkerClient.setKeyMappings(
+        event.registerCategory(ClientKeybinds.getCustomCategory());
+        ClientKeybinds.setKeyMappings(
                 registerKey(event, "key.bettershulker.settings", GLFW.GLFW_KEY_B),
                 registerKey(event, "key.bettershulker.extract", GLFW.GLFW_KEY_E),
                 registerKey(event, "key.bettershulker.select_slot", GLFW.GLFW_KEY_SPACE),
@@ -86,7 +86,7 @@ public final class BetterShulkerNeoForgeClient {
         KeyMapping key = new KeyMapping(
                 translationKey,
                 defaultKey,
-                BetterShulkerClient.getCustomCategory()
+                ClientKeybinds.getCustomCategory()
         );
         event.register(key);
         return key;

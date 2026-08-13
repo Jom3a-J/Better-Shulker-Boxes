@@ -3,11 +3,15 @@ package com.bettershulker;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
+import com.bettershulker.server.EnderChestSync;
+import com.bettershulker.server.EnderChestService;
 import com.bettershulker.platform.PlatformNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import com.bettershulker.server.InteractionRateLimiter;
+
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -51,7 +55,7 @@ public final class BetterShulkerFabricMod implements ModInitializer {
                 (payload, context) -> {
                     ServerPlayer player = context.player();
                     context.player().level().getServer().execute(
-                            () -> BetterShulkerMod.handleEnderChestSyncRequest(player, payload.sourceSlotId()));
+                            () -> EnderChestSync.handleEnderChestSyncRequest(player, payload.sourceSlotId()));
                 }
         );
     }
@@ -61,7 +65,7 @@ public final class BetterShulkerFabricMod implements ModInitializer {
                 ContainerInteractPayload.TYPE,
                 (payload, context) -> {
                     ServerPlayer player = context.player();
-                    player.level().getServer().execute(() -> BetterShulkerMod.handleRateLimitedContainerInteraction(player, payload));
+                    player.level().getServer().execute(() -> InteractionRateLimiter.handleRateLimitedContainerInteraction(player, payload));
                 }
         );
     }

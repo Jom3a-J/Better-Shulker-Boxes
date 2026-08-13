@@ -2,6 +2,8 @@ package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.BetterShulkerClient;
+import com.bettershulker.client.EnderChestCache;
+import com.bettershulker.client.ClientKeybinds;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.util.ContainerHelper;
 
@@ -40,7 +42,7 @@ public abstract class ItemStackMixin {
 
         if (ContainerHelper.isShulkerBox(self)) {
             NonNullList<ItemStack> contents = ContainerHelper.getContainerContents(self);
-            if (BetterShulkerClient.isCompactModeActive() && bettershulker$isEmpty(contents)) {
+            if (ClientKeybinds.isCompactModeActive() && bettershulker$isEmpty(contents)) {
                 ci.setReturnValue(Optional.empty());
                 return;
             }
@@ -64,13 +66,13 @@ public abstract class ItemStackMixin {
 
             // Ender Chest contents can change through vanilla screens or other mods, so refresh
             // while the tooltip is in use instead of treating the first snapshot as permanent.
-            BetterShulkerClient.requestEnderChestSync();
-            NonNullList<ItemStack> cachedContents = BetterShulkerClient.getEnderChestContents();
+            EnderChestCache.requestEnderChestSync();
+            NonNullList<ItemStack> cachedContents = EnderChestCache.getEnderChestContents();
             if (cachedContents == null) {
                 ci.setReturnValue(Optional.empty());
                 return;
             }
-            if (BetterShulkerClient.isCompactModeActive() && bettershulker$isEmpty(cachedContents)) {
+            if (ClientKeybinds.isCompactModeActive() && bettershulker$isEmpty(cachedContents)) {
                 ci.setReturnValue(Optional.empty());
                 return;
             }
