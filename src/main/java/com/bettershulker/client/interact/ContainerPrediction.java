@@ -7,6 +7,7 @@ import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.platform.PlatformNetworking;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -263,13 +264,13 @@ public final class ContainerPrediction {
         switch (action) {
             case INSERT -> {
                 if (cursorStack.isEmpty()) return;
-                ItemStack remainder = ContainerHelper.tryInsert(contents, cursorStack.copy(), false);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, cursorStack.copy(), false);
                 self.getMenu().setCarried(remainder);
             }
             case INSERT_ONE -> {
                 if (cursorStack.isEmpty()) return;
                 ItemStack singleItem = cursorStack.copyWithCount(1);
-                ItemStack remainder = ContainerHelper.tryInsert(contents, singleItem, true);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, singleItem, true);
                 if (remainder.isEmpty()) {
                     cursorStack.shrink(1);
                     self.getMenu().setCarried(cursorStack.isEmpty() ? ItemStack.EMPTY : cursorStack);
@@ -277,13 +278,13 @@ public final class ContainerPrediction {
             }
             case EXTRACT -> {
                 if (!cursorStack.isEmpty()) return;
-                ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                 if (!extracted.isEmpty()) {
                     self.getMenu().setCarried(extracted);
                 }
             }
             case EXTRACT_ONE -> {
-                ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, true);
+                ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, true);
                 if (!extracted.isEmpty()) {
                     if (inventorySlotId != -1) {
                         Slot destination = getPredictionPlayerSlot(self, inventorySlotId);
@@ -309,7 +310,7 @@ public final class ContainerPrediction {
                 if (targetSlot == null || player == null || !targetSlot.allowModification(player)) return;
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
-                ItemStack remainder = ContainerHelper.tryInsert(contents, invStack.copy(), false);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, invStack.copy(), false);
                 if (remainder.getCount() < invStack.getCount()) {
                     targetSlot.setByPlayer(remainder, invStack);
                 }
@@ -321,12 +322,12 @@ public final class ContainerPrediction {
 
                 if (inventorySlotId == -1) {
                     if (cursorStack.isEmpty()) {
-                        ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                        ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                         self.getMenu().setCarried(extracted);
                     } else if (ItemStack.isSameItemSameComponents(cursorStack, shulkerStack)) {
                         int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
                         if (canFit > 0) {
-                            ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                            ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                             int toAdd = Math.min(canFit, extracted.getCount());
                             cursorStack.grow(toAdd);
                             if (extracted.getCount() > toAdd) {
@@ -337,7 +338,7 @@ public final class ContainerPrediction {
                 } else {
                     Slot destination = getPredictionPlayerSlot(self, inventorySlotId);
                     if (destination == null) return;
-                    ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                    ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                     ItemStack remainder = safePredictSlotInsert(destination, extracted);
                     restorePredictedExtraction(contents, targetIndex, remainder);
                 }
@@ -345,14 +346,14 @@ public final class ContainerPrediction {
             case RESTOCK -> {
                 var player = Minecraft.getInstance().player;
                 if (player != null) {
-                    ContainerHelper.restockContents(contents, self.getMenu().slots, player);
+                    ContainerTransfer.restockContents(contents, self.getMenu().slots, player);
                 }
             }
             case DEPOSIT -> {
                 var player = Minecraft.getInstance().player;
                 if (player != null) {
                     Slot excludedSlot = MenuSlotRef.resolve(containerSlotId, self.getMenu(), player);
-                    ContainerHelper.depositContents(contents, self.getMenu().slots, excludedSlot, player);
+                    ContainerTransfer.depositContents(contents, self.getMenu().slots, excludedSlot, player);
                 }
             }
         }
@@ -384,7 +385,7 @@ public final class ContainerPrediction {
                 }
                 if (!cursorStack.isEmpty()) {
                     while (cursorStack.getCount() > 0) {
-                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(contents, cursorStack);
+                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(contents, cursorStack);
                         if (bestSlot == -1) break;
                         int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
                         contents.set(bestSlot, cursorStack.copyWithCount(toInsert));
@@ -407,7 +408,7 @@ public final class ContainerPrediction {
                     }
                 }
                 if (!inserted) {
-                    int bestSlot = ContainerHelper.findSmartMergeEmptySlot(contents, singleItem);
+                    int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(contents, singleItem);
                     if (bestSlot != -1) {
                         contents.set(bestSlot, singleItem);
                         inserted = true;
@@ -475,7 +476,7 @@ public final class ContainerPrediction {
                 }
                 if (!invStack.isEmpty()) {
                     while (invStack.getCount() > 0) {
-                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(contents, invStack);
+                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(contents, invStack);
                         if (bestSlot == -1) break;
                         int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
                         contents.set(bestSlot, invStack.copyWithCount(toInsert));
@@ -523,14 +524,14 @@ public final class ContainerPrediction {
             case RESTOCK -> {
                 var player = Minecraft.getInstance().player;
                 if (player != null) {
-                    ContainerHelper.restockContents(contents, self.getMenu().slots, player);
+                    ContainerTransfer.restockContents(contents, self.getMenu().slots, player);
                 }
             }
             case DEPOSIT -> {
                 var player = Minecraft.getInstance().player;
                 if (player != null) {
                     Slot excludedSlot = MenuSlotRef.resolve(containerSlotId, self.getMenu(), player);
-                    ContainerHelper.depositContents(contents, self.getMenu().slots, excludedSlot, player);
+                    ContainerTransfer.depositContents(contents, self.getMenu().slots, excludedSlot, player);
                 }
             }
         }

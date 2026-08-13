@@ -4,6 +4,8 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.InteractionSounds;
+import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
@@ -38,7 +40,7 @@ public final class ShulkerInteractionHandler {
                 // Insert the entire cursor stack into the container
                 if (cursorStack.isEmpty()) return;
                 int originalCount = cursorStack.getCount();
-                ItemStack remainder = ContainerHelper.tryInsert(contents, cursorStack.copy(), false);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, cursorStack.copy(), false);
                 player.containerMenu.setCarried(remainder);
                 if (remainder.getCount() < originalCount) {
                     success = true;
@@ -50,7 +52,7 @@ public final class ShulkerInteractionHandler {
                 // Precision mode: insert exactly 1 item from cursor
                 if (cursorStack.isEmpty()) return;
                 ItemStack singleItem = cursorStack.copyWithCount(1);
-                ItemStack remainder = ContainerHelper.tryInsert(contents, singleItem, true);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, singleItem, true);
                 if (remainder.isEmpty()) {
                     // Successfully inserted 1 item — shrink cursor
                     cursorStack.shrink(1);
@@ -62,7 +64,7 @@ public final class ShulkerInteractionHandler {
             case EXTRACT -> {
                 // Extract the full stack at targetIndex
                 if (!cursorStack.isEmpty()) return; // Cursor must be empty to extract
-                ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                 if (!extracted.isEmpty()) {
                     player.containerMenu.setCarried(extracted);
                     success = true;
@@ -71,7 +73,7 @@ public final class ShulkerInteractionHandler {
             }
             case EXTRACT_ONE -> {
                 // Precision mode: extract exactly 1 item from targetIndex.
-                ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, true);
+                ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, true);
                 if (!extracted.isEmpty()) {
                     soundStack = extracted.copy();
                     if (inventorySlotId != -1) {
@@ -102,7 +104,7 @@ public final class ShulkerInteractionHandler {
                 ItemStack invStack = targetSlot.getItem();
                 if (invStack.isEmpty()) return;
                 int originalCount = invStack.getCount();
-                ItemStack remainder = ContainerHelper.tryInsert(contents, invStack.copy(), false);
+                ItemStack remainder = ContainerTransfer.tryInsert(contents, invStack.copy(), false);
                 if (remainder.getCount() < originalCount) {
                     targetSlot.setByPlayer(remainder, invStack);
                     success = true;
@@ -118,13 +120,13 @@ public final class ShulkerInteractionHandler {
 
                 if (inventorySlotId == -1) {
                     if (cursorStack.isEmpty()) {
-                        ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                        ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                         player.containerMenu.setCarried(extracted);
                         success = true;
                     } else if (ServerSlots.canMergeInto(cursorStack, shulkerStack)) {
                         int canFit = cursorStack.getMaxStackSize() - cursorStack.getCount();
                         if (canFit > 0) {
-                            ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                            ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                             int toAdd = Math.min(canFit, extracted.getCount());
                             cursorStack.grow(toAdd);
                             if (extracted.getCount() > toAdd) {
@@ -136,7 +138,7 @@ public final class ShulkerInteractionHandler {
                 } else {
                     Slot destination = ServerSlots.getPlayerInventorySlot(player, inventorySlotId, "slot sweep extraction");
                     if (destination == null) return;
-                    ItemStack extracted = ContainerHelper.tryExtract(contents, targetIndex, false);
+                    ItemStack extracted = ContainerTransfer.tryExtract(contents, targetIndex, false);
                     int originalCount = extracted.getCount();
                     ItemStack remainder = ServerSlots.safeInsertIntoSlot(player, destination, extracted);
                     ServerSlots.restoreExtractedStack(player, contents, targetIndex, remainder);
@@ -144,10 +146,10 @@ public final class ShulkerInteractionHandler {
                 }
             }
             case RESTOCK -> {
-                success = ContainerHelper.restockContents(contents, player.containerMenu.slots, player);
+                success = ContainerTransfer.restockContents(contents, player.containerMenu.slots, player);
             }
             case DEPOSIT -> {
-                success = ContainerHelper.depositContents(contents, player.containerMenu.slots, containerSlot, player);
+                success = ContainerTransfer.depositContents(contents, player.containerMenu.slots, containerSlot, player);
                 if (success) {
                     isInsert = true;
                 }
@@ -163,7 +165,7 @@ public final class ShulkerInteractionHandler {
             } else {
                 containerSlot.setByPlayer(containerStack, containerSlot.getItem());
             }
-            ContainerHelper.playInteractionSound(player, soundStack, isInsert, 0.3F);
+            InteractionSounds.playInteractionSound(player, soundStack, isInsert, 0.3F);
         }
 
     }

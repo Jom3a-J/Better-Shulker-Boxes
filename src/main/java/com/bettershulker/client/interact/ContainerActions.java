@@ -5,6 +5,8 @@ import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.InteractionSounds;
+import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -65,7 +67,7 @@ public final class ContainerActions {
         for (int i = 0; i < preview.size(); i++) {
             previewCopy.set(i, preview.get(i).copy());
         }
-        ItemStack remainder = ContainerHelper.tryInsert(previewCopy, cursorStack.copy(), ctrlHeld);
+        ItemStack remainder = ContainerTransfer.tryInsert(previewCopy, cursorStack.copy(), ctrlHeld);
         if (remainder.getCount() >= cursorStack.getCount()) return false;
 
         ContainerPrediction.sendInteractPayload(self, 
@@ -111,7 +113,7 @@ public final class ContainerActions {
     }
 
     public static void playClientSound(ItemStack stack, boolean isInsert) {
-        ContainerHelper.playInteractionSound(Minecraft.getInstance().player, stack, isInsert,
+        InteractionSounds.playInteractionSound(Minecraft.getInstance().player, stack, isInsert,
                 BetterShulkerConfig.getSoundVolume());
     }
 

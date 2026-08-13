@@ -4,6 +4,7 @@ import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.EnderChestCache;
 import com.bettershulker.client.ClientKeybinds;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.core.NonNullList;
 import java.util.ArrayList;
@@ -160,7 +161,7 @@ public final class ContainerSelection {
     }
 
         public static int findMatchingIndex(ItemStack containerStack, ItemStack target) {
-        return ContainerHelper.findMatchingItem(contentsOf(containerStack), target);
+        return ContainerTransfer.findMatchingItem(contentsOf(containerStack), target);
     }
 
     /**

@@ -14,6 +14,7 @@ import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.ContainerTransfer;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -355,7 +356,7 @@ public abstract class HandledScreenMixin extends Screen {
             // packet the server could only reject, one rate-limiter slot at a time. An Ender Chest
             // whose cache has not arrived reads as empty here, so it stays permissive and lets the
             // server have the final word, the same way the click path does.
-            if (!ContainerHelper.canInsert(ContainerSelection.contentsOf(carried), slotStack)) {
+            if (!ContainerTransfer.canInsert(ContainerSelection.contentsOf(carried), slotStack)) {
                 return;
             }
 
@@ -773,7 +774,7 @@ public abstract class HandledScreenMixin extends Screen {
         if (carried.isEmpty()) return false;
         ItemStack slotStack = slot.getItem();
         if (!ContainerHelper.isShulkerBox(slotStack) || ContainerHelper.isShulkerBox(carried)) return false;
-        return ContainerHelper.canInsert(ContainerHelper.getContainerContents(slotStack), carried);
+        return ContainerTransfer.canInsert(ContainerHelper.getContainerContents(slotStack), carried);
     }
 
     @Inject(method = "extractSlot", at = @At("HEAD"))

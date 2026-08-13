@@ -7,6 +7,8 @@ import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.platform.PlatformNetworking;
 import com.bettershulker.util.ContainerHelper;
+import com.bettershulker.util.InteractionSounds;
+import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
@@ -224,7 +226,7 @@ public final class EnderChestService {
                 if (!cursorStack.isEmpty()) {
                     while (cursorStack.getCount() > 0) {
                         NonNullList<ItemStack> enderList = copyEnderChestContents(player);
-                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, cursorStack);
+                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, cursorStack);
                         if (bestSlot == -1) break;
 
                         int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
@@ -257,7 +259,7 @@ public final class EnderChestService {
                 // Second pass: put into empty slots using smart-merge
                 if (!inserted) {
                     NonNullList<ItemStack> enderList = copyEnderChestContents(player);
-                    int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, singleItem);
+                    int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, singleItem);
                     if (bestSlot != -1) {
                         enderInv.setItem(bestSlot, singleItem);
                         inserted = true;
@@ -341,7 +343,7 @@ public final class EnderChestService {
                 if (!invStack.isEmpty()) {
                     while (invStack.getCount() > 0) {
                         NonNullList<ItemStack> enderList = copyEnderChestContents(player);
-                        int bestSlot = ContainerHelper.findSmartMergeEmptySlot(enderList, invStack);
+                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, invStack);
                         if (bestSlot == -1) break;
 
                         int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
@@ -398,14 +400,14 @@ public final class EnderChestService {
             }
             case RESTOCK -> {
                 NonNullList<ItemStack> contents = copyEnderChestContents(player);
-                success = ContainerHelper.restockContents(contents, player.containerMenu.slots, player);
+                success = ContainerTransfer.restockContents(contents, player.containerMenu.slots, player);
                 if (success) {
                     applyEnderChestContents(player, contents);
                 }
             }
             case DEPOSIT -> {
                 NonNullList<ItemStack> contents = copyEnderChestContents(player);
-                success = ContainerHelper.depositContents(contents, player.containerMenu.slots, containerSlot, player);
+                success = ContainerTransfer.depositContents(contents, player.containerMenu.slots, containerSlot, player);
                 if (success) {
                     applyEnderChestContents(player, contents);
                     isInsert = true;
@@ -414,7 +416,7 @@ public final class EnderChestService {
         }
 
         if (success) {
-            ContainerHelper.playInteractionSound(player, soundStack, isInsert, 0.3F);
+            InteractionSounds.playInteractionSound(player, soundStack, isInsert, 0.3F);
         }
     }
 
