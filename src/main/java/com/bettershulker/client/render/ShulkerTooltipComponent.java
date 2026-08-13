@@ -55,8 +55,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     /** Below this the selected-name tab would be all padding and an ellipsis, so it is dropped. */
     private static final int MIN_SELECTED_TAB_WIDTH = 28;
     private static final int NAME_TAB_GAP = 2;
-    /** Below this the card is too dark to derive shades by darkening; they are lightened instead. */
-    private static final float MODERN_DARK_FILL_LUMINANCE = 0.15f;
     /** Gap the full 176px card leaves right of its grid: 176 - 8 - 9*18. */
     private static final int MODERN_GRID_RIGHT_MARGIN = 6;
     // ClientTextTooltip is ten pixels high and GuiGraphicsExtractor adds a two-pixel
@@ -66,10 +64,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int CONTAINER_NAME_LINE_GAP = 2;
 
     private static final Identifier SHULKER_PANEL_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
-    private static final int ENDER_ACCENT_COLOR = 0xFF00E6C8;
-    private static final int ENDER_PURPLE_COLOR = 0xFF34104E;
-    private static final int ENDER_DARK_COLOR = 0xFF06120F;
-
     /** Crop selected so vanilla shulker slots line up at y=7 inside our compact preview. */
     private static final float PANEL_TEXTURE_U = 0.0F;
     private static final float PANEL_TEXTURE_V = 11.0F;
@@ -89,6 +83,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final int displayRows;
     private final int panelWidth;
     private final int panelHeight;
+
+    private final TooltipPalette palette;
 
     private final int borderColor;
     private final int nameBorderColor;
@@ -148,14 +144,15 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                         ? this.panelTexture.layout().panelHeight(this.displayRows)
                         : PANEL_HEIGHT);
 
-        ThemePalette palette = buildThemePalette();
-        this.borderColor = palette.borderColor;
-        this.nameBorderColor = palette.nameBorderColor;
-        this.tintColor = palette.tintColor;
-        this.badgeBgColor = palette.badgeBgColor;
-        this.selectionColor = palette.selectionColor;
-        this.multiSelectColor = palette.multiSelectColor;
-        this.panelShadowColor = palette.panelShadowColor;
+        this.palette = new TooltipPalette(this.isEnderChest, this.color, getModernPackPanelTexture());
+        TooltipPalette.ThemePalette palette = this.palette.buildThemePalette();
+        this.borderColor = palette.borderColor();
+        this.nameBorderColor = palette.nameBorderColor();
+        this.tintColor = palette.tintColor();
+        this.badgeBgColor = palette.badgeBgColor();
+        this.selectionColor = palette.selectionColor();
+        this.multiSelectColor = palette.multiSelectColor();
+        this.panelShadowColor = palette.panelShadowColor();
     }
 
     private DisplayLayout buildDisplayLayout() {
@@ -482,52 +479,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 renderColor);
     }
 
-    private int getCompactPanelBaseColor() {
-        BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
-        int themeBase = switch (theme) {
-            case ORIGINAL -> 0xFF6F2D8F;
-            case CLASSIC -> 0xFF2D4A1A;
-            case RETRO -> 0xFF60406E;
-            case SOLARIZED_DARK -> 0xFF002B36;
-            case SOLARIZED_LIGHT -> 0xFFFDF6E3;
-            case HIGH_CONTRAST -> 0xFF000000;
-            case CUSTOM -> opaqueOrDefault(BetterShulkerConfig.getCustomBackgroundColor(), 0xFF1A1A1A);
-            case GLASS -> 0xFFEAF7FF;
-        };
-        // Modern already derives its face from the dye, so it takes no extra box blend below.
-        if (isModernStyle()) {
-            return getModernPanelFill();
-        }
-        int containerColor = getCompactContainerColor();
-        if (containerColor == 0 || theme == BetterShulkerConfig.TooltipTheme.HIGH_CONTRAST
-                || theme == BetterShulkerConfig.TooltipTheme.GLASS) {
-            return themeBase;
-        }
-        float boxInfluence = theme == BetterShulkerConfig.TooltipTheme.ORIGINAL ? 0.28f : 0.18f;
-        if (theme == BetterShulkerConfig.TooltipTheme.RETRO) {
-            boxInfluence = 0.24f;
-        } else if (theme == BetterShulkerConfig.TooltipTheme.CUSTOM) {
-            boxInfluence = 0.10f;
-        }
-        if (this.isEnderChest) {
-            boxInfluence = Math.max(boxInfluence, 0.22f);
-        }
-        return blendColor(themeBase, containerColor, boxInfluence);
-    }
 
-    private int getCompactContainerColor() {
-        if (this.isEnderChest) {
-            return blendColor(ENDER_PURPLE_COLOR, ENDER_ACCENT_COLOR, 0.18f);
-        }
-        if (this.color != null) {
-            return 0xFF000000 | this.color.getTextureDiffuseColor();
-        }
-        return 0;
-    }
 
     private void drawFullStyleCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
         if (isGlassTheme()) {
-            drawGlassCompactPanel(context, panelX, panelY, getPanelWidth(), getPanelHeight(), getCompactPanelBaseColor());
+            drawGlassCompactPanel(context, panelX, panelY, getPanelWidth(), getPanelHeight(), this.palette.getCompactPanelBaseColor());
             return;
         }
 
@@ -615,9 +571,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         blitCompactCapSlice(context, panelX + leftW, capY, SLOT_START_X, sourceY, slotsW, capHeight);
         blitCompactCapSlice(context, panelX + leftW + slotsW, capY, rightSourceX, sourceY, rightW, capHeight);
 
-        int tint = withAlpha(ENDER_ACCENT_COLOR, 28);
+        int tint = withAlpha(TooltipPalette.ENDER_ACCENT_COLOR, 28);
         context.fill(panelX + 7, capY + 1, panelX + getPanelWidth() - 7, capY + capHeight - 2, tint);
-        int rim = withAlpha(blendColor(ENDER_ACCENT_COLOR, this.panelShadowColor, 0.75f), 190);
+        int rim = withAlpha(blendColor(TooltipPalette.ENDER_ACCENT_COLOR, this.panelShadowColor, 0.75f), 190);
         context.fill(panelX + 6, capY + capHeight - 2, panelX + getPanelWidth() - 6, capY + capHeight - 1, rim);
     }
 
@@ -736,69 +692,20 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return null;
     }
 
-    private int getModernDyeColor() {
-        if (this.isEnderChest) {
-            return blendColor(ENDER_PURPLE_COLOR, ENDER_ACCENT_COLOR, 0.22f);
-        }
-        if (this.color != null) {
-            return 0xFF000000 | this.color.getTextureDiffuseColor();
-        }
-        return 0xFF8932B8;
-    }
 
-    /** Card face: the pack's own panel colour, or the dye pulled down towards neutral. */
-    private int getModernPanelFill() {
-        Identifier packPanel = getModernPackPanelTexture();
-        if (packPanel != null) {
-            // A sampled pack colour is already a panel colour authored to sit behind items, so
-            // it is used as-is; muting it the way a raw dye needs would just fight the pack.
-            int sampled = ResourcePackPanelColors.dominantColor(packPanel, 0);
-            if (sampled != 0) return sampled;
-        }
-        return blendColor(getModernDyeColor(), 0xFF6A6A72, 0.55f);
-    }
 
-    private int getModernPanelBorder() {
-        return shadeModernFill(0.30f);
-    }
 
-    private int getModernGridLine() {
-        return shadeModernFill(0.20f);
-    }
 
-    private int getModernCellFill() {
-        return shadeModernFill(0.08f);
-    }
 
-    /**
-     * Shifts the card fill by {@code factor} in whichever direction still has contrast left.
-     *
-     * <p>Darkening is multiplicative, so it collapses on a near-black panel: a {@code #141414}
-     * fill darkened 20% lands 4/255 away and the lattice becomes invisible. Dark fills are
-     * lightened instead, which is the only direction with headroom.</p>
-     */
-    private int shadeModernFill(float factor) {
-        int fill = getModernPanelFill();
-        return luminance(fill) < MODERN_DARK_FILL_LUMINANCE
-                ? blendColor(fill, 0xFFFFFFFF, factor)
-                : blendColor(fill, 0xFF000000, factor);
-    }
 
-    /** Perceived luminance of an opaque colour, 0 (black) to 1 (white). */
-    private static float luminance(int color) {
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-        return (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
-    }
 
     private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows, int cardWidth) {
         int w = cardWidth;
         int h = getPanelHeight();
         if (w <= 0 || h <= 0) return;
 
-        int fill = getModernPanelFill();
-        fillRounded(context, panelX, panelY, w, h, getModernPanelBorder());
+        int fill = this.palette.getModernPanelFill();
+        fillRounded(context, panelX, panelY, w, h, this.palette.getModernPanelBorder());
         fillRounded(context, panelX + 2, panelY + 2, w - 4, h - 4, fill);
 
         // A one-pixel lift on top and a matching shade on the bottom keep the flat
@@ -833,9 +740,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int gridW = cols * cell;
         int gridH = rows * cell;
 
-        context.fill(gridX, gridY, gridX + gridW, gridY + gridH, getModernCellFill());
+        context.fill(gridX, gridY, gridX + gridW, gridY + gridH, this.palette.getModernCellFill());
 
-        int line = getModernGridLine();
+        int line = this.palette.getModernGridLine();
         for (int col = 0; col <= cols; col++) {
             int lineX = gridX + col * cell;
             context.fill(lineX, gridY, lineX + 1, gridY + gridH + 1, line);
@@ -928,8 +835,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawModernTab(Font font, GuiGraphicsExtractor context, int x, int y, int w, int h, String label) {
-        fillTopRounded(context, x, y, w, h, getModernPanelBorder());
-        fillTopRounded(context, x + 2, y + 2, w - 4, h, getModernPanelFill());
+        fillTopRounded(context, x, y, w, h, this.palette.getModernPanelBorder());
+        fillTopRounded(context, x + 2, y + 2, w - 4, h, this.palette.getModernPanelFill());
         context.text(font, Component.literal(label), x + 6, y + 4, 0xFFFFFFFF);
     }
 
@@ -966,10 +873,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             return;
         }
 
-        int accent = withAlpha(ENDER_ACCENT_COLOR, 165);
-        int soft = withAlpha(ENDER_ACCENT_COLOR, 42);
-        int purple = withAlpha(ENDER_PURPLE_COLOR, 75);
-        int bottomTint = withAlpha(ENDER_ACCENT_COLOR, 34);
+        int accent = withAlpha(TooltipPalette.ENDER_ACCENT_COLOR, 165);
+        int soft = withAlpha(TooltipPalette.ENDER_ACCENT_COLOR, 42);
+        int purple = withAlpha(TooltipPalette.ENDER_PURPLE_COLOR, 75);
+        int bottomTint = withAlpha(TooltipPalette.ENDER_ACCENT_COLOR, 34);
         int capHeight = 7;
         int capY = panelY + getPanelHeight() - capHeight;
 
@@ -1003,7 +910,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
         float pulse = (float) Math.sin(now / 420.0) * 0.5f + 0.5f;
         int glowAlpha = 32 + Math.round(38 * pulse);
-        int purpleGlow = withAlpha(ENDER_PURPLE_COLOR, 28 + Math.round(30 * (1.0f - pulse)));
+        int purpleGlow = withAlpha(TooltipPalette.ENDER_PURPLE_COLOR, 28 + Math.round(30 * (1.0f - pulse)));
         int panelBottom = panelY + getPanelHeight();
 
         // Slow Ender pulse along the top cap only; keep the shulker-matched bottom cap clean.
@@ -1017,7 +924,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                     ? panelY + 6 + (int) (Math.sin(t) * 2.0)
                     : panelBottom - 9 + (int) (Math.cos(t) * 2.0);
             int alpha = 75 + (int) (55 * (Math.sin(t * 1.7) * 0.5 + 0.5));
-            int color = (i % 3 == 0) ? withAlpha(ENDER_PURPLE_COLOR, alpha) : withAlpha(ENDER_ACCENT_COLOR, alpha);
+            int color = (i % 3 == 0) ? withAlpha(TooltipPalette.ENDER_PURPLE_COLOR, alpha) : withAlpha(TooltipPalette.ENDER_ACCENT_COLOR, alpha);
             context.fill(x, y, x + 1, y + 1, color);
         }
     }
@@ -1540,122 +1447,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return isModernStyle();
     }
 
-    private ThemePalette buildThemePalette() {
-        int baseBorder;
-        int nameBorder;
-        int baseTint;
-        int badgeBg;
-        int select;
-        int multi = 0xFF55FFFF;
-        int shadow = 0xFF000000;
-
-        if (this.isEnderChest) {
-            baseBorder = 0xFF1D5A3A;
-            baseTint = 0x65100018;
-            badgeBg = 0xE0100018;
-            select = 0xFF00FFDD;
-        } else if (this.color != null) {
-            int raw = 0xFF000000 | this.color.getTextureDiffuseColor();
-            baseBorder = blendColor(raw, 0xFF000000, 0.35f);
-            baseTint = withAlpha(raw, 95);
-            badgeBg = withAlpha(blendColor(raw, 0xFF000000, 0.55f), 230);
-            select = 0xFFFFD700;
-        } else {
-            baseBorder = 0xFF8932B8;
-            baseTint = 0x65100018;
-            badgeBg = 0xE0100018;
-            select = 0xFFFFD700;
-        }
-        nameBorder = baseBorder;
-
-        BetterShulkerConfig.TooltipTheme theme = BetterShulkerConfig.getTooltipTheme();
-        switch (theme) {
-            case ORIGINAL -> {
-                // Keep container/ender derived defaults.
-            }
-            case CLASSIC -> {
-                baseBorder = 0xFF4A7A25;
-                baseTint = 0x702D4A1A;
-                badgeBg = 0xE02D4A1A;
-                select = 0xFFA7E060;
-            }
-            case RETRO -> {
-                baseBorder = 0xFFFF00FF;
-                baseTint = 0x70080812;
-                badgeBg = 0xE0080812;
-                select = 0xFF00FFFF;
-                multi = 0xFFFF66FF;
-            }
-            case SOLARIZED_DARK -> {
-                baseBorder = 0xFF268BD2;
-                baseTint = 0x76002B36;
-                badgeBg = 0xE0002B36;
-                select = 0xFFB58900;
-            }
-            case SOLARIZED_LIGHT -> {
-                baseBorder = 0xFF268BD2;
-                baseTint = 0x88FDF6E3;
-                badgeBg = 0xEEFDF6E3;
-                select = 0xFFCB4B16;
-                shadow = 0xFFEFE6C8;
-            }
-            case HIGH_CONTRAST -> {
-                baseBorder = 0xFFFFAA00;
-                baseTint = 0x88000000;
-                badgeBg = 0xF0000000;
-                select = 0xFFFFFF00;
-                multi = 0xFFFFFFFF;
-            }
-            case CUSTOM -> {
-                baseBorder = BetterShulkerConfig.getCustomBorderColor();
-                nameBorder = BetterShulkerConfig.getCustomNameBorderColor();
-                baseTint = normalizeOverlayAlpha(BetterShulkerConfig.getCustomBackgroundColor(), 112);
-                badgeBg = BetterShulkerConfig.getCustomNameBgColor();
-                select = BetterShulkerConfig.getCustomSelectionSquareColor();
-                multi = blendColor(select, 0xFF55FFFF, 0.45f);
-            }
-            case GLASS -> {
-                baseBorder = 0xB8FFFFFF;
-                baseTint = 0x32FFFFFF;
-                badgeBg = 0xA8FFFFFF;
-                select = 0xFFFFD700;
-                multi = 0xFF8EEBFF;
-                shadow = 0x80FFFFFF;
-            }
-        }
-
-        if (this.isEnderChest && theme != BetterShulkerConfig.TooltipTheme.CUSTOM) {
-            baseBorder = blendColor(baseBorder, ENDER_ACCENT_COLOR, 0.48f);
-            nameBorder = baseBorder;
-            baseTint = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.35f), 112);
-            badgeBg = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.45f), 230);
-            select = ENDER_ACCENT_COLOR;
-            multi = 0xFFB35CFF;
-        }
-
-        // Modern derives everything from the container's dye and ignores the theme entirely,
-        // which is why the settings screen greys the theme selector out under this style.
-        if (isModernStyle()) {
-            baseBorder = blendColor(getModernPanelFill(), 0xFFFFFFFF, 0.35f);
-            nameBorder = getModernPanelBorder();
-            baseTint = withAlpha(getModernPanelFill(), 0);
-            badgeBg = withAlpha(getModernPanelBorder(), 235);
-            select = this.isEnderChest ? ENDER_ACCENT_COLOR : 0xFFFFD700;
-            multi = 0xFF7FD8FF;
-            shadow = getModernPanelBorder();
-        }
-
-        return new ThemePalette(baseBorder, nameBorder, baseTint, badgeBg, select, multi, shadow);
-    }
 
 
-    private record ThemePalette(
-            int borderColor,
-            int nameBorderColor,
-            int tintColor,
-            int badgeBgColor,
-            int selectionColor,
-            int multiSelectColor,
-            int panelShadowColor
-    ) {}
 }
