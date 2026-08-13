@@ -51,12 +51,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int NAME_BADGE_GAP = 2;
     // Modern name tab. Its text sits at tabY + 4, which lands exactly on the vanilla
     // container-name line (panelY - CONTAINER_NAME_LINE_HEIGHT - CONTAINER_NAME_LINE_GAP).
-    private static final int NAME_TAB_HEIGHT = 16;
-    /** Below this the selected-name tab would be all padding and an ellipsis, so it is dropped. */
-    private static final int MIN_SELECTED_TAB_WIDTH = 28;
-    private static final int NAME_TAB_GAP = 2;
-    /** Gap the full 176px card leaves right of its grid: 176 - 8 - 9*18. */
-    private static final int MODERN_GRID_RIGHT_MARGIN = 6;
     // ClientTextTooltip is ten pixels high and GuiGraphicsExtractor adds a two-pixel
     // gap after the first text line. Keep the custom name badge aligned with the
     // vanilla selected-item tooltip above the container title.
@@ -272,14 +266,15 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             }
         } else if (modernMode) {
             // displayCols/Rows already carry the pack's grid when one is active, 9x3 otherwise.
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth);
+            modernPainter().drawCard(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth, getPanelHeight());
         } else if (isGlassTheme() && !resourcePackMode) {
             drawGlassPanel(context, panelX, panelY);
         } else {
             drawVanillaTexturePanel(context, panelX, panelY);
         }
         if (modernMode && (!this.compactMode || hasCompactPreview)) {
-            drawModernNameTabs(textRenderer, context, tooltipX, panelY, width);
+            modernPainter().drawNameTabs(textRenderer, context, tooltipX, panelY, width, getPanelWidth(),
+                    this.containerName, getModernSelectedTabName());
         }
         if (!this.compactMode && !modernMode) {
             drawThemeOverlay(context, panelX, panelY);
@@ -332,6 +327,11 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 PANEL_WIDTH, getPanelHeight(), 256, 256, getPanelRenderColor());
     }
 
+    private ModernCardPainter modernPainter() {
+        return new ModernCardPainter(this.palette, this.compactMode,
+                getSlotStartX(), getSlotStartY(), getRenderedSlotSize());
+    }
+
     private ResourcePackPanelPainter packPainter() {
         return new ResourcePackPanelPainter(this.panelTexture.layout(), getPanelTexture(),
                 this.displayCols, this.displayRows, getPanelWidth(), getPanelHeight());
@@ -340,7 +340,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int cardWidth) {
         // Modern is checked first: under a pack it recolours its card instead of deferring.
         if (isModernStyle()) {
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth);
+            modernPainter().drawCard(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth, getPanelHeight());
             return;
         }
         if (this.resourcePackOverridesPanel) {
@@ -580,131 +580,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
 
 
-    private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows, int cardWidth) {
-        int w = cardWidth;
-        int h = getPanelHeight();
-        if (w <= 0 || h <= 0) return;
 
-        int fill = this.palette.getModernPanelFill();
-        fillRounded(context, panelX, panelY, w, h, this.palette.getModernPanelBorder());
-        fillRounded(context, panelX + 2, panelY + 2, w - 4, h - 4, fill);
 
-        // A one-pixel lift on top and a matching shade on the bottom keep the flat
-        // card from reading as a plain rectangle.
-        context.fill(panelX + 3, panelY + 2, panelX + w - 3, panelY + 3, blendColor(fill, 0xFFFFFFFF, 0.16f));
-        context.fill(panelX + 3, panelY + h - 3, panelX + w - 3, panelY + h - 2, blendColor(fill, 0xFF000000, 0.18f));
 
-        drawModernGrid(context, panelX, panelY, gridColumnsFor(cols, w), rows);
-    }
-
-    /**
-     * Columns of lattice to draw across a card {@code cardWidth} wide.
-     *
-     * <p>Compact stretches its card to the tooltip width, which is set by the name tab and the
-     * hint rather than by the slot count, so drawing only the occupied columns would leave most
-     * of the card bare. Empty trailing cells are filled in, matching how the full 9x3 card shows
-     * every slot whether or not it holds anything.</p>
-     */
-    private int gridColumnsFor(int cols, int cardWidth) {
-        if (!this.compactMode) return cols;
-        int usable = cardWidth - getSlotStartX() - MODERN_GRID_RIGHT_MARGIN;
-        return Math.max(cols, usable / getRenderedSlotSize());
-    }
-
-    /** Slots are a shared lattice of single-pixel rules rather than 27 embossed wells. */
-    private void drawModernGrid(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows) {
-        // Cell size follows the pack's layout when one is active, so the lattice lands exactly
-        // where the items are drawn.
-        int cell = getRenderedSlotSize();
-        int gridX = panelX + getSlotStartX();
-        int gridY = panelY + getSlotStartY();
-        int gridW = cols * cell;
-        int gridH = rows * cell;
-
-        context.fill(gridX, gridY, gridX + gridW, gridY + gridH, this.palette.getModernCellFill());
-
-        int line = this.palette.getModernGridLine();
-        for (int col = 0; col <= cols; col++) {
-            int lineX = gridX + col * cell;
-            context.fill(lineX, gridY, lineX + 1, gridY + gridH + 1, line);
-        }
-        for (int row = 0; row <= rows; row++) {
-            int lineY = gridY + row * cell;
-            context.fill(gridX, lineY, gridX + gridW + 1, lineY + 1, line);
-        }
-    }
-
-    /**
-     * Paints the container name and the selected item name into two tabs sharing one row on top
-     * of the card: container on the left, selected item on the right.
-     *
-     * <p>The tooltip framework already drew the container name as a plain text line directly
-     * above us, and text is rendered before images, so the left tab covers that line and
-     * reprints it in place. The left tab is anchored to the tooltip's own left edge rather than
-     * the panel's, because a long custom name widens the tooltip past the panel and re-centres
-     * the panel away from that text.</p>
-     */
-    private void drawModernNameTabs(Font font, GuiGraphicsExtractor context, int tooltipX, int panelY, int tooltipWidth) {
-        if (getPanelWidth() <= 0) return;
-
-        int tabY = panelY - NAME_TAB_HEIGHT;
-        // Runs two pixels past the card's top border so tab and card read as one shape.
-        int tabHeight = panelY + 2 - tabY;
-
-        boolean hasContainerName = this.containerName != null && !this.containerName.isEmpty();
-        String selectedName = getModernSelectedTabName();
-
-        int containerTabWidth = 0;
-        int selectedTabWidth = 0;
-        if (hasContainerName && selectedName != null) {
-            int available = tooltipWidth - NAME_TAB_GAP;
-            int containerNeed = font.width(this.containerName) + 12;
-            int selectedNeed = font.width(selectedName) + 12;
-
-            if (containerNeed + selectedNeed <= available) {
-                containerTabWidth = containerNeed;
-                selectedTabWidth = selectedNeed;
-            } else if (this.compactMode) {
-                // A compact row is too narrow to split without reducing both names to an
-                // ellipsis. The container name keeps it; the item name is still one hover away.
-                containerTabWidth = Math.min(tooltipWidth, containerNeed);
-            } else {
-                // Neither tab may take more than half unless the other one wants less than that,
-                // in which case the leftover goes to whichever is still short.
-                int half = available / 2;
-                if (containerNeed <= half) {
-                    containerTabWidth = containerNeed;
-                    selectedTabWidth = available - containerTabWidth;
-                } else if (selectedNeed <= half) {
-                    selectedTabWidth = selectedNeed;
-                    containerTabWidth = available - selectedTabWidth;
-                } else {
-                    containerTabWidth = half;
-                    selectedTabWidth = available - half;
-                }
-            }
-
-            // A tab squeezed below this is all padding and an ellipsis; give the row back instead.
-            if (selectedTabWidth < MIN_SELECTED_TAB_WIDTH) {
-                selectedTabWidth = 0;
-                containerTabWidth = Math.min(tooltipWidth, containerNeed);
-            }
-        } else if (hasContainerName) {
-            containerTabWidth = Math.min(tooltipWidth, font.width(this.containerName) + 12);
-        } else if (selectedName != null) {
-            selectedTabWidth = Math.min(tooltipWidth, font.width(selectedName) + 12);
-        }
-
-        if (containerTabWidth > 0) {
-            drawModernTab(font, context, tooltipX, tabY, containerTabWidth, tabHeight,
-                    fitText(font, this.containerName, Math.max(1, containerTabWidth - 12)));
-        }
-        if (selectedTabWidth > 0) {
-            drawModernTab(font, context, tooltipX + tooltipWidth - selectedTabWidth, tabY,
-                    selectedTabWidth, tabHeight,
-                    fitText(font, selectedName, Math.max(1, selectedTabWidth - 12)));
-        }
-    }
 
     /** Name for the right-hand tab, or null when there is nothing to show there. */
     private String getModernSelectedTabName() {
@@ -715,35 +593,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return name.isEmpty() ? null : name;
     }
 
-    private void drawModernTab(Font font, GuiGraphicsExtractor context, int x, int y, int w, int h, String label) {
-        fillTopRounded(context, x, y, w, h, this.palette.getModernPanelBorder());
-        fillTopRounded(context, x + 2, y + 2, w - 4, h, this.palette.getModernPanelFill());
-        context.text(font, Component.literal(label), x + 6, y + 4, 0xFFFFFFFF);
-    }
 
-    private void fillRounded(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
-        if (w <= 0 || h <= 0) return;
-        if (w <= 4 || h <= 4) {
-            context.fill(x, y, x + w, y + h, color);
-            return;
-        }
-        context.fill(x + 2, y, x + w - 2, y + 1, color);
-        context.fill(x + 1, y + 1, x + w - 1, y + 2, color);
-        context.fill(x, y + 2, x + w, y + h - 2, color);
-        context.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, color);
-        context.fill(x + 2, y + h - 1, x + w - 2, y + h, color);
-    }
 
-    private void fillTopRounded(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
-        if (w <= 0 || h <= 0) return;
-        if (w <= 4 || h <= 2) {
-            context.fill(x, y, x + w, y + h, color);
-            return;
-        }
-        context.fill(x + 2, y, x + w - 2, y + 1, color);
-        context.fill(x + 1, y + 1, x + w - 1, y + 2, color);
-        context.fill(x, y + 2, x + w, y + h, color);
-    }
 
     private Identifier getPanelTexture() {
         return this.isEnderChest ? VanillaTooltipTextures.generic54() : this.panelTexture.texture();
@@ -1158,7 +1009,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
 
         int panelWidth = getPanelWidth();
-        String displayName = fitText(font, selectedStack.getHoverName().getString(), panelWidth - 22);
+        String displayName = TooltipText.fit(font, selectedStack.getHoverName().getString(), panelWidth - 22);
         Component name = Component.literal(displayName).withStyle(style -> style.withColor(nameColor & 0xFFFFFF));
         ClientTooltipComponent selectedNameTooltip = ClientTooltipComponent.create(name.getVisualOrderText());
         int textWidth = font.width(name.getVisualOrderText());
@@ -1183,7 +1034,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private void drawCustomSelectedNameBadge(Font font, GuiGraphicsExtractor context,
                                               int panelX, int panelY, ItemStack selectedStack, int nameColor) {
         int panelWidth = getPanelWidth();
-        String displayName = fitText(font, selectedStack.getHoverName().getString(), Math.max(1, panelWidth - 22));
+        String displayName = TooltipText.fit(font, selectedStack.getHoverName().getString(), Math.max(1, panelWidth - 22));
         int textWidth = font.width(displayName);
         int badgeWidth = Math.min(panelWidth - 8, textWidth + 12);
         int badgeX = panelX + (panelWidth - badgeWidth) / 2;
@@ -1209,17 +1060,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     private int getReadableThemeNameColor() {
         return BetterShulkerConfig.getCustomNameTextColor() & 0x00FFFFFF;
-    }
-
-    private String fitText(Font font, String text, int maxWidth) {
-        if (font.width(text) <= maxWidth) return text;
-        String ellipsis = "...";
-        int allowed = Math.max(0, maxWidth - font.width(ellipsis));
-        String result = text;
-        while (!result.isEmpty() && font.width(result) > allowed) {
-            result = result.substring(0, result.length() - 1);
-        }
-        return result + ellipsis;
     }
 
     private boolean hasSelectedNameBadge() {
