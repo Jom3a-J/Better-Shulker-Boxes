@@ -43,6 +43,13 @@ final class LiveTooltipPreview {
     private static final int MODERN_PREVIEW_FILL = 0xFF785192;
     private static final int MODERN_PREVIEW_BORDER = 0xFF543966;
 
+    /** Height ModernCardPainter gives its name tabs, and the room the card needs above it. */
+    private static final int MODERN_NAME_TAB_HEIGHT = 16;
+
+    /** Stand-ins for the names the real tooltip reads off the container and the selected slot. */
+    private static final String PREVIEW_CONTAINER_NAME = "Shulker Box";
+    private static final String PREVIEW_SELECTED_NAME = "Diamond Pickaxe";
+
     private LiveTooltipPreview() {}
 
     private static Component text(String value) {
@@ -94,20 +101,34 @@ final class LiveTooltipPreview {
         int fullW = resourceLayout == null ? 176 : resourceLayout.panelWidth(resourceLayout.columns());
         int fullH = resourceLayout == null ? 68 : resourceLayout.panelHeight(resourceLayout.rows());
         int panelX = x + (w - fullW) / 2;
-        int panelY = y + 22;
+        // Modern's tabs sit above the card, so it starts low enough to leave them room under the
+        // heading rather than drawing over it.
+        int panelY = y + 22 + (colors.modern() ? MODERN_NAME_TAB_HEIGHT : 0);
         if (resourceLayout == null) {
             drawFullThemePreviewPanel(graphics, colors, panelX, panelY, fullW, fullH, sel);
         } else {
             drawResourcePackLayoutPreview(graphics, state, resourceLayout, panelX, panelY, false);
         }
+        if (colors.modern() && resourceLayout == null) {
+            drawModernNameTabsPreview(graphics, font, colors, panelX, panelY, fullW);
+        }
 
-        int nameY = panelY + fullH + 14;
-        drawSelectedNamePreview(graphics, font, colors, x, w, nameY, nameText);
+        // Modern colours its own name tabs from the card and ignores the Selected Name sliders
+        // entirely, which the settings screen greys out under it. Previewing a badge those
+        // sliders drive would advertise a control that does nothing, so the row is dropped and
+        // the compact card moves up into the space.
+        int belowPanelY = panelY + fullH + 14;
+        if (!colors.modern()) {
+            drawSelectedNamePreview(graphics, font, colors, x, w, belowPanelY, nameText);
+            belowPanelY += 34;
+        } else {
+            belowPanelY += 10;
+        }
 
         int compactW = 14 + 5 * 18;
         int compactH = 14 + 18;
         int compactX = x + (w - compactW) / 2;
-        int compactY = nameY + 34;
+        int compactY = belowPanelY;
         drawCompactThemePreview(graphics, font, colors, compactX, compactY, compactW, compactH, sel);
     }
 
@@ -176,10 +197,7 @@ final class LiveTooltipPreview {
                                                   int panelX, int panelY, int fullW, int fullH, int sel) {
         if (colors.modern()) {
             drawModernPreviewPanel(graphics, colors, panelX, panelY, fullW, fullH, 9, 3);
-            int modernSelX = panelX + 8 + 3 * 18;
-            int modernSelY = panelY + 7 + 18;
-            drawStaticFrame(graphics, modernSelX, modernSelY, 18, 18, sel);
-            graphics.fill(modernSelX + 1, modernSelY + 1, modernSelX + 17, modernSelY + 17, withAlpha(sel, 45));
+            drawSelectedSlotPreview(graphics, panelX + 8 + 3 * 18, panelY + 7 + 18, sel);
             return;
         }
 
@@ -351,8 +369,12 @@ final class LiveTooltipPreview {
             String count = i == 0 ? "28" : "64";
             graphics.text(font, text(count), itemX + 15 - font.width(count), itemY + 9, 0xFFFFFFFF);
         }
-        drawStaticFrame(graphics, x + 8, y + 7, 18, 18, sel);
-        graphics.fill(x + 9, y + 8, x + 25, y + 24, withAlpha(sel, 45));
+        if (colors.modern()) {
+            drawSelectedSlotPreview(graphics, x + 8, y + 7, sel);
+        } else {
+            drawStaticFrame(graphics, x + 8, y + 7, 18, 18, sel);
+            graphics.fill(x + 9, y + 8, x + 25, y + 24, withAlpha(sel, 45));
+        }
 
         // Named from the actual binding, and dropped when there is none, so the preview shows the
         // row the tooltip will really draw rather than always spelling out "V".
@@ -483,6 +505,56 @@ final class LiveTooltipPreview {
             }
         }
         throw new NoSuchFieldException(name);
+    }
+
+    /**
+     * The two name tabs Modern sits on top of its card, as {@code ModernCardPainter.drawNameTabs}
+     * draws them: the container's name on the left, the selected item's on the right, each running
+     * two pixels into the card so tab and card read as one shape.
+     *
+     * <p>The real pair share the tooltip's width and give ground to each other when both names are
+     * long. Preview names are short and the card is a fixed 176 wide, so only the both-fit case
+     * can arise here.</p>
+     */
+    private static void drawModernNameTabsPreview(GuiGraphicsExtractor graphics, Font font, PreviewColors colors,
+                                                  int panelX, int panelY, int panelW) {
+        int tabY = panelY - MODERN_NAME_TAB_HEIGHT;
+        int tabHeight = panelY + 2 - tabY;
+        int containerW = font.width(PREVIEW_CONTAINER_NAME) + 12;
+        int selectedW = font.width(PREVIEW_SELECTED_NAME) + 12;
+
+        drawModernTabPreview(graphics, font, colors, panelX, tabY, containerW, tabHeight, PREVIEW_CONTAINER_NAME);
+        drawModernTabPreview(graphics, font, colors, panelX + panelW - selectedW, tabY, selectedW, tabHeight,
+                PREVIEW_SELECTED_NAME);
+    }
+
+    private static void drawModernTabPreview(GuiGraphicsExtractor graphics, Font font, PreviewColors colors,
+                                             int x, int y, int w, int h, String label) {
+        fillTopRoundedPreview(graphics, x, y, w, h, colors.border());
+        fillTopRoundedPreview(graphics, x + 2, y + 2, w - 4, h, colors.background());
+        graphics.text(font, text(label), x + 6, y + 4, 0xFFFFFFFF);
+    }
+
+    private static void fillTopRoundedPreview(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int color) {
+        if (w <= 0 || h <= 0) return;
+        if (w <= 4 || h <= 2) {
+            graphics.fill(x, y, x + w, y + h, color);
+            return;
+        }
+        graphics.fill(x + 2, y, x + w - 2, y + 1, color);
+        graphics.fill(x + 1, y + 1, x + w - 1, y + 2, color);
+        graphics.fill(x, y + 2, x + w, y + h, color);
+    }
+
+    /**
+     * The selected slot as {@code ShulkerTooltipComponent.drawSelectedSlot} draws it: the cell
+     * lights up, with no frame around it.
+     *
+     * <p>Alpha 64 is the midpoint of the pulse the real square breathes through; a still preview
+     * has no business animating.</p>
+     */
+    private static void drawSelectedSlotPreview(GuiGraphicsExtractor graphics, int slotX, int slotY, int sel) {
+        graphics.fill(slotX + 1, slotY + 1, slotX + 17, slotY + 17, withAlpha(sel, 64));
     }
 
     private static void drawStaticFrame(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int color) {
