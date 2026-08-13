@@ -307,6 +307,22 @@ public class BetterShulkerClient {
         return showFullTooltipKey;
     }
 
+    /**
+     * Display name of the key that reveals the full grid, or an empty string when it has none.
+     *
+     * <p>Lives here so the tooltip's own hint and the settings screen's preview of that hint name
+     * the same key. The preview used to spell out "V" whatever the key was actually bound to.</p>
+     */
+    public static String getShowFullTooltipKeyName() {
+        KeyMapping key = showFullTooltipKey;
+        if (key == null || key.isUnbound()) return "";
+        try {
+            return key.getTranslatedKeyMessage().getString();
+        } catch (Exception ignored) {
+            return "V";
+        }
+    }
+
     public static boolean isKeyHeld(KeyMapping key) {
         if (key == null || key.isUnbound()) return false;
         try {

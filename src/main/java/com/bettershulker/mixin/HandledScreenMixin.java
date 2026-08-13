@@ -102,8 +102,24 @@ public abstract class HandledScreenMixin extends Screen {
     @Unique
     private static final Set<Integer> bettershulker$processedDragSlots = new HashSet<>();
 
+    /** Sentinel for "no container under the tooltip", distinct from every {@link MenuSlotRef}. */
+    @Unique
+    private static final int bettershulker$NO_ACTIVE_CONTAINER = Integer.MIN_VALUE;
+
+    /** Every carried container shares one reference; there is no slot to tell them apart by. */
+    @Unique
+    private static final int bettershulker$CARRIED_ACTIVE_CONTAINER = Integer.MIN_VALUE + 1;
+
+    /** Which container the selection currently belongs to, so a switch can be noticed. */
+    @Unique
+    private static int bettershulker$lastActiveContainerRef = bettershulker$NO_ACTIVE_CONTAINER;
+
     @Unique
     private boolean bettershulker$bouncePushed = false;
+
+    /** Whether the slot being drawn right now can take the carried stack, decided once per slot. */
+    @Unique
+    private boolean bettershulker$slotAcceptsCarried = false;
 
     /** One hop of the "drop this in me" bounce, in milliseconds. */
     @Unique
@@ -117,18 +133,15 @@ public abstract class HandledScreenMixin extends Screen {
         super(title);
     }
 
+    /**
+     * Physical held-state of a key mapping.
+     *
+     * <p>Delegates rather than repeating the GLFW query: this was a byte-identical copy of the
+     * client one, so a fix to either had to be remembered twice.</p>
+     */
     @Unique
     private static boolean bettershulker$isKeyHeld(KeyMapping key) {
-        if (key == null || key.isUnbound()) return false;
-        try {
-            var boundKey = InputConstants.getKey(key.saveString());
-            if (boundKey.getType() == InputConstants.Type.KEYSYM) {
-                return GLFW.glfwGetKey(Minecraft.getInstance().getWindow().handle(), boundKey.getValue()) == GLFW.GLFW_PRESS;
-            }
-        } catch (Exception e) {
-            // fallback to isDown if saveString parsing fails
-        }
-        return key.isDown();
+        return BetterShulkerClient.isKeyHeld(key);
     }
 
     @Unique
@@ -398,6 +411,14 @@ public abstract class HandledScreenMixin extends Screen {
                 return;
             }
 
+            // A drag crossing a full container used to fire anyway: a sweep sound per slot and a
+            // packet the server could only reject, one rate-limiter slot at a time. An Ender Chest
+            // whose cache has not arrived reads as empty here, so it stays permissive and lets the
+            // server have the final word, the same way the click path does.
+            if (!ContainerHelper.canInsert(bettershulker$getContents(carried), slotStack)) {
+                return;
+            }
+
             bettershulker$processedDragSlots.add(MenuSlotRef.encode(slot, player));
             bettershulker$dragDidWork = true;
             bettershulker$sendInteractPayload(
@@ -642,10 +663,30 @@ public abstract class HandledScreenMixin extends Screen {
         } else {
             int size = bettershulker$getContainerSize(containerStack);
             if (size <= 0) return current;
-            int newSlot = current + delta;
-            if (newSlot < 0) newSlot = size - 1;
-            if (newSlot >= size) newSlot = 0;
-            return newSlot;
+            // Wrap, rather than snap to an end. A vertical step of +-9 that left the grid used to
+            // land on slot 26 or slot 0, throwing the square into a far corner; wrapping carries
+            // it down its own column, which is what an arrow key promises.
+            int plainMove = Math.floorMod(current + delta, size);
+
+            // Empty slots are not worth stopping on: the square only ever names an extraction
+            // target, so a box holding three items used to need two dozen presses to cross. Step
+            // by the same delta until something occupied turns up, which keeps a vertical move
+            // inside its column and a horizontal one along its row order.
+            NonNullList<ItemStack> contents = bettershulker$getContents(containerStack);
+            int candidate = plainMove;
+            while (candidate != current) {
+                if (candidate < contents.size() && !contents.get(candidate).isEmpty()) {
+                    return candidate;
+                }
+                candidate = Math.floorMod(candidate + delta, size);
+            }
+
+            // Nothing else along that path holds anything - an empty column, or an empty box.
+            // Stay on the current slot while it still has an item, so a lone stack cannot be
+            // stepped off; otherwise fall back to the plain grid move.
+            return current >= 0 && current < contents.size() && !contents.get(current).isEmpty()
+                    ? current
+                    : plainMove;
         }
     }
 
@@ -838,6 +879,14 @@ public abstract class HandledScreenMixin extends Screen {
         }
         BetterShulkerClient.setActiveContainerStack(hoveredContainer);
 
+        int activeRef = bettershulker$NO_ACTIVE_CONTAINER;
+        if (tooltipActive && hovering) {
+            activeRef = MenuSlotRef.encode(this.hoveredSlot, Minecraft.getInstance().player);
+        } else if (tooltipActive && carryingContainer) {
+            activeRef = bettershulker$CARRIED_ACTIVE_CONTAINER;
+        }
+        bettershulker$onActiveContainerChanged(activeRef, hoveredContainer);
+
         if (altDown && carryingContainer && !hovering) {
             var mc = Minecraft.getInstance();
             if (ContainerHelper.isEnderChest(carried)) {
@@ -866,6 +915,51 @@ public abstract class HandledScreenMixin extends Screen {
         }
 
         BetterShulkerClient.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
+    }
+
+    /**
+     * Re-points the selection at the container the tooltip now belongs to.
+     *
+     * <p>Both the square and the multi-select set are plain slot indices with no memory of which
+     * box they were chosen in, so moving to another one used to carry them over: the square could
+     * sit on an empty slot, and {@code E} would extract whatever happened to occupy the marked
+     * indices in the new box rather than the stacks that were picked.</p>
+     *
+     * <p>Keyed on the slot the container sits in rather than the stack, because inserting or
+     * extracting rewrites the stack's contents component and would otherwise read as a switch
+     * mid-interaction.</p>
+     */
+    @Unique
+    private void bettershulker$onActiveContainerChanged(int activeRef, ItemStack container) {
+        if (activeRef == bettershulker$NO_ACTIVE_CONTAINER || container.isEmpty()) return;
+        if (activeRef == bettershulker$lastActiveContainerRef) return;
+        // A drag pulls from the carried box while the pointer sweeps across the inventory, so it
+        // passes over other boxes on the way. Re-pointing the square there would change which
+        // stack the rest of the drag extracts, mid-gesture.
+        if (bettershulker$isDragging) return;
+
+        BetterShulkerClient.clearSelectedSlotsSet();
+
+        NonNullList<ItemStack> contents = bettershulker$getContents(container);
+        int firstOccupied = -1;
+        for (int i = 0; i < contents.size(); i++) {
+            if (!contents.get(i).isEmpty()) {
+                firstOccupied = i;
+                break;
+            }
+        }
+        if (firstOccupied < 0 && ContainerHelper.isEnderChest(container)) {
+            // An Ender Chest reads as empty until its first sync lands. Leave the reference unset
+            // so the selection is placed against real contents once they arrive.
+            return;
+        }
+        bettershulker$lastActiveContainerRef = activeRef;
+
+        // Hold the position when the new box has something there too, which keeps the square
+        // where the eye left it between two similar boxes.
+        int selected = BetterShulkerClient.getSelectedSlotIndex();
+        if (selected >= 0 && selected < contents.size() && !contents.get(selected).isEmpty()) return;
+        BetterShulkerClient.setSelectedSlotIndex(Math.max(0, firstOccupied));
     }
 
     @Inject(method = "getTooltipFromContainerItem", at = @At("RETURN"), cancellable = true)
@@ -1080,6 +1174,7 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$tapHandled = false;
         bettershulker$selectKeyWasDown = false;
         bettershulker$lastTooltipScrollTime = 0L;
+        bettershulker$lastActiveContainerRef = bettershulker$NO_ACTIVE_CONTAINER;
         BetterShulkerClient.setTooltipActive(false);
         BetterShulkerClient.setActiveContainerStack(ItemStack.EMPTY);
         BetterShulkerClient.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
@@ -1653,12 +1748,32 @@ public abstract class HandledScreenMixin extends Screen {
         }
     }
 
+    /**
+     * Whether the carried stack could actually be dropped into the box sitting in this slot.
+     *
+     * <p>Both the bounce and the plus badge are promises that a drop will land somewhere. A full
+     * box refuses the drop, so neither is shown for one.</p>
+     */
+    @Unique
+    private boolean bettershulker$slotContainerAcceptsCarried(Slot slot, ItemStack carried) {
+        if (carried.isEmpty()) return false;
+        ItemStack slotStack = slot.getItem();
+        if (!ContainerHelper.isShulkerBox(slotStack) || ContainerHelper.isShulkerBox(carried)) return false;
+        return ContainerHelper.canInsert(ContainerHelper.getContainerContents(slotStack), carried);
+    }
+
     @Inject(method = "extractSlot", at = @At("HEAD"))
     private void bettershulker$onExtractSlotHead(GuiGraphicsExtractor graphics, Slot slot, int x, int y, CallbackInfo ci) {
-        if (!BetterShulkerConfig.tooltipEnabled || !BetterShulkerConfig.containerBounceEnabled) return;
+        // Decided once here and reused on the way out. The test reads the box's contents, which
+        // costs a copy of all 27 slots, and this runs for every slot on screen every frame; asking
+        // twice doubled that for nothing. It also guarantees the pose push and pop agree, since
+        // both now consult the same recorded answer.
         var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
+        this.bettershulker$slotAcceptsCarried = BetterShulkerConfig.tooltipEnabled
+                && bettershulker$slotContainerAcceptsCarried(slot, self.getMenu().getCarried());
+
+        if (!BetterShulkerConfig.containerBounceEnabled) return;
+        if (this.bettershulker$slotAcceptsCarried) {
             if (this.bettershulker$bouncePushed) {
                 graphics.pose().popMatrix();
                 this.bettershulker$bouncePushed = false;
@@ -1678,10 +1793,7 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Inject(method = "extractSlot", at = @At("RETURN"))
     private void bettershulker$onExtractSlotReturn(GuiGraphicsExtractor graphics, Slot slot, int x, int y, CallbackInfo ci) {
-        if (!BetterShulkerConfig.tooltipEnabled) return;
-        var self = bettershulker$self();
-        ItemStack carried = self.getMenu().getCarried();
-        if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
+        if (this.bettershulker$slotAcceptsCarried) {
             if (this.bettershulker$bouncePushed) {
                 // Pop the bounce translation matrix
                 graphics.pose().popMatrix();
