@@ -276,7 +276,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         } else if (isGlassTheme() && !resourcePackMode) {
             drawGlassPanel(context, panelX, panelY);
         } else {
-            drawResourcePackPanel(context, panelX, panelY);
+            drawVanillaTexturePanel(context, panelX, panelY);
         }
         if (modernMode && (!this.compactMode || hasCompactPreview)) {
             drawModernNameTabs(textRenderer, context, tooltipX, panelY, width);
@@ -320,28 +320,21 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
     }
 
-    private void drawResourcePackPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
-        // Resource-pack mode uses the pack's actual panel texture without a fake tint.
-        Identifier texture = getPanelTexture();
 
-        int renderColor = getPanelRenderColor();
-        if (!this.resourcePackOverridesPanel) {
-            context.blit(RenderPipelines.GUI_TEXTURED,
-                    texture, panelX, panelY, PANEL_TEXTURE_U, PANEL_TEXTURE_V,
-                    PANEL_WIDTH, getPanelHeight(), 256, 256, renderColor);
+    /** Panel built from the vanilla container texture, or handed to the pack painter. */
+    private void drawVanillaTexturePanel(GuiGraphicsExtractor context, int panelX, int panelY) {
+        if (this.resourcePackOverridesPanel) {
+            packPainter().drawFull(context, panelX, panelY);
             return;
         }
+        context.blit(RenderPipelines.GUI_TEXTURED,
+                getPanelTexture(), panelX, panelY, PANEL_TEXTURE_U, PANEL_TEXTURE_V,
+                PANEL_WIDTH, getPanelHeight(), 256, 256, getPanelRenderColor());
+    }
 
-        ResourcePackLayout layout = this.panelTexture.layout();
-        // The profile keeps the pack's own top edge and storage grid while discarding any
-        // full-screen/player-inventory section below it.
-        drawResourcePackHorizontalSlices(context, texture, panelX, panelY,
-                layout.sourcePanelY(), layout.outputSlotY(), this.displayCols, renderColor);
-        drawResourcePackStorageRows(context, texture, panelX,
-                panelY + layout.outputSlotY(), this.displayRows, renderColor);
-        drawResourcePackRepeatedRow(context, texture, panelX,
-                panelY + layout.outputSlotY() + this.displayRows * layout.slotSize(),
-                layout.bottomCapHeight(), renderColor);
+    private ResourcePackPanelPainter packPainter() {
+        return new ResourcePackPanelPainter(this.panelTexture.layout(), getPanelTexture(),
+                this.displayCols, this.displayRows, getPanelWidth(), getPanelHeight());
     }
 
     private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int cardWidth) {
@@ -351,7 +344,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             return;
         }
         if (this.resourcePackOverridesPanel) {
-            drawResourcePackCompactPanel(context, panelX, panelY);
+            packPainter().drawCompact(context, panelX, panelY);
             return;
         }
 
@@ -359,125 +352,13 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         drawFullStyleCompactOverlay(context, panelX, panelY);
     }
 
-    private void drawResourcePackCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
-        Identifier texture = getPanelTexture();
-        int renderColor = getPanelRenderColor();
 
-        ResourcePackLayout layout = this.panelTexture.layout();
-        // Recompose the resource-pack panel instead of cropping the top-left. This preserves the
-        // profile's left edge, slot grid, right cap, and bottom cap at compact widths.
-        int leftW = layout.outputSlotX();
-        int slotsW = this.displayCols * layout.slotSize();
-        int rightSourceX = layout.sourceRightX();
-        int rightW = layout.sourceRightWidth();
-        int topH = layout.outputSlotY() + this.displayRows * layout.slotSize();
-        int bottomH = Math.max(0, getPanelHeight() - topH);
 
-        drawResourcePackHorizontalSlices(context, texture, panelX, panelY,
-                layout.sourcePanelY(), layout.outputSlotY(), this.displayCols, renderColor);
-        drawResourcePackStorageRows(context, texture, panelX,
-                panelY + layout.outputSlotY(), this.displayRows,
-                leftW, slotsW, rightSourceX, rightW, renderColor);
 
-        if (bottomH > 0) {
-            int bottomY = panelY + topH;
-            drawResourcePackRepeatedRow(context, texture, panelX, bottomY, bottomH,
-                    leftW, slotsW, rightSourceX, rightW, renderColor);
-        }
-    }
 
-    private void drawResourcePackStorageRows(GuiGraphicsExtractor context, Identifier texture,
-                                             int panelX, int y, int rows, int renderColor) {
-        ResourcePackLayout layout = this.panelTexture.layout();
-        int leftW = layout.outputSlotX();
-        int rightSourceX = layout.sourceRightX();
-        int rightW = layout.sourceRightWidth();
-        int slotsW = this.displayCols * layout.slotSize();
-        drawResourcePackStorageRows(context, texture, panelX, y, rows,
-                leftW, slotsW, rightSourceX, rightW, renderColor);
-    }
 
-    private void drawResourcePackStorageRows(GuiGraphicsExtractor context, Identifier texture,
-                                             int panelX, int y, int rows,
-                                             int leftW, int slotsW, int rightSourceX, int rightW,
-                                             int renderColor) {
-        ResourcePackLayout layout = this.panelTexture.layout();
-        int height = rows * layout.slotSize();
-        int directHeight = Math.min(height, layout.rows() * layout.slotSize());
-        if (directHeight > 0) {
-            blitResourcePackHorizontalSlices(context, texture, panelX, y,
-                    layout.sourceSlotY(), directHeight,
-                    leftW, slotsW, rightSourceX, rightW, renderColor);
-        }
-        for (int row = directHeight; row < height; row++) {
-            blitResourcePackHorizontalSlices(context, texture, panelX, y + row,
-                    layout.bottomCapSourceY(), 1,
-                    leftW, slotsW, rightSourceX, rightW, renderColor);
-        }
-    }
 
-    private void drawResourcePackRepeatedRow(GuiGraphicsExtractor context, Identifier texture,
-                                             int panelX, int y, int height, int renderColor) {
-        ResourcePackLayout layout = this.panelTexture.layout();
-        int leftW = layout.outputSlotX();
-        int rightSourceX = layout.sourceRightX();
-        int rightW = layout.sourceRightWidth();
-        int slotsW = this.displayCols * layout.slotSize();
-        drawResourcePackRepeatedRow(context, texture, panelX, y, height,
-                leftW, slotsW, rightSourceX, rightW, renderColor);
-    }
 
-    private void drawResourcePackRepeatedRow(GuiGraphicsExtractor context, Identifier texture,
-                                             int panelX, int y, int height,
-                                             int leftW, int slotsW, int rightSourceX, int rightW,
-                                             int renderColor) {
-        ResourcePackLayout layout = this.panelTexture.layout();
-        for (int row = 0; row < height; row++) {
-            blitResourcePackHorizontalSlices(context, texture, panelX, y + row,
-                    layout.bottomCapSourceY(), 1,
-                    leftW, slotsW, rightSourceX, rightW, renderColor);
-        }
-    }
-
-    private void drawResourcePackHorizontalSlices(GuiGraphicsExtractor context, Identifier texture,
-                                                   int panelX, int y, int sourceY, int height,
-                                                   int displayColumns, int renderColor) {
-        ResourcePackLayout layout = this.panelTexture.layout();
-        int leftW = layout.outputSlotX();
-        int slotsW = displayColumns * layout.slotSize();
-        int rightW = Math.max(0, getPanelWidth() - leftW - slotsW);
-        blitResourcePackHorizontalSlices(context, texture, panelX, y, sourceY, height,
-                leftW, slotsW, layout.sourceRightX(), Math.min(rightW, layout.sourceRightWidth()), renderColor);
-    }
-
-    private void blitResourcePackHorizontalSlices(GuiGraphicsExtractor context, Identifier texture,
-                                                   int panelX, int y, int sourceY, int height,
-                                                   int leftW, int slotsW, int rightSourceX, int rightW,
-                                                   int renderColor) {
-        ResourcePackLayout layout = this.panelTexture.layout();
-        blitResourcePackSlice(context, texture, panelX, y,
-                layout.sourcePanelX(), sourceY, leftW, height, renderColor);
-        blitResourcePackSlice(context, texture, panelX + leftW, y,
-                layout.sourceSlotX(), sourceY, slotsW, height, renderColor);
-        blitResourcePackSlice(context, texture, panelX + leftW + slotsW, y,
-                rightSourceX, sourceY, rightW, height, renderColor);
-    }
-
-    private void blitResourcePackSlice(GuiGraphicsExtractor context, Identifier texture, int x, int y,
-                                       int u, int v, int w, int h, int renderColor) {
-        if (w <= 0 || h <= 0) return;
-        context.blit(RenderPipelines.GUI_TEXTURED,
-                texture,
-                x,
-                y,
-                (float) u,
-                (float) v,
-                w,
-                h,
-                this.panelTexture.layout().textureWidth(),
-                this.panelTexture.layout().textureHeight(),
-                renderColor);
-    }
 
 
 
