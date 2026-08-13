@@ -46,8 +46,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int SLOT_START_X = 8;
     private static final int SLOT_START_Y = 7;
     private static final int TOOLTIP_BOTTOM_PADDING = 6;
-    private static final int COMPACT_SLOT_START_X = 7;
-    private static final int COMPACT_SLOT_START_Y = 7;
     private static final int COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET = 0;
     private static final int COMPACT_HINT_HEIGHT = 13;
     private static final int NAME_BADGE_HEIGHT = 14;
@@ -60,6 +58,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private static final int NAME_TAB_GAP = 2;
     /** Below this the card is too dark to derive shades by darkening; they are lightened instead. */
     private static final float MODERN_DARK_FILL_LUMINANCE = 0.15f;
+    /** Gap the full 176px card leaves right of its grid: 176 - 8 - 9*18. */
+    private static final int MODERN_GRID_RIGHT_MARGIN = 6;
     // ClientTextTooltip is ten pixels high and GuiGraphicsExtractor adds a two-pixel
     // gap after the first text line. Keep the custom name badge aligned with the
     // vanilla selected-item tooltip above the container title.
@@ -98,7 +98,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     private final int badgeBgColor;
     private final int selectionColor;
     private final int multiSelectColor;
-    private final int matchColor;
     private final int panelShadowColor;
 
     private record DisplayLayout(List<Integer> slots, List<Integer> counts) {}
@@ -155,7 +154,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         this.badgeBgColor = palette.badgeBgColor;
         this.selectionColor = palette.selectionColor;
         this.multiSelectColor = palette.multiSelectColor;
-        this.matchColor = palette.matchColor;
         this.panelShadowColor = palette.panelShadowColor;
     }
 
@@ -222,7 +220,13 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     @Override
     public int getWidth(Font textRenderer) {
         if (this.compactMode) {
-            return Math.max(getPanelWidth(), textRenderer.width(getCompactFullHintText()) + 12);
+            int compactWidth = Math.max(getPanelWidth(), textRenderer.width(getCompactFullHintText()) + 12);
+            if (this.containerName != null && !this.containerName.isEmpty()) {
+                // Room for the name tab's own padding. Without it the tooltip is only as wide as
+                // the bare name line, and the tab has to ellipsise a name that would have fit.
+                compactWidth = Math.max(compactWidth, textRenderer.width(this.containerName) + 12);
+            }
+            return compactWidth;
         }
         int width = getPanelWidth();
         if (this.containerName != null && !this.containerName.isEmpty()) {
@@ -239,8 +243,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
 
     @Override
     public void extractImage(Font textRenderer, int tooltipX, int tooltipY, int width, int height, GuiGraphicsExtractor context) {
-        int panelX = tooltipX + (width - getPanelWidth()) / 2;
-        int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
         long now = System.currentTimeMillis();
 
         boolean resourcePackMode = this.resourcePackOverridesPanel;
@@ -250,16 +252,25 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         // resource pack, by taking that pack's colour and slot grid rather than standing down.
         boolean modernMode = isModernStyle();
 
+        // A compact card is only as wide as its handful of slots, but the tooltip around it is
+        // already as wide as the name line and the hint below force it. Stretching the card to
+        // fill that width costs no extra space and stops the name tabs, which are sized from the
+        // names rather than the slot count, from hanging off both edges of a tiny card.
+        boolean modernCompact = modernMode && this.compactMode;
+        int cardWidth = modernCompact ? width : getPanelWidth();
+        int panelX = modernCompact ? tooltipX : tooltipX + (width - getPanelWidth()) / 2;
+        int panelY = this.compactMode ? tooltipY + COMPACT_OUTSIDE_TOOLTIP_Y_OFFSET : tooltipY;
+
         if (!resourcePackMode && !modernMode && (!this.compactMode || hasCompactPreview)) {
             drawPanelAura(context, panelX, panelY, getPanelWidth(), getPanelHeight(), now);
         }
         if (this.compactMode) {
             if (hasCompactPreview) {
-                drawCompactPanel(textRenderer, context, panelX, panelY);
+                drawCompactPanel(textRenderer, context, panelX, panelY, cardWidth);
             }
         } else if (modernMode) {
             // displayCols/Rows already carry the pack's grid when one is active, 9x3 otherwise.
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth);
         } else if (isGlassTheme() && !resourcePackMode) {
             drawGlassPanel(context, panelX, panelY);
         } else {
@@ -322,10 +333,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 layout.bottomCapHeight(), renderColor);
     }
 
-    private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY) {
+    private void drawCompactPanel(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int cardWidth) {
         // Modern is checked first: under a pack it recolours its card instead of deferring.
         if (isModernStyle()) {
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
+            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows, cardWidth);
             return;
         }
         if (this.resourcePackOverridesPanel) {
@@ -501,11 +512,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawFullStyleCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
-        if (isModernStyle()) {
-            drawModernPanel(context, panelX, panelY, this.displayCols, this.displayRows);
-            return;
-        }
-
         if (isGlassTheme()) {
             drawGlassCompactPanel(context, panelX, panelY, getPanelWidth(), getPanelHeight(), getCompactPanelBaseColor());
             return;
@@ -760,8 +766,8 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return (0.299f * r + 0.587f * g + 0.114f * b) / 255.0f;
     }
 
-    private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows) {
-        int w = getPanelWidth();
+    private void drawModernPanel(GuiGraphicsExtractor context, int panelX, int panelY, int cols, int rows, int cardWidth) {
+        int w = cardWidth;
         int h = getPanelHeight();
         if (w <= 0 || h <= 0) return;
 
@@ -774,7 +780,21 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(panelX + 3, panelY + 2, panelX + w - 3, panelY + 3, blendColor(fill, 0xFFFFFFFF, 0.16f));
         context.fill(panelX + 3, panelY + h - 3, panelX + w - 3, panelY + h - 2, blendColor(fill, 0xFF000000, 0.18f));
 
-        drawModernGrid(context, panelX, panelY, cols, rows);
+        drawModernGrid(context, panelX, panelY, gridColumnsFor(cols, w), rows);
+    }
+
+    /**
+     * Columns of lattice to draw across a card {@code cardWidth} wide.
+     *
+     * <p>Compact stretches its card to the tooltip width, which is set by the name tab and the
+     * hint rather than by the slot count, so drawing only the occupied columns would leave most
+     * of the card bare. Empty trailing cells are filled in, matching how the full 9x3 card shows
+     * every slot whether or not it holds anything.</p>
+     */
+    private int gridColumnsFor(int cols, int cardWidth) {
+        if (!this.compactMode) return cols;
+        int usable = cardWidth - getSlotStartX() - MODERN_GRID_RIGHT_MARGIN;
+        return Math.max(cols, usable / getRenderedSlotSize());
     }
 
     /** Slots are a shared lattice of single-pixel rules rather than 27 embossed wells. */
@@ -830,6 +850,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             if (containerNeed + selectedNeed <= available) {
                 containerTabWidth = containerNeed;
                 selectedTabWidth = selectedNeed;
+            } else if (this.compactMode) {
+                // A compact row is too narrow to split without reducing both names to an
+                // ellipsis. The container name keeps it; the item name is still one hover away.
+                containerTabWidth = Math.min(tooltipWidth, containerNeed);
             } else {
                 // Neither tab may take more than half unless the other one wants less than that,
                 // in which case the leftover goes to whichever is still short.
@@ -1063,8 +1087,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private void drawItemsAndSlotOverlays(Font font, GuiGraphicsExtractor context, int panelX, int panelY, int hoveredSlot, long now) {
-        ItemStack filterStack = BetterShulkerClient.getFilterItemStack();
-        boolean isFiltering = !filterStack.isEmpty();
         int selectedDisplay = getDisplayIndexForSlot(BetterShulkerClient.getSelectedSlotIndex());
         int hoveredDisplay = hoveredSlot >= 0 ? getDisplayIndexForSlot(hoveredSlot) : -1;
         int animatedDisplay = selectedDisplay >= 0 ? selectedDisplay : hoveredDisplay;
@@ -1128,19 +1150,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 }
             }
 
-            boolean matches = true;
-            if (isFiltering) {
-                matches = !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, filterStack);
-            }
-            if (isFiltering) {
-                if (matches) {
-                    drawSlotOutline(context, slotX, slotY, this.matchColor, true);
-                } else {
-                    int size = getRenderedSlotSize();
-                    context.fill(slotX + 1, slotY + 1, slotX + size - 1, slotY + size - 1, 0xB0000000);
-                }
-            }
-
         }
     }
 
@@ -1190,9 +1199,9 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             renderRow = currentRow;
         }
 
-        int startX = this.compactMode
-                ? (this.resourcePackOverridesPanel ? getSlotStartX() : COMPACT_SLOT_START_X)
-                : getSlotStartX();
+        // Same origin the items, lattice, hover and multi-select all use. Compact used to start
+        // a pixel to the left here, which left the fill straddling the edge of its own cell.
+        int startX = getSlotStartX();
         int cellSize = getRenderedSlotSize();
         int slotX = panelX + startX + Math.round(renderCol * cellSize);
         int slotY = panelY + getSlotStartY() + Math.round(renderRow * cellSize);
@@ -1434,21 +1443,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(slotX + size - 4, slotY + 4, slotX + size - 3, slotY + size - 4, hint);
     }
 
-    private void drawSlotOutline(GuiGraphicsExtractor context, int x, int y, int color, boolean doubleLine) {
-        int size = getRenderedSlotSize();
-        context.fill(x, y, x + size, y + 1, color);
-        context.fill(x, y + size - 1, x + size, y + size, color);
-        context.fill(x, y + 1, x + 1, y + size - 1, color);
-        context.fill(x + size - 1, y + 1, x + size, y + size - 1, color);
-        if (doubleLine) {
-            int inner = withAlpha(color, Math.min(255, ((color >>> 24) & 0xFF) / 2));
-            context.fill(x + 1, y + 1, x + size - 1, y + 2, inner);
-            context.fill(x + 1, y + size - 2, x + size - 1, y + size - 1, inner);
-            context.fill(x + 1, y + 2, x + 2, y + size - 2, inner);
-            context.fill(x + size - 2, y + 2, x + size - 1, y + size - 2, inner);
-        }
-    }
-
     private void drawRectFrame(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
         context.fill(x, y, x + w, y + 1, color);
         context.fill(x, y + h - 1, x + w, y + h, color);
@@ -1534,7 +1528,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int badgeBg;
         int select;
         int multi = 0xFF55FFFF;
-        int match = 0xFF55FF55;
         int shadow = 0xFF000000;
 
         if (this.isEnderChest) {
@@ -1567,7 +1560,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 badgeBg = 0xE02D4A1A;
                 baseText = 0xFFD4E8C0;
                 select = 0xFFA7E060;
-                match = 0xFF7DFF6A;
             }
             case RETRO -> {
                 baseBorder = 0xFFFF00FF;
@@ -1576,7 +1568,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = 0xFFFF66FF;
                 select = 0xFF00FFFF;
                 multi = 0xFFFF66FF;
-                match = 0xFF39FF14;
             }
             case SOLARIZED_DARK -> {
                 baseBorder = 0xFF268BD2;
@@ -1600,7 +1591,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = 0xFFFFFF00;
                 select = 0xFFFFFF00;
                 multi = 0xFFFFFFFF;
-                match = 0xFF00FF00;
             }
             case CUSTOM -> {
                 baseBorder = BetterShulkerConfig.getCustomBorderColor();
@@ -1610,7 +1600,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = BetterShulkerConfig.getCustomNameTextColor();
                 select = BetterShulkerConfig.getCustomSelectionSquareColor();
                 multi = blendColor(select, 0xFF55FFFF, 0.45f);
-                match = blendColor(select, 0xFF55FF55, 0.45f);
             }
             case GLASS -> {
                 baseBorder = 0xB8FFFFFF;
@@ -1619,7 +1608,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
                 baseText = 0xFF2A2A2A;
                 select = 0xFFFFD700;
                 multi = 0xFF8EEBFF;
-                match = 0xFFA0FFA0;
                 shadow = 0x80FFFFFF;
             }
         }
@@ -1631,7 +1619,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             badgeBg = withAlpha(blendColor(ENDER_PURPLE_COLOR, ENDER_DARK_COLOR, 0.45f), 230);
             select = ENDER_ACCENT_COLOR;
             multi = 0xFFB35CFF;
-            match = 0xFF50FFB8;
         }
 
         // Modern derives everything from the container's dye and ignores the theme entirely,
@@ -1644,11 +1631,10 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             baseText = 0xFFFFFFFF;
             select = this.isEnderChest ? ENDER_ACCENT_COLOR : 0xFFFFD700;
             multi = 0xFF7FD8FF;
-            match = 0xFF7DFF6A;
             shadow = getModernPanelBorder();
         }
 
-        return new ThemePalette(baseBorder, nameBorder, baseTint, baseText, badgeBg, select, multi, match, shadow);
+        return new ThemePalette(baseBorder, nameBorder, baseTint, baseText, badgeBg, select, multi, shadow);
     }
 
 
@@ -1660,7 +1646,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             int badgeBgColor,
             int selectionColor,
             int multiSelectColor,
-            int matchColor,
             int panelShadowColor
     ) {}
 }

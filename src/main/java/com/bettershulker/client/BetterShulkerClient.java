@@ -43,7 +43,6 @@ public class BetterShulkerClient {
     private static KeyMapping settingsKey = null;
     private static KeyMapping extractKey = null;
     private static KeyMapping selectSlotKey = null;
-    private static KeyMapping filterKey = null;
     private static KeyMapping precisionKey = null;
     private static KeyMapping altForceKey = null;
     private static KeyMapping scrollLeftKey = null;
@@ -66,7 +65,6 @@ public class BetterShulkerClient {
 
     private static int hoveredTooltipSlotIndex = -1;
     private static ItemStack activeContainerStack = ItemStack.EMPTY;
-    private static ItemStack filterItemStack = ItemStack.EMPTY;
     private static final Set<Integer> selectedSlotsSet = new HashSet<>();
 
     /** Cooldown tracking to limit ender chest sync request packets. */
@@ -129,7 +127,6 @@ public class BetterShulkerClient {
             KeyMapping settings,
             KeyMapping extract,
             KeyMapping selectSlot,
-            KeyMapping filter,
             KeyMapping precision,
             KeyMapping altForce,
             KeyMapping scrollLeft,
@@ -140,7 +137,6 @@ public class BetterShulkerClient {
         settingsKey = settings;
         extractKey = extract;
         selectSlotKey = selectSlot;
-        filterKey = filter;
         precisionKey = precision;
         altForceKey = altForce;
         scrollLeftKey = scrollLeft;
@@ -243,14 +239,6 @@ public class BetterShulkerClient {
         activeContainerStack = stack == null || stack.isEmpty() ? ItemStack.EMPTY : stack.copy();
     }
 
-    public static ItemStack getFilterItemStack() {
-        return filterItemStack;
-    }
-
-    public static void setFilterItemStack(ItemStack stack) {
-        filterItemStack = stack;
-    }
-
     public static Set<Integer> getSelectedSlotsSet() {
         return selectedSlotsSet;
     }
@@ -293,10 +281,6 @@ public class BetterShulkerClient {
 
     public static KeyMapping getSelectSlotKey() {
         return selectSlotKey;
-    }
-
-    public static KeyMapping getFilterKey() {
-        return filterKey;
     }
 
     public static KeyMapping getPrecisionKey() {
@@ -394,7 +378,6 @@ public class BetterShulkerClient {
         lastEnderChestRequestTime = 0;
         hoveredTooltipSlotIndex = -1;
         activeContainerStack = ItemStack.EMPTY;
-        filterItemStack = ItemStack.EMPTY;
         selectedSlotsSet.clear();
         lastMouseX = 0;
         lastMouseY = 0;

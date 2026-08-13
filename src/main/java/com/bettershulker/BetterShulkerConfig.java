@@ -29,6 +29,8 @@ public class BetterShulkerConfig {
     public static boolean selectionGlideEnabled = true;
     public static boolean hoverAnimationsEnabled = true;
     public static boolean rareItemWobbleEnabled = true;
+    /** Bounce a Shulker Box in its slot while a droppable item is carried over it. */
+    public static boolean containerBounceEnabled = true;
     
     // -- Audio Configurations --
     public static float soundVolume = 0.3f;
@@ -36,7 +38,7 @@ public class BetterShulkerConfig {
     
     // -- Themes & Colors --
     public static TooltipTheme tooltipTheme = TooltipTheme.ORIGINAL;
-    public static TooltipStyle tooltipStyle = TooltipStyle.VANILLA;
+    public static TooltipStyle tooltipStyle = TooltipStyle.MODERN;
     public static ResourcePackMode resourcePackMode = ResourcePackMode.AUTO;
     /** Output-only adjustments for resource-pack layout profiles; -1 keeps the profile cap. */
     public static int resourcePackLayoutOffsetX = 0;
@@ -162,6 +164,9 @@ public class BetterShulkerConfig {
     
     public static boolean isRareItemWobbleEnabled() { return rareItemWobbleEnabled; }
     public static void setRareItemWobbleEnabled(boolean v) { rareItemWobbleEnabled = v; }
+
+    public static boolean isContainerBounceEnabled() { return containerBounceEnabled; }
+    public static void setContainerBounceEnabled(boolean v) { containerBounceEnabled = v; }
     
     public static float getSoundVolume() {
         return Float.isFinite(soundVolume)
@@ -183,9 +188,9 @@ public class BetterShulkerConfig {
     public static void setTooltipTheme(TooltipTheme t) { tooltipTheme = t == null ? TooltipTheme.ORIGINAL : t; }
 
     public static TooltipStyle getTooltipStyle() {
-        return tooltipStyle == null ? TooltipStyle.VANILLA : tooltipStyle;
+        return tooltipStyle == null ? TooltipStyle.MODERN : tooltipStyle;
     }
-    public static void setTooltipStyle(TooltipStyle s) { tooltipStyle = s == null ? TooltipStyle.VANILLA : s; }
+    public static void setTooltipStyle(TooltipStyle s) { tooltipStyle = s == null ? TooltipStyle.MODERN : s; }
 
     public static ResourcePackMode getResourcePackMode() {
         return resourcePackMode == null ? ResourcePackMode.AUTO : resourcePackMode;
@@ -256,6 +261,7 @@ public class BetterShulkerConfig {
             selectionGlideEnabled   = bool(props, "selectionGlideEnabled", selectionGlideEnabled);
             hoverAnimationsEnabled  = bool(props, "hoverAnimationsEnabled", hoverAnimationsEnabled);
             rareItemWobbleEnabled   = bool(props, "rareItemWobbleEnabled", rareItemWobbleEnabled);
+            containerBounceEnabled  = bool(props, "containerBounceEnabled", containerBounceEnabled);
             setSoundVolume(floatVal(props, "soundVolume", soundVolume));
             setSoundOption(enumVal(props, "soundOption", SoundOption.class, soundOption));
             // Modern used to be a theme. Configs written back then still say tooltipTheme=MODERN,
@@ -310,6 +316,7 @@ public class BetterShulkerConfig {
             props.setProperty("selectionGlideEnabled", String.valueOf(selectionGlideEnabled));
             props.setProperty("hoverAnimationsEnabled", String.valueOf(hoverAnimationsEnabled));
             props.setProperty("rareItemWobbleEnabled", String.valueOf(rareItemWobbleEnabled));
+            props.setProperty("containerBounceEnabled", String.valueOf(containerBounceEnabled));
             props.setProperty("soundVolume", String.valueOf(soundVolume));
             props.setProperty("soundOption", soundOption.name());
             props.setProperty("tooltipTheme", tooltipTheme.name());

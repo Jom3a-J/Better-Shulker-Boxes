@@ -103,7 +103,15 @@ public abstract class HandledScreenMixin extends Screen {
     private static final Set<Integer> bettershulker$processedDragSlots = new HashSet<>();
 
     @Unique
-    private boolean bettershulker$wigglePushed = false;
+    private boolean bettershulker$bouncePushed = false;
+
+    /** One hop of the "drop this in me" bounce, in milliseconds. */
+    @Unique
+    private static final long BOUNCE_PERIOD_MS = 1500L;
+
+    /** Peak lift of that hop, in GUI pixels. */
+    @Unique
+    private static final float BOUNCE_HEIGHT = 2.0f;
 
     protected HandledScreenMixin(Component title) {
         super(title);
@@ -725,52 +733,7 @@ public abstract class HandledScreenMixin extends Screen {
             return;
         }
 
-        // 1. Handle filterKey for item filtering inside container tooltips
-        if (BetterShulkerClient.getFilterKey().matches(keyEvent)) {
-            ItemStack targetStack = ItemStack.EMPTY;
-
-            // Check if hovering a slot inside the container tooltip
-            int hoveredTooltipIdx = BetterShulkerClient.getHoveredTooltipSlotIndex();
-            if (hoveredTooltipIdx < 0 && BetterShulkerClient.isTooltipActive()) {
-                hoveredTooltipIdx = BetterShulkerClient.getSelectedSlotIndex();
-            }
-            ItemStack hoveredTooltipContainer = BetterShulkerClient.getActiveContainerStack();
-            if (hoveredTooltipIdx >= 0 && !hoveredTooltipContainer.isEmpty()) {
-                NonNullList<ItemStack> contents = bettershulker$getContents(hoveredTooltipContainer);
-                if (hoveredTooltipIdx < contents.size()) {
-                    targetStack = contents.get(hoveredTooltipIdx);
-                }
-            }
-
-            // If not hovering a tooltip slot, check the hovered slot in the screen itself
-            if (targetStack.isEmpty() && this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
-                targetStack = this.hoveredSlot.getItem();
-            }
-
-            if (!targetStack.isEmpty()) {
-                ItemStack currentFilter = BetterShulkerClient.getFilterItemStack();
-                if (!currentFilter.isEmpty() && ItemStack.isSameItemSameComponents(currentFilter, targetStack)) {
-                    // Toggle off if same item
-                    BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
-                } else {
-                    // Set new filter
-                    BetterShulkerClient.setFilterItemStack(targetStack.copy());
-                }
-                ci.setReturnValue(true);
-                ci.cancel();
-                return;
-            } else {
-                // If pressing filterKey over nothing, clear the filter!
-                if (!BetterShulkerClient.getFilterItemStack().isEmpty()) {
-                    BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
-                    ci.setReturnValue(true);
-                    ci.cancel();
-                    return;
-                }
-            }
-        }
-
-        // 2. Handle arrow-key movement for the tooltip selection square.
+        // Handle arrow-key movement for the tooltip selection square.
         // Left/Right use the configured scroll keys; Up/Down move one row in the 9x3 grid.
         if (BetterShulkerConfig.secondaryTooltipEnabled && BetterShulkerClient.isTooltipActive()) {
             int scrollDelta = 0;
@@ -923,9 +886,9 @@ public abstract class HandledScreenMixin extends Screen {
                                                   float delta, CallbackInfo ci) {
         bettershulker$verifyPredictions();
         bettershulker$renderContainerOverlay(graphics);
-        if (this.bettershulker$wigglePushed) {
+        if (this.bettershulker$bouncePushed) {
             graphics.pose().popMatrix();
-            this.bettershulker$wigglePushed = false;
+            this.bettershulker$bouncePushed = false;
         }
     }
 
@@ -1120,7 +1083,6 @@ public abstract class HandledScreenMixin extends Screen {
         BetterShulkerClient.setTooltipActive(false);
         BetterShulkerClient.setActiveContainerStack(ItemStack.EMPTY);
         BetterShulkerClient.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
-        BetterShulkerClient.setFilterItemStack(ItemStack.EMPTY);
         BetterShulkerClient.clearSelectedSlotsSet();
     }
 
@@ -1693,24 +1655,24 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Inject(method = "extractSlot", at = @At("HEAD"))
     private void bettershulker$onExtractSlotHead(GuiGraphicsExtractor graphics, Slot slot, int x, int y, CallbackInfo ci) {
-        if (!BetterShulkerConfig.tooltipEnabled) return;
+        if (!BetterShulkerConfig.tooltipEnabled || !BetterShulkerConfig.containerBounceEnabled) return;
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
         if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
-            if (this.bettershulker$wigglePushed) {
+            if (this.bettershulker$bouncePushed) {
                 graphics.pose().popMatrix();
-                this.bettershulker$wigglePushed = false;
+                this.bettershulker$bouncePushed = false;
             }
-            // Apply organic figure-8 wiggle translation
+            // Slow vertical hop. One half-sine per cycle lifts the box and sets it back down,
+            // resting at zero between hops; a full sine would drift it up and down forever and
+            // read as a hover rather than a bounce.
             long time = System.currentTimeMillis();
-            double angle = (time % 250) * (2 * Math.PI / 250.0);
-            float wiggleRange = 0.8f;
-            float wobbleX = (float) Math.sin(angle) * wiggleRange;
-            float wobbleY = (float) Math.cos(angle * 2) * (wiggleRange * 0.5f);
+            double phase = (time % BOUNCE_PERIOD_MS) * (Math.PI / BOUNCE_PERIOD_MS);
+            float bounceY = -(float) Math.sin(phase) * BOUNCE_HEIGHT;
 
             graphics.pose().pushMatrix();
-            graphics.pose().translate(wobbleX, wobbleY);
-            this.bettershulker$wigglePushed = true;
+            graphics.pose().translate(0.0f, bounceY);
+            this.bettershulker$bouncePushed = true;
         }
     }
 
@@ -1720,10 +1682,10 @@ public abstract class HandledScreenMixin extends Screen {
         var self = bettershulker$self();
         ItemStack carried = self.getMenu().getCarried();
         if (!carried.isEmpty() && ContainerHelper.isShulkerBox(slot.getItem()) && !ContainerHelper.isShulkerBox(carried)) {
-            if (this.bettershulker$wigglePushed) {
-                // Pop the wiggle translation matrix
+            if (this.bettershulker$bouncePushed) {
+                // Pop the bounce translation matrix
                 graphics.pose().popMatrix();
-                this.bettershulker$wigglePushed = false;
+                this.bettershulker$bouncePushed = false;
             }
 
             // Draw a gorgeous pixel-perfect emerald green plus icon with a white center dot and black shadow in top-right corner
