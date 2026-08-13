@@ -24,8 +24,9 @@ final class EnderChestActions {
      * What an action did: whether anything moved, in which direction, and the stack whose material
      * the sound is chosen from.
      *
-     * <p>The stack is held by reference, not copied. Two of the actions below deliberately point
-     * it at a stack still sitting in the chest, and the reference has to keep behaving that way.</p>
+     * <p>The stack is a snapshot taken when the action decides what it is moving. It has to be:
+     * several of these shrink the chest's own stacks in place, and a sound chosen from an emptied
+     * stack falls back to a generic default instead of the item's material.</p>
      */
     record Outcome(boolean success, boolean isInsert, ItemStack soundStack) {
         static final Outcome NONE = new Outcome(false, false, ItemStack.EMPTY);
@@ -217,9 +218,10 @@ final class EnderChestActions {
         ItemStack cursorStack = player.containerMenu.getCarried();
         ItemStack shulkerStack = enderInv.getItem(targetIndex);
         if (shulkerStack.isEmpty()) return Outcome.NONE;
-        // Deliberately not copied: this points at the stack still in the chest, and the branches
-        // below shrink it. Preserved as it was - see the note in EnderChestService.
-        ItemStack soundStack = shulkerStack;
+        // Copied, because the branches below shrink this very stack - it is the chest's own, not a
+        // copy of it. Naming it directly meant a sweep that emptied the slot handed an empty stack
+        // to the sound, which then fell back to its generic default instead of the item's material.
+        ItemStack soundStack = shulkerStack.copy();
         boolean success = false;
 
         if (inventorySlotId == -1) {
