@@ -6,6 +6,8 @@ import com.bettershulker.server.EnderChestService;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.platform.PlatformNetworking;
 
+import com.bettershulker.server.InteractionRateLimiter;
+
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
@@ -243,7 +245,7 @@ public abstract class ItemMixin {
             return false;
         }
         return player.level().isClientSide()
-                || (player instanceof ServerPlayer serverPlayer && BetterShulkerMod.consumeInteraction(serverPlayer));
+                || (player instanceof ServerPlayer serverPlayer && InteractionRateLimiter.consume(serverPlayer));
     }
 
     @org.spongepowered.asm.mixin.Unique

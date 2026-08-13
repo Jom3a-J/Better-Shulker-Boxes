@@ -30,13 +30,13 @@ public final class ServerSlots {
     public static Slot getPlayerInventorySlot(ServerPlayer player, int slotId, String actionDescription) {
         Slot slot = MenuSlotRef.resolve(slotId, player);
         if (slot == null) {
-            BetterShulkerMod.warnRejectedInteraction(player, "tried " + actionDescription + " with invalid inventory slot: " + slotId);
+            InteractionRateLimiter.warnRejectedInteraction(player, "tried " + actionDescription + " with invalid inventory slot: " + slotId);
             return null;
         }
 
         if (!ContainerHelper.isPlayerInventorySlot(slot, player, 36)
                 || !slot.allowModification(player)) {
-            BetterShulkerMod.warnRejectedInteraction(player, "tried " + actionDescription
+            InteractionRateLimiter.warnRejectedInteraction(player, "tried " + actionDescription
                     + " on an unavailable player-inventory slot: " + slotId);
             return null;
         }

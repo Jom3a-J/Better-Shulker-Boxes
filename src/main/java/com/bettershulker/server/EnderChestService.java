@@ -122,7 +122,7 @@ public final class EnderChestService {
         if (!hasAccessibleEnderChestSource(player, sourceSlotId)) {
             resetEnderChestSync(uuid);
             clearEnderChestClientCache(player);
-            BetterShulkerMod.warnRejectedInteraction(player, "requested Ender Chest sync from an inaccessible source: " + sourceSlotId);
+            InteractionRateLimiter.warnRejectedInteraction(player, "requested Ender Chest sync from an inaccessible source: " + sourceSlotId);
             return;
         }
 
