@@ -155,9 +155,9 @@ final class LiveTooltipPreview {
 
         int selectedX = panelX + layout.outputSlotX() + 3 * layout.slotSize();
         int selectedY = panelY + layout.outputSlotY() + layout.slotSize();
-        drawStaticFrame(graphics, selectedX, selectedY, layout.slotSize(), layout.slotSize(), 0xFFFFD700);
         graphics.fill(selectedX + 1, selectedY + 1,
-                selectedX + layout.slotSize() - 1, selectedY + layout.slotSize() - 1, 0x35FFD700);
+                selectedX + layout.slotSize() - 1, selectedY + layout.slotSize() - 1,
+                withAlpha(0xFFFFD700, 64));
 
         if (showOffsets) {
             String offsets = "X " + state.resourcePackOffsetX.getValue()
@@ -239,10 +239,7 @@ final class LiveTooltipPreview {
             }
         }
 
-        int selectedX = panelX + 8 + 3 * 18;
-        int selectedY = panelY + 7 + 1 * 18;
-        drawStaticFrame(graphics, selectedX, selectedY, 18, 18, sel);
-        graphics.fill(selectedX + 1, selectedY + 1, selectedX + 17, selectedY + 17, withAlpha(sel, 45));
+        drawSelectedSlotPreview(graphics, panelX + 8 + 3 * 18, panelY + 7 + 1 * 18, sel);
     }
 
     private static void drawSelectedNamePreview(GuiGraphicsExtractor graphics, Font font,
@@ -369,12 +366,7 @@ final class LiveTooltipPreview {
             String count = i == 0 ? "28" : "64";
             graphics.text(font, text(count), itemX + 15 - font.width(count), itemY + 9, 0xFFFFFFFF);
         }
-        if (colors.modern()) {
-            drawSelectedSlotPreview(graphics, x + 8, y + 7, sel);
-        } else {
-            drawStaticFrame(graphics, x + 8, y + 7, 18, 18, sel);
-            graphics.fill(x + 9, y + 8, x + 25, y + 24, withAlpha(sel, 45));
-        }
+        drawSelectedSlotPreview(graphics, x + 8, y + 7, sel);
 
         // Named from the actual binding, and dropped when there is none, so the preview shows the
         // row the tooltip will really draw rather than always spelling out "V".
