@@ -366,7 +366,11 @@ public final class BetterShulkerClothConfigScreen {
         drawStaticFrame(graphics, x + 8, y + 7, 18, 18, sel);
         graphics.fill(x + 9, y + 8, x + 25, y + 24, withAlpha(sel, 45));
 
-        String hint = "V: Full contents";
+        // Named from the actual binding, and dropped when there is none, so the preview shows the
+        // row the tooltip will really draw rather than always spelling out "V".
+        String keyName = BetterShulkerClient.getShowFullTooltipKeyName();
+        if (keyName.isEmpty()) return;
+        String hint = keyName + ": Full contents";
         int hintX = x + Math.max(4, (panelW - font.width(hint)) / 2);
         graphics.text(font, text(hint), hintX + 1, y + panelH + 3 + 1, 0xAA000000);
         graphics.text(font, text(hint), hintX, y + panelH + 3, 0xFFFFD700);

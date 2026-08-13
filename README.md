@@ -101,12 +101,14 @@ used for small adjustments.
 
 ## More Features
 
-- Item filter highlighting
+- Two tooltip styles: **Modern**, a rounded card coloured by the box's own dye, and **Vanilla**, built from the container GUI texture
 - Alt Force tooltip while holding a box
 - Colored shulker support
 - Selected item name tooltip
 - Multiple tooltip themes
 - Custom theme colors
+- Fill indicator on the slot and along the tooltip's lower edge
+- A Shulker Box bounces in its slot while you carry an item it still has room for
 - Cloth Config settings screen
 - Live Theme & Colors preview
 - Sound and volume options
