@@ -2,6 +2,7 @@ package com.bettershulker.client.interact;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.BetterShulkerClient;
+import com.bettershulker.client.ClientKeybinds;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
@@ -14,7 +15,7 @@ public final class InputKeys {
 
     public static boolean isCtrlDown() {
         if (!BetterShulkerConfig.precisionModeEnabled) return false;
-        return BetterShulkerClient.isKeyHeld(BetterShulkerClient.getPrecisionKey());
+        return ClientKeybinds.isKeyHeld(ClientKeybinds.getPrecisionKey());
     }
 
     public static boolean isShiftDown() {

@@ -2,6 +2,7 @@ package com.bettershulker.client.interact;
 
 import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.BetterShulkerClient;
+import com.bettershulker.client.EnderChestCache;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.platform.PlatformNetworking;
@@ -362,7 +363,7 @@ public final class ContainerPrediction {
 
         private static void predictEnderChest(AbstractContainerScreen<?> self, long txId, int containerSlotId, int targetIndex,
                                                   ContainerInteractPayload.InteractType action, int inventorySlotId) {
-        NonNullList<ItemStack> contents = BetterShulkerClient.getEnderChestContents();
+        NonNullList<ItemStack> contents = EnderChestCache.getEnderChestContents();
         if (contents == null) return;
         ItemStack cursorStack = self.getMenu().getCarried();
 

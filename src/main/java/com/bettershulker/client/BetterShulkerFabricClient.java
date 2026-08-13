@@ -37,7 +37,7 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         // Only the client direction. The common entrypoint installs the server sender, on this
         // dist too, which is what the integrated server uses.
         PlatformNetworking.setClientSender(ClientPlayNetworking::send);
-        BetterShulkerMod.setClientEnderChestSupplier(BetterShulkerClient::getEnderChestContents);
+        BetterShulkerMod.setClientEnderChestSupplier(EnderChestCache::getEnderChestContents);
 
         ClientTooltipComponentCallback.EVENT.register(data -> {
             if (data instanceof ShulkerTooltipData shulkerData) {
@@ -48,10 +48,10 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(
                 EnderChestSyncPayload.TYPE,
-                (payload, context) -> context.client().execute(() -> BetterShulkerClient.applyEnderChestSync(payload))
+                (payload, context) -> context.client().execute(() -> EnderChestCache.applyEnderChestSync(payload))
         );
 
-        BetterShulkerClient.setKeyMappings(
+        ClientKeybinds.setKeyMappings(
                 registerKey("key.bettershulker.settings", GLFW.GLFW_KEY_B),
                 registerKey("key.bettershulker.extract", GLFW.GLFW_KEY_E),
                 registerKey("key.bettershulker.select_slot", GLFW.GLFW_KEY_SPACE),
@@ -82,7 +82,7 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         return KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 translationKey,
                 defaultKey,
-                BetterShulkerClient.getCustomCategory()
+                ClientKeybinds.getCustomCategory()
         ));
     }
 }

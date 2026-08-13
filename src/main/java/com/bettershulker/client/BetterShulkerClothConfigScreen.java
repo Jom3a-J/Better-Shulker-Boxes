@@ -233,15 +233,15 @@ public final class BetterShulkerClothConfigScreen {
 
     private static void addControlsCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {
         ConfigCategory category = builder.getOrCreateCategory(text("Controls"));
-        category.addEntry(entry.fillKeybindingField(text("Open Settings"), BetterShulkerClient.getSettingsKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Extract Selected Slots"), BetterShulkerClient.getExtractKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Select Tooltip Slot"), BetterShulkerClient.getSelectSlotKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Precision Mode"), BetterShulkerClient.getPrecisionKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Alt Force Tooltip"), BetterShulkerClient.getAltForceKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Selection Left"), BetterShulkerClient.getScrollLeftKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Selection Right"), BetterShulkerClient.getScrollRightKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Restock / Deposit"), BetterShulkerClient.getRestockKey()).build());
-        category.addEntry(entry.fillKeybindingField(text("Show Full Tooltip"), BetterShulkerClient.getShowFullTooltipKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Open Settings"), ClientKeybinds.getSettingsKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Extract Selected Slots"), ClientKeybinds.getExtractKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Select Tooltip Slot"), ClientKeybinds.getSelectSlotKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Precision Mode"), ClientKeybinds.getPrecisionKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Alt Force Tooltip"), ClientKeybinds.getAltForceKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Selection Left"), ClientKeybinds.getScrollLeftKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Selection Right"), ClientKeybinds.getScrollRightKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Restock / Deposit"), ClientKeybinds.getRestockKey()).build());
+        category.addEntry(entry.fillKeybindingField(text("Show Full Tooltip"), ClientKeybinds.getShowFullTooltipKey()).build());
     }
 
     private static LiveTooltipPreview.ColorSliders addRgbSliders(ConfigCategory category, ConfigEntryBuilder entry, String label, int currentColor, int defaultColor,

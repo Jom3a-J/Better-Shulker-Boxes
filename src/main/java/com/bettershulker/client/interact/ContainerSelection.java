@@ -1,6 +1,8 @@
 package com.bettershulker.client.interact;
 
 import com.bettershulker.client.BetterShulkerClient;
+import com.bettershulker.client.EnderChestCache;
+import com.bettershulker.client.ClientKeybinds;
 import com.bettershulker.util.ContainerHelper;
 
 import net.minecraft.core.NonNullList;
@@ -38,14 +40,14 @@ public final class ContainerSelection {
             return ContainerHelper.getContainerContents(containerStack);
         }
         if (ContainerHelper.isEnderChest(containerStack)) {
-            NonNullList<ItemStack> cached = BetterShulkerClient.getEnderChestContents();
+            NonNullList<ItemStack> cached = EnderChestCache.getEnderChestContents();
             if (cached != null) return cached;
         }
         return NonNullList.withSize(27, ItemStack.EMPTY);
     }
 
         public static int nextSlot(int current, int delta, ItemStack containerStack) {
-        if (BetterShulkerClient.isCompactModeActive()) {
+        if (ClientKeybinds.isCompactModeActive()) {
             NonNullList<ItemStack> contents = contentsOf(containerStack);
             List<Integer> visibleIndices = new ArrayList<>();
             for (int i = 0; i < contents.size(); i++) {

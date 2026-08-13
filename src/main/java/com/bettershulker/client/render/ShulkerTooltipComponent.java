@@ -2,6 +2,7 @@ package com.bettershulker.client.render;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.BetterShulkerClient;
+import com.bettershulker.client.ClientKeybinds;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -108,7 +109,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
             }
         }
         this.isContainerEmpty = empty;
-        this.compactMode = BetterShulkerClient.isCompactModeActive();
+        this.compactMode = ClientKeybinds.isCompactModeActive();
         this.panelTexture = ResourcePackContainerTextures.resolve(this.color, this.isEnderChest, this.containerName);
         this.resourcePackOverridesPanel = this.panelTexture.suppliedByPack();
         DisplayLayout displayLayout = buildDisplayLayout();
@@ -234,7 +235,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     @Override
     public boolean showTooltipWithItemInHand() {
         return BetterShulkerConfig.altForceTooltipEnabled
-                && BetterShulkerClient.isKeyHeld(BetterShulkerClient.getAltForceKey());
+                && ClientKeybinds.isKeyHeld(ClientKeybinds.getAltForceKey());
     }
 
     @Override
@@ -502,7 +503,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     }
 
     private String getCompactFullHintText() {
-        String keyName = BetterShulkerClient.getShowFullTooltipKeyName();
+        String keyName = ClientKeybinds.getShowFullTooltipKeyName();
         String hint = keyName.isEmpty() ? "" : keyName + ": Full contents";
         if (this.hiddenCompactStacks <= 0) return hint;
         // Compact keeps only the largest few stacks, and used to drop the rest without a word.

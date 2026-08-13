@@ -356,7 +356,7 @@ final class LiveTooltipPreview {
 
         // Named from the actual binding, and dropped when there is none, so the preview shows the
         // row the tooltip will really draw rather than always spelling out "V".
-        String keyName = BetterShulkerClient.getShowFullTooltipKeyName();
+        String keyName = ClientKeybinds.getShowFullTooltipKeyName();
         if (keyName.isEmpty()) return;
         String hint = keyName + ": Full contents";
         int hintX = x + Math.max(4, (panelW - font.width(hint)) / 2);
