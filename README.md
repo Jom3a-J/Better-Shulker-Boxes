@@ -115,6 +115,50 @@ used for small adjustments.
 
 ---
 
+## Project structure
+
+One source set in `src/main/java/com/bettershulker` is shared by all three loaders. Each loader
+contributes only an entrypoint (`BetterShulkerFabricMod`, `BetterShulkerNeoForgeMod`, and the
+Quilt resources) that registers networking and events, then calls into the shared code below.
+
+```
+com.bettershulker
+├── BetterShulkerMod            mod init, packet dispatch
+├── BetterShulkerConfig         settings, loaded from and saved to .properties
+├── server/                     server-authoritative container handling
+│   ├── EnderChestService         contents live on the player, so the server owns them
+│   ├── ShulkerInteractionHandler contents live in the item's data component
+│   ├── InteractionRateLimiter    per-tick cap, plus the resync a dropped packet needs
+│   └── ServerSlots               verifying a slot the client named
+├── client/
+│   ├── BetterShulkerClient       tooltip state and the prediction store
+│   ├── ClientKeybinds            key mappings and their held-state
+│   ├── EnderChestCache           what the server has sent; null is not empty
+│   ├── interact/                 what a preview does, on the client side
+│   │   ├── ContainerPrediction     applies an interaction locally, then reconciles
+│   │   ├── ContainerSelection      where the selection square is and how it moves
+│   │   ├── ContainerActions        extract, insert, restock, deposit
+│   │   └── InputKeys               modifier keys, each behind its own setting
+│   └── render/                   drawing the preview
+│       ├── ShulkerTooltipComponent the tooltip itself
+│       ├── TooltipPalette          every colour, derived from theme, style and dye
+│       ├── ModernCardPainter       the Modern style's card and name tabs
+│       ├── ResourcePackPanelPainter recomposes a pack's own panel from slices
+│       └── ResourcePack*           detecting and profiling pack GUI textures
+├── mixin/                      injection points only; the logic lives in the classes above
+├── network/                    payloads, and the slot encoding they address
+├── platform/PlatformNetworking loader-neutral send, so shared code imports no loader API
+└── util/ContainerHelper        insertion, extraction and container queries shared by both sides
+```
+
+Two conventions are worth knowing before changing anything here. The server is authoritative for
+every interaction — the client predicts one locally so the cursor moves with the click, and the
+server's own view overwrites that prediction when it arrives; a change that only convinces the
+client is not a change. And slots are addressed by `MenuSlotRef`, not by raw menu index, because
+screens that build their own menu number their slots differently from the server's.
+
+---
+
 ## License
 
 This mod is licensed under the **MIT License**
