@@ -645,7 +645,11 @@ public class BetterShulkerMod {
             case INSERT -> {
                 if (cursorStack.isEmpty()) return;
                 int originalCount = cursorStack.getCount();
-                
+                // Captured before the passes below shrink it. Reading it afterwards named the
+                // remainder, so a stack that fit entirely left an empty one behind and the
+                // contextual sound fell back to its generic default instead of the item's own.
+                ItemStack insertedSource = cursorStack.copy();
+
                 // First pass: merge with existing compatible stacks
                 for (int i = 0; i < enderInv.getContainerSize(); i++) {
                     ItemStack existing = enderInv.getItem(i);
@@ -676,7 +680,7 @@ public class BetterShulkerMod {
                 if (cursorStack.getCount() < originalCount) {
                     success = true;
                     isInsert = true;
-                    soundStack = cursorStack;
+                    soundStack = insertedSource;
                 }
             }
             case INSERT_ONE -> {

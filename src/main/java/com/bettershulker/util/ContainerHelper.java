@@ -252,6 +252,29 @@ public final class ContainerHelper {
         return toInsert.copyWithCount(remaining);
     }
 
+    /**
+     * Whether these contents have room for at least one of {@code toInsert}.
+     *
+     * <p>Mirrors the two places {@link #tryInsert} can put something — a matching stack that still
+     * has room, or an empty slot — without touching anything, so callers that only need to know
+     * whether a drop would land (a hover affordance, a click that should not be consumed) can ask
+     * cheaply.</p>
+     *
+     * <p>Capacity only. Whether the item is <em>allowed</em> in this particular container is the
+     * caller's to decide: a Shulker Box may not hold another Shulker Box, but an Ender Chest may.</p>
+     */
+    public static boolean canInsert(NonNullList<ItemStack> contents, ItemStack toInsert) {
+        if (toInsert.isEmpty()) return false;
+        for (ItemStack existing : contents) {
+            if (existing.isEmpty()) return true;
+            if (ItemStack.isSameItemSameComponents(existing, toInsert)
+                    && existing.getCount() < existing.getMaxStackSize()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // =========================================================================
     //  Extraction Logic
     // =========================================================================
@@ -592,22 +615,10 @@ public final class ContainerHelper {
     public static void playInteractionSound(Player player, ItemStack stack, boolean isInsert, float volume) {
         if (player == null || volume <= 0.0f) return;
 
-        SoundEvent soundEvent = SoundEvents.ITEM_PICKUP;
         BetterShulkerConfig.SoundOption configuredSound = BetterShulkerConfig.getSoundOption();
-        if (configuredSound == BetterShulkerConfig.SoundOption.CONTEXTUAL) {
-            soundEvent = getContextualSound(stack, isInsert);
-        } else {
-            try {
-                String[] split = configuredSound.getSoundId().split(":", 2);
-                var soundLoc = Identifier.fromNamespaceAndPath(split[0], split[1]);
-                var soundHolderOpt = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
-                if (soundHolderOpt.isPresent()) {
-                    soundEvent = soundHolderOpt.get().value();
-                }
-            } catch (Exception e) {
-                // ignore
-            }
-        }
+        SoundEvent soundEvent = configuredSound == BetterShulkerConfig.SoundOption.CONTEXTUAL
+                ? getContextualSound(stack, isInsert)
+                : resolveConfiguredSound(configuredSound);
 
         if (soundEvent != null) {
             float pitch = isInsert
@@ -616,5 +627,38 @@ public final class ContainerHelper {
 
             player.level().playSound(player, player.getX(), player.getY(), player.getZ(), soundEvent, SoundSource.PLAYERS, volume, pitch);
         }
+    }
+
+    /** One resolved option, held as a pair so a reader can never see a mismatched cache. */
+    private record ResolvedSound(BetterShulkerConfig.SoundOption option, SoundEvent event) {}
+
+    private static volatile ResolvedSound resolvedSound;
+
+    /**
+     * Looks up the sound a fixed option names, remembering the last one.
+     *
+     * <p>The ids are compile-time constants, so this parsed a string and queried the registry to
+     * reach the same answer every time — once per slot crossed during a drag.</p>
+     */
+    private static SoundEvent resolveConfiguredSound(BetterShulkerConfig.SoundOption option) {
+        ResolvedSound cached = resolvedSound;
+        if (cached != null && cached.option() == option) {
+            return cached.event();
+        }
+
+        SoundEvent resolved = SoundEvents.ITEM_PICKUP;
+        try {
+            String[] split = option.getSoundId().split(":", 2);
+            var soundLoc = Identifier.fromNamespaceAndPath(split[0], split[1]);
+            var soundHolderOpt = BuiltInRegistries.SOUND_EVENT.get(soundLoc);
+            if (soundHolderOpt.isPresent()) {
+                resolved = soundHolderOpt.get().value();
+            }
+        } catch (Exception e) {
+            // A malformed or absent id keeps the pickup default, and caching that avoids
+            // repeating the failed lookup on every interaction.
+        }
+        resolvedSound = new ResolvedSound(option, resolved);
+        return resolved;
     }
 }
