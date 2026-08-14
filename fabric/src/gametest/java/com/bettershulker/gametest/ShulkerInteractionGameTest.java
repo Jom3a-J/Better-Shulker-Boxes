@@ -36,6 +36,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
     /** Player inventory position holding the box under test, and the one holding loose items. */
     private static final int BOX_SLOT = 0;
     private static final int ITEM_SLOT = 1;
+    private static final int UNRELATED_SLOT = 2;
 
     @Override
     public void runTest(ClientGameTestContext context) {
@@ -48,6 +49,8 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
             rightClickExtractsBackOut(context, singleplayer);
             selectionSkipsEmptySlots(context, singleplayer);
             marksDoNotFollowToAnotherBox(context, singleplayer);
+            restockPullsFromTheBoxIntoTheHotbar(context, singleplayer);
+            depositPushesMatchingItemsIntoTheBox(context, singleplayer);
         }
     }
 
@@ -139,14 +142,75 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         hoverInventorySlot(context, BOX_SLOT);
         context.getInput().pressKey(ClientKeybinds.getSelectSlotKey());
         context.waitTicks(2);
+
+        // Proven before it is relied on: without this, a select key that never registered would
+        // leave nothing marked, the extraction would do nothing, and the assertion below would
+        // pass for the wrong reason.
+        int marked = context.computeOnClient(c -> BetterShulkerClient.getSelectedSlotsSet().size());
+        assertTrue(marked == 1, "one slot should be marked in the first box, set held " + marked);
+
         hoverInventorySlot(context, ITEM_SLOT);
         context.waitTicks(2);
+        int afterSwitch = context.computeOnClient(c -> BetterShulkerClient.getSelectedSlotsSet().size());
+        assertTrue(afterSwitch == 0, "moving to another box should clear the marks, set held " + afterSwitch);
+
         context.getInput().pressKey(ClientKeybinds.getExtractKey());
         context.waitTicks(5);
 
         int goldLeft = countInBoxAt(sp, ITEM_SLOT, Items.GOLD_INGOT);
         assertTrue(goldLeft == 7,
                 "the second box should be untouched by the first box's marks, held " + goldLeft);
+
+        closeScreen(context);
+    }
+
+    /**
+     * Restock tops up the hotbar from the box. It only fills the hotbar - the slot limit it
+     * passes is 9 - so a partial stack there is what it looks for.
+     */
+    private void restockPullsFromTheBoxIntoTheHotbar(ClientGameTestContext context,
+                                                     TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, boxHolding(new ItemStack(Items.STONE, 40), 0));
+        givePlayer(sp, ITEM_SLOT, new ItemStack(Items.STONE, 10));
+        openInventory(context);
+        hoverInventorySlot(context, BOX_SLOT);
+        context.waitTicks(3);
+
+        context.getInput().pressKey(ClientKeybinds.getRestockKey());
+        context.waitTicks(8);
+
+        int inHotbar = GameTestSupport.countInInventorySlot(sp, ITEM_SLOT, Items.STONE);
+        int leftInBox = countInBoxAt(sp, BOX_SLOT, Items.STONE);
+        assertTrue(inHotbar == 50, "the hotbar stack should have grown to 50, held " + inHotbar);
+        assertTrue(leftInBox == 0, "the box should have given up all 40, kept " + leftInBox);
+
+        closeScreen(context);
+    }
+
+    /**
+     * Deposit is the other direction, and is choosy: it moves only items the box already holds,
+     * so an unrelated stack in the inventory has to stay where it is.
+     */
+    private void depositPushesMatchingItemsIntoTheBox(ClientGameTestContext context,
+                                                      TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, boxHolding(new ItemStack(Items.STONE, 1), 0));
+        givePlayer(sp, ITEM_SLOT, new ItemStack(Items.STONE, 30));
+        givePlayer(sp, UNRELATED_SLOT, new ItemStack(Items.GOLD_INGOT, 5));
+        openInventory(context);
+        hoverInventorySlot(context, BOX_SLOT);
+        context.waitTicks(3);
+
+        context.getInput().holdShift();
+        context.getInput().pressKey(ClientKeybinds.getRestockKey());
+        context.getInput().releaseShift();
+        context.waitTicks(8);
+
+        int inBox = countInBoxAt(sp, BOX_SLOT, Items.STONE);
+        int leftLoose = GameTestSupport.countInInventorySlot(sp, ITEM_SLOT, Items.STONE);
+        int gold = GameTestSupport.countInInventorySlot(sp, UNRELATED_SLOT, Items.GOLD_INGOT);
+        assertTrue(inBox == 31, "the box should hold its 1 stone plus the 30 deposited, held " + inBox);
+        assertTrue(leftLoose == 0, "the loose stone should have gone, " + leftLoose + " remained");
+        assertTrue(gold == 5, "gold is not in the box, so it should not be deposited, moved to " + gold);
 
         closeScreen(context);
     }
