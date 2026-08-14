@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "bettershulker-test",
+  "version": "1.0.0",
+  "name": "Better Shulker Boxes Game Tests",
+  "description": "Client game tests driving the mod's container interactions through a real screen.",
+  "environment": "client",
+  "license": "MIT",
+  "depends": {
+    "bettershulker": "*",
+    "fabric-client-gametest-api-v1": "*"
+  },
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "com.bettershulker.gametest.ShulkerInteractionGameTest"
+    ]
+  }
+}
