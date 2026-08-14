@@ -92,6 +92,15 @@ final class GameTestSupport {
         });
     }
 
+    /** Counts an item sitting loose in a player-inventory position, read from the server. */
+    static int countInInventorySlot(TestSingleplayerContext sp, int position, Item item) {
+        return sp.getServer().computeOnServer(server -> {
+            var player = server.getPlayerList().getPlayers().getFirst();
+            ItemStack stack = player.getInventory().getItem(position);
+            return stack.is(item) ? stack.getCount() : 0;
+        });
+    }
+
     /** Counts an item in the player's Ender Chest, which only the server holds. */
     static int countInEnderChest(TestSingleplayerContext sp, Item item) {
         return sp.getServer().computeOnServer(server -> {
