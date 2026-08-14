@@ -2,19 +2,22 @@ package com.bettershulker.gametest;
 
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.ClientKeybinds;
-import com.bettershulker.util.ContainerHelper;
 
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.core.NonNullList;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+
+import static com.bettershulker.gametest.GameTestSupport.assertTrue;
+import static com.bettershulker.gametest.GameTestSupport.boxHolding;
+import static com.bettershulker.gametest.GameTestSupport.clickInventorySlot;
+import static com.bettershulker.gametest.GameTestSupport.closeScreen;
+import static com.bettershulker.gametest.GameTestSupport.countInBoxAt;
+import static com.bettershulker.gametest.GameTestSupport.givePlayer;
+import static com.bettershulker.gametest.GameTestSupport.hoverInventorySlot;
+import static com.bettershulker.gametest.GameTestSupport.openInventory;
 
 /**
  * Drives a real client through the container interactions this mod adds.
@@ -29,10 +32,6 @@ import net.minecraft.world.item.Items;
  * were never sent or the server refused it.</p>
  */
 public class ShulkerInteractionGameTest implements FabricClientGameTest {
-
-    /** Vanilla inventory screen dimensions, used to place the cursor over a known slot. */
-    private static final int INVENTORY_IMAGE_WIDTH = 176;
-    private static final int INVENTORY_IMAGE_HEIGHT = 166;
 
     /** Player inventory position holding the box under test, and the one holding loose items. */
     private static final int BOX_SLOT = 0;
@@ -84,7 +83,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         clickInventorySlot(context, BOX_SLOT, 1);
         context.waitTicks(5);
 
-        int stored = countInBox(sp, Items.STONE);
+        int stored = countInBoxAt(sp, BOX_SLOT, Items.STONE);
         assertTrue(stored == 64, "the box should hold 64 stone after the insert, held " + stored);
 
         closeScreen(context);
@@ -100,7 +99,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         clickInventorySlot(context, BOX_SLOT, 1);
         context.waitTicks(5);
 
-        int left = countInBox(sp, Items.DIAMOND);
+        int left = countInBoxAt(sp, BOX_SLOT, Items.DIAMOND);
         assertTrue(left == 0, "the diamonds should have left the box, " + left + " remained");
 
         closeScreen(context);
@@ -150,100 +149,5 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
                 "the second box should be untouched by the first box's marks, held " + goldLeft);
 
         closeScreen(context);
-    }
-
-    // =========================================================================
-    //  Harness
-    // =========================================================================
-
-    /** A Shulker Box holding {@code stack} at {@code index}. */
-    private static ItemStack boxHolding(ItemStack stack, int index) {
-        ItemStack box = new ItemStack(Items.SHULKER_BOX);
-        NonNullList<ItemStack> contents = NonNullList.withSize(27, ItemStack.EMPTY);
-        contents.set(index, stack);
-        ContainerHelper.setContainerContents(box, contents);
-        return box;
-    }
-
-    private static void givePlayer(TestSingleplayerContext sp, int position, ItemStack stack) {
-        sp.getServer().runOnServer(server -> {
-            var player = server.getPlayerList().getPlayers().getFirst();
-            player.getInventory().setItem(position, stack.copy());
-            player.containerMenu.broadcastChanges();
-        });
-    }
-
-    private static int countInBox(TestSingleplayerContext sp, net.minecraft.world.item.Item item) {
-        return countInBoxAt(sp, BOX_SLOT, item);
-    }
-
-    /** Counts an item inside the box at a player-inventory position, read from the server. */
-    private static int countInBoxAt(TestSingleplayerContext sp, int position,
-                                    net.minecraft.world.item.Item item) {
-        return sp.getServer().computeOnServer(server -> {
-            var player = server.getPlayerList().getPlayers().getFirst();
-            ItemStack box = player.getInventory().getItem(position);
-            int total = 0;
-            for (ItemStack stack : ContainerHelper.getContainerContents(box)) {
-                if (stack.is(item)) total += stack.getCount();
-            }
-            return total;
-        });
-    }
-
-    private static void openInventory(ClientGameTestContext context) {
-        context.getInput().pressKey(options -> options.keyInventory);
-        context.waitForScreen(InventoryScreen.class);
-        context.waitTicks(2);
-    }
-
-    private static void closeScreen(ClientGameTestContext context) {
-        context.runOnClient(client -> {
-            if (client.gui.screen() != null) client.gui.screen().onClose();
-        });
-        context.waitTicks(2);
-    }
-
-    /**
-     * Puts the mouse over a player-inventory position, in window pixels.
-     *
-     * <p>{@code setCursorPos} talks to the window rather than the scaled GUI, so the slot's screen
-     * position is multiplied by the GUI scale. The panel origin is derived from the vanilla
-     * inventory's fixed size, the screen's own being protected.</p>
-     */
-    private static void hoverInventorySlot(ClientGameTestContext context, int position) {
-        double[] pos = context.computeOnClient(client -> {
-            Slot slot = findSlot(client, position);
-            double scale = client.getWindow().getGuiScale();
-            int left = (client.gui.screen().width - INVENTORY_IMAGE_WIDTH) / 2;
-            int top = (client.gui.screen().height - INVENTORY_IMAGE_HEIGHT) / 2;
-            return new double[] {
-                    (left + slot.x + 8) * scale,
-                    (top + slot.y + 8) * scale
-            };
-        });
-        context.getInput().setCursorPos(pos[0], pos[1]);
-        context.waitTicks(2);
-    }
-
-    private static void clickInventorySlot(ClientGameTestContext context, int position, int button) {
-        hoverInventorySlot(context, position);
-        context.getInput().pressMouse(button);
-        context.waitTicks(3);
-    }
-
-    /** The menu slot exposing a given player-inventory position. */
-    private static Slot findSlot(Minecraft client, int position) {
-        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.gui.screen();
-        for (Slot slot : screen.getMenu().slots) {
-            if (slot.container == client.player.getInventory() && slot.getContainerSlot() == position) {
-                return slot;
-            }
-        }
-        throw new AssertionError("no menu slot exposes inventory position " + position);
-    }
-
-    private static void assertTrue(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
     }
 }
