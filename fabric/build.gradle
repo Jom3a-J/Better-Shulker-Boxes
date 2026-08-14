@@ -22,6 +22,17 @@ repositories {
     maven { url = uri('https://maven.shedaniel.me/') }
 }
 
+// Creates the `test` source set and the runClientGameTest task. The tests drive a real client:
+// they open the inventory, move the mouse onto a slot and click it, which is the only way to
+// reach code that lives behind a screen's input handlers.
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = "bettershulker-test"
+        enableClientGameTests = true
+    }
+}
+
 java {
     sourceCompatibility = JavaVersion.toVersion(25)
     targetCompatibility = JavaVersion.toVersion(25)
