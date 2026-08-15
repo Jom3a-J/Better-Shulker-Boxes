@@ -565,13 +565,14 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     /**
      * Panel texture the active pack supplies for this container, or null when it supplies none.
      *
-     * <p>Ender chests are asked for separately: they intentionally keep Better Shulker's own
-     * panel in the vanilla styles, so their pack texture never shows up as a panel override.</p>
+     * <p>Ender chests are left out. Their screen is an ordinary six-row chest, so the only panel
+     * a pack has for them is the one it gives every chest and barrel: a pack that paints those
+     * wooden painted the Ender card wood too. They keep Better Shulker's own ender colours here
+     * for the same reason they keep its panel under the vanilla styles.</p>
      */
     private Identifier getModernPackPanelTexture() {
-        if (this.resourcePackOverridesPanel) return this.panelTexture.texture();
-        if (this.isEnderChest) return ResourcePackContainerTextures.packSuppliedEnderPanel();
-        return null;
+        if (this.isEnderChest) return null;
+        return this.resourcePackOverridesPanel ? this.panelTexture.texture() : null;
     }
 
 

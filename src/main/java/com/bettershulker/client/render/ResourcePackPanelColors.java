@@ -15,18 +15,17 @@ import java.util.Optional;
  * Samples the dominant body colour out of a resource pack's container panel texture, so the
  * Modern card can take a pack's palette while keeping its own shape.
  *
- * <p>The panel body is by far the largest block of opaque pixels in the crop, so the most
- * frequent colour lands on it rather than on slots, shadows or the border. Quantising to five
- * bits per channel first stops a gradient from splitting its own vote across near-identical
- * shades. Results are cached per texture and dropped on resource reload.</p>
+ * <p>The storage grid is deliberately cut out of the crop first. On a standard panel the slot
+ * squares are 58% of the pixels around the grid, so a straight count over the whole crop returns
+ * the pack's slot shade rather than its panel: on vanilla's own texture that is #8B8B8B instead
+ * of #C6C6C6. Packs that recolour per dye keep slots much darker than the panel, which pulled
+ * every card towards a muddy near-black and left neighbouring dyes hard to tell apart.</p>
+ *
+ * <p>Quantising to five bits per channel stops a gradient from splitting its own vote across
+ * near-identical shades. Results are cached per texture and dropped on resource reload.</p>
  */
 public final class ResourcePackPanelColors {
 
-    /** Region of the texture that holds the storage-slot band on a standard 176x68 panel. */
-    private static final int SAMPLE_X = 0;
-    private static final int SAMPLE_Y = 11;
-    private static final int SAMPLE_WIDTH = 176;
-    private static final int SAMPLE_HEIGHT = 68;
     private static final int MIN_OPAQUE_ALPHA = 200;
     private static final int MAX_CACHE_ENTRIES = 32;
 
@@ -67,7 +66,11 @@ public final class ResourcePackPanelColors {
 
         try (InputStream stream = resource.get().open();
              NativeImage image = NativeImage.read(stream)) {
-            return dominantOpaqueColor(image);
+            ResourcePackLayout layout = ResourcePackLayoutProfiles.resolveBase(texture);
+            int body = dominantOpaqueColor(image, layout, true);
+            // A fully translucent panel body leaves nothing to sample. Rather than drop the
+            // pack's palette entirely, take the crop the old way, slots included.
+            return body != 0 ? body : dominantOpaqueColor(image, layout, false);
         } catch (Exception ignored) {
             // A pack can ship a texture Minecraft itself would reject; fall back rather than
             // taking the tooltip down with it.
@@ -75,17 +78,38 @@ public final class ResourcePackPanelColors {
         }
     }
 
-    private static int dominantOpaqueColor(NativeImage image) {
-        int maxX = Math.min(image.getWidth(), SAMPLE_X + SAMPLE_WIDTH);
-        int maxY = Math.min(image.getHeight(), SAMPLE_Y + SAMPLE_HEIGHT);
+    /**
+     * Most frequent opaque colour of the panel crop, or 0 when it holds nothing solid.
+     *
+     * @param excludeSlots leave the storage grid out of the count, so the panel body wins
+     */
+    private static int dominantOpaqueColor(NativeImage image, ResourcePackLayout layout,
+                                           boolean excludeSlots) {
+        int slotLeft = layout.sourceSlotX();
+        int slotTop = layout.sourceSlotY();
+        int slotRight = slotLeft + layout.columns() * layout.slotSize();
+        int slotBottom = slotTop + layout.rows() * layout.slotSize();
+
+        int minX = Math.max(0, layout.sourcePanelX());
+        int minY = Math.max(0, layout.sourcePanelY());
+        int maxX = Math.min(image.getWidth(), layout.sourcePanelX() + layout.sourcePanelWidth());
+        // The panel of a Shulker GUI runs from its top edge to just past the grid; the rest of
+        // the file is the player's inventory, which no pack styles as part of this container.
+        int maxY = Math.min(Math.min(image.getHeight(), slotBottom + layout.bottomCapHeight()),
+                layout.sourcePanelY() + layout.sourcePanelHeight());
 
         Map<Integer, Integer> counts = new HashMap<>();
         int bestQuantised = 0;
         int bestCount = 0;
 
-        for (int y = SAMPLE_Y; y < maxY; y++) {
-            for (int x = SAMPLE_X; x < maxX; x++) {
-                int argb = toArgb(image.getPixel(x, y));
+        for (int y = minY; y < maxY; y++) {
+            for (int x = minX; x < maxX; x++) {
+                if (excludeSlots && x >= slotLeft && x < slotRight && y >= slotTop && y < slotBottom) {
+                    continue;
+                }
+                // getPixel is ARGB already; the ABGR the buffer holds is only reachable through
+                // getPixelABGR, which is private. Swapping here painted a red box's card purple.
+                int argb = image.getPixel(x, y);
                 if (((argb >>> 24) & 0xFF) < MIN_OPAQUE_ALPHA) continue;
 
                 int quantised = argb & 0x00F8F8F8;
@@ -100,15 +124,5 @@ public final class ResourcePackPanelColors {
         if (bestCount == 0) return 0;
         // Recentre the quantised bucket so the result is not biased dark by the truncation.
         return 0xFF000000 | (bestQuantised + 0x00040404);
-    }
-
-    /**
-     * NativeImage stores pixels little-endian as ABGR; the rest of the tooltip code works in
-     * ARGB, so swap the red and blue channels here rather than at every call site.
-     */
-    private static int toArgb(int abgr) {
-        return (abgr & 0xFF00FF00)
-                | ((abgr >> 16) & 0x000000FF)
-                | ((abgr << 16) & 0x00FF0000);
     }
 }

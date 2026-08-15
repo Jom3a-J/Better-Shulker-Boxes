@@ -13,7 +13,8 @@
   "entrypoints": {
     "fabric-client-gametest": [
       "com.bettershulker.gametest.ShulkerInteractionGameTest",
-      "com.bettershulker.gametest.EnderChestInteractionGameTest"
+      "com.bettershulker.gametest.EnderChestInteractionGameTest",
+      "com.bettershulker.gametest.ModernTooltipPackGameTest"
     ]
   }
 }
