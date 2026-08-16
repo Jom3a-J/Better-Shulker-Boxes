@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.5.1
+
+### Fixed
+
+- **Box colours came out wrong under a resource pack.** With the Modern style and a pack that
+  recolours container GUIs, a red Shulker Box drew a purple card, a yellow one drew teal and a
+  blue one maroon. Every colour taken from a pack had its red and blue swapped over.
+- **Cards were muddy and hard to tell apart.** The colour was read from the slot squares instead
+  of the panel around them, and packs keep slots much darker, so red sat next to brown and green
+  next to lime. A card now takes the pack's panel colour and keeps a little of the box's own dye
+  on top of it, so no two boxes look alike — including under packs that ship one GUI for all
+  sixteen.
+- **Ender Chests borrowed a chest's colours.** An Ender Chest opens the same screen as every
+  chest and barrel, so under a pack that paints those wooden the Ender preview went wooden too.
+  It keeps Better Shulker's own colours now, as it already did under the Vanilla style.
+
+Internally, the panel sampler now reads the pack's panel rather than the slot band, and a client
+game test drives the four dyed previews under a real pack and checks each card against its dye.
+
 ## 1.5.0
 
 ### New

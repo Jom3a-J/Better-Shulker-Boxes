@@ -15,8 +15,8 @@ import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
  *
  * <p>Two sources feed it. The Vanilla style takes its accents from the chosen theme, tinted by
  * the container's dye. Modern ignores the theme entirely and builds its whole card from the dye,
- * or from the panel colour an active resource pack supplies - which is why the settings screen
- * greys the theme out under that style.</p>
+ * or from the panel colour an active resource pack supplies with the dye blended back in - which
+ * is why the settings screen greys the theme out under that style.</p>
  */
 public final class TooltipPalette {
 
@@ -27,10 +27,15 @@ public final class TooltipPalette {
     /** Below this the card is too dark to derive shades by darkening; they are lightened instead. */
     private static final float MODERN_DARK_FILL_LUMINANCE = 0.15f;
 
+    /** How much of the container's own dye stays visible on top of a pack's panel colour. */
+    private static final float PACK_DYE_INFLUENCE = 0.30f;
+
     private final boolean isEnderChest;
     private final DyeColor color;
     private final Identifier packPanel;
     private final boolean modern;
+    /** Lazily sampled Modern fill; 0 until {@link #getModernPanelFill()} has run once. */
+    private int modernPanelFill;
 
     /**
      * @param packPanel panel texture the active pack supplies for this container, or null for none
@@ -95,14 +100,23 @@ public final class TooltipPalette {
         return 0xFF8932B8;
     }
 
-    /** Card face: the pack's own panel colour, or the dye pulled down towards neutral. */
+    /** Card face: the pack's own panel colour carrying the dye, or the dye pulled towards neutral. */
     public int getModernPanelFill() {
+        if (this.modernPanelFill == 0) {
+            this.modernPanelFill = computeModernPanelFill();
+        }
+        return this.modernPanelFill;
+    }
+
+    private int computeModernPanelFill() {
         Identifier packPanel = this.packPanel;
         if (packPanel != null) {
-            // A sampled pack colour is already a panel colour authored to sit behind items, so
-            // it is used as-is; muting it the way a raw dye needs would just fight the pack.
             int sampled = ResourcePackPanelColors.dominantColor(packPanel, 0);
-            if (sampled != 0) return sampled;
+            // A sampled pack colour is already authored to sit behind items, so it sets the tone
+            // and is not muted the way a raw dye is. It only carries the dye far enough to keep
+            // each box its own: a pack shipping one shared GUI would otherwise paint all sixteen
+            // the same colour, and even per-dye packs put neighbouring dyes close together.
+            if (sampled != 0) return blendColor(sampled, getModernDyeColor(), PACK_DYE_INFLUENCE);
         }
         return blendColor(getModernDyeColor(), 0xFF6A6A72, 0.55f);
     }
