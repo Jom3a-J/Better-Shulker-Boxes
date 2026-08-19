@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Resolves optional pack-provided layout metadata and built-in compatibility profiles. */
@@ -22,7 +22,30 @@ public final class ResourcePackLayoutProfiles {
     /** Resource packs may add assets/bettershulker/layouts/*.json to describe their GUI geometry. */
     private static final String METADATA_PATH = "bettershulker/layouts";
     private static final ResourcePackLayout STANDARD = ResourcePackLayout.standard();
-    private static final Map<Identifier, ResourcePackLayout> BASE_CACHE = new HashMap<>();
+    /**
+     * Safety bound on the layout cache. Keys are textures, so the real ceiling is however many
+     * distinct panels a pack ships - around twenty at the high end. This is headroom, not a size
+     * eviction is expected to reach.
+     */
+    private static final int MAX_BASE_CACHE_ENTRIES = 64;
+
+    /**
+     * Parsed layout geometry, evicted least-recently-used once full.
+     *
+     * <p>A miss reparses the pack's layout JSON off disk, so the cache was previously left to
+     * grow without a bound at all. Bounding it costs nothing here - the key space is small - and
+     * it means a pack shipping an unusual number of panels cannot grow this without limit.</p>
+     *
+     * <p>Access order means {@code get} mutates the map, so every read has to stay inside this
+     * class's synchronized methods - as they all already do.</p>
+     */
+    private static final Map<Identifier, ResourcePackLayout> BASE_CACHE =
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Identifier, ResourcePackLayout> eldest) {
+                    return size() > MAX_BASE_CACHE_ENTRIES;
+                }
+            };
     private static Object cachedResourceManager;
 
     /* The OptiGUI pack shown during development uses this exact shulker texture arrangement. */

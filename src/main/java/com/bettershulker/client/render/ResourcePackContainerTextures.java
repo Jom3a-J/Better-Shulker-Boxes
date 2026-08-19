@@ -15,7 +15,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -33,7 +33,27 @@ public final class ResourcePackContainerTextures {
     private static final Identifier SHULKER_PANEL = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
     private static final Identifier GENERIC_54_PANEL = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
     private static final int MAX_PANEL_CACHE_ENTRIES = 64;
-    private static final Map<ResolutionKey, Panel> PANEL_CACHE = new HashMap<>();
+
+    /**
+     * Resolved panels, evicted least-recently-used once full.
+     *
+     * <p>A resolution is keyed partly by the container's name, so the number of distinct keys is
+     * whatever a player chooses to rename their boxes to. Discarding the whole cache on overflow
+     * made that unbounded input costly: passing a chest of uniquely named boxes threw away every
+     * resolution, including the one for the box about to be hovered again, and each miss rereads
+     * the pack's OptiFine and OptiGUI definitions off disk. Dropping only the coldest entry keeps
+     * the boxes actually in use resolved.</p>
+     *
+     * <p>Access order means {@code get} mutates the map, so every read has to stay inside this
+     * class's synchronized methods - as they all already do.</p>
+     */
+    private static final Map<ResolutionKey, Panel> PANEL_CACHE =
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<ResolutionKey, Panel> eldest) {
+                    return size() > MAX_PANEL_CACHE_ENTRIES;
+                }
+            };
     private static Object cachedResourceManager;
     private static Boolean cachedGuiActive;
 
@@ -116,9 +136,6 @@ public final class ResourcePackContainerTextures {
         if (cached != null) return cached;
 
         Panel resolved = resolveUncached(color, enderChest, containerName, mode);
-        if (PANEL_CACHE.size() >= MAX_PANEL_CACHE_ENTRIES) {
-            PANEL_CACHE.clear();
-        }
         PANEL_CACHE.put(key, resolved);
         return resolved;
     }

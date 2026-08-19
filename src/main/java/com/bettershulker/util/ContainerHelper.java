@@ -10,6 +10,7 @@ import net.minecraft.world.LockCode;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
@@ -205,6 +206,66 @@ public final class ContainerHelper {
     // =========================================================================
     //  Capacity & Proximity Checks
     // =========================================================================
+
+    /**
+     * Whether the container holds anything, read straight from its component.
+     *
+     * <p>Reading through {@link #getContainerContents} answers the same question, but it builds
+     * all 27 stacks to do it and every one of those runs {@code validateStrict}. The screen asks
+     * this once a frame for the box under the cursor, so that copy is pure waste.</p>
+     */
+    public static boolean hasAnyContents(ItemStack stack) {
+        ItemContainerContents stored = stack.get(DataComponents.CONTAINER);
+        return stored != null && stored.nonEmptyItems().iterator().hasNext();
+    }
+
+    /** How many of the container's slots hold something, without building their stacks. */
+    public static int countOccupiedSlots(ItemStack stack) {
+        ItemContainerContents stored = stack.get(DataComponents.CONTAINER);
+        if (stored == null) return 0;
+
+        int occupied = 0;
+        for (ItemStackTemplate ignored : stored.nonEmptyItems()) {
+            occupied++;
+        }
+        return occupied;
+    }
+
+    /**
+     * Whether {@code toInsert} would fit in the container, answered from its component.
+     *
+     * <p>Same result as {@link ContainerTransfer#canInsert} over the container's contents, but
+     * this is asked for every Shulker Box on screen on every frame - the bounce and the plus
+     * badge both hang off it - so it never builds the 27 stacks that answer would need. A stored
+     * entry is only turned into a real stack once its item and its headroom already match, which
+     * is the one case left where the components have to be compared in full.</p>
+     */
+    public static boolean canInsertInto(ItemStack containerStack, ItemStack toInsert) {
+        if (toInsert.isEmpty()) return false;
+
+        ItemContainerContents stored = containerStack.get(DataComponents.CONTAINER);
+        // No component at all means the box has never been filled: every slot is free.
+        if (stored == null) return true;
+
+        int occupied = 0;
+        for (ItemStackTemplate template : stored.nonEmptyItems()) {
+            occupied++;
+            if (template.item().value() != toInsert.getItem()
+                    || template.count() >= templateMaxStackSize(template)) {
+                continue;
+            }
+            if (ItemStack.isSameItemSameComponents(template.create(), toInsert)) {
+                return true;
+            }
+        }
+        return occupied < SHULKER_SLOT_COUNT;
+    }
+
+    /** Stack limit of a stored entry, defaulting to unstackable when the component is missing. */
+    private static int templateMaxStackSize(ItemStackTemplate template) {
+        Integer max = template.get(DataComponents.MAX_STACK_SIZE);
+        return max == null ? 1 : max;
+    }
 
 
 
