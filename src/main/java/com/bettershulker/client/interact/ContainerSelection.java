@@ -150,10 +150,23 @@ public final class ContainerSelection {
     }
 
         public static boolean hasContents(ItemStack containerStack) {
+        // A Shulker Box carries its own contents, so the component answers this outright. Only
+        // the Ender Chest has to go through the cache, and that one is read in place, not copied.
+        if (ContainerHelper.isShulkerBox(containerStack)) {
+            return ContainerHelper.hasAnyContents(containerStack);
+        }
         for (ItemStack stack : contentsOf(containerStack)) {
             if (!stack.isEmpty()) return true;
         }
         return false;
+    }
+
+    /** How many slots of the container hold something. Same split as {@link #hasContents}. */
+    public static int occupiedSlotCount(ItemStack containerStack) {
+        if (ContainerHelper.isShulkerBox(containerStack)) {
+            return ContainerHelper.countOccupiedSlots(containerStack);
+        }
+        return ContainerActions.countNonNullSlots(contentsOf(containerStack));
     }
 
         public static boolean hasMatchingItem(ItemStack containerStack, ItemStack target) {

@@ -1,6 +1,8 @@
 package com.bettershulker.gametest;
 
 import com.bettershulker.client.render.ResourcePackContainerTextures;
+import com.bettershulker.client.render.ResourcePackLayoutProfiles;
+import com.bettershulker.client.render.ResourcePackPanelColors;
 import com.bettershulker.client.render.TooltipPalette;
 import com.bettershulker.util.ContainerHelper;
 
@@ -9,6 +11,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
 import net.minecraft.core.NonNullList;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -80,6 +83,10 @@ public class ModernTooltipPackGameTest implements FabricClientGameTest {
             singleplayer.getClientLevel().waitForChunksRender();
             singleplayer.getServer().runCommand("gamemode creative");
 
+            evictionNeverHandsBackTheWrongPanel(context);
+            evictionNeverHandsBackTheWrongPanelColour(context);
+            evictionNeverHandsBackTheWrongLayout(context);
+
             if (!aPackSuppliesAPanelForEveryDye(context)) return;
 
             Map<DyeColor, Integer> cards = everyCardColour(context, singleplayer);
@@ -92,6 +99,137 @@ public class ModernTooltipPackGameTest implements FabricClientGameTest {
     // =========================================================================
     //  Tests
     // =========================================================================
+
+    /**
+     * A resolution survives being pushed out of the panel cache.
+     *
+     * <p>That cache is keyed partly by the container's name and now evicts its coldest entry
+     * rather than emptying itself, so a renamed box can push an earlier resolution out. Eviction
+     * is only ever allowed to cost a recomputation, never to change the answer, which is what
+     * this pins.</p>
+     *
+     * <p>The two probes are an Ender Chest and a Shulker Box, because those resolve to different
+     * panels whether or not a pack is installed - dyes only diverge under one, and an earlier
+     * version of this test compared two keys that a packless run resolves identically, so it
+     * passed against a cache rigged to return the wrong entry. The check that the probes differ
+     * at all is what keeps that from going unnoticed again.</p>
+     */
+    private void evictionNeverHandsBackTheWrongPanel(ClientGameTestContext context) {
+        String shulkerBefore = context.computeOnClient(client ->
+                ResourcePackContainerTextures.resolve(DyeColor.RED, false, "Eviction probe").toString());
+        String enderBefore = context.computeOnClient(client ->
+                ResourcePackContainerTextures.resolve(null, true, "Eviction probe").toString());
+
+        assertTrue(!shulkerBefore.equals(enderBefore),
+                "the eviction probes resolve to the same panel, so this test cannot detect a"
+                        + " cache handing back the wrong one");
+
+        // Comfortably past the 64-entry ceiling, so neither probe can have survived in the cache.
+        context.computeOnClient(client -> {
+            for (int i = 0; i < 200; i++) {
+                ResourcePackContainerTextures.resolve(DyeColor.RED, false, "Filler " + i);
+            }
+            return null;
+        });
+
+        String shulkerAfter = context.computeOnClient(client ->
+                ResourcePackContainerTextures.resolve(DyeColor.RED, false, "Eviction probe").toString());
+        String enderAfter = context.computeOnClient(client ->
+                ResourcePackContainerTextures.resolve(null, true, "Eviction probe").toString());
+
+        assertTrue(shulkerBefore.equals(shulkerAfter), String.format(
+                "the Shulker panel changed after being evicted:%n  before %s%n  after  %s",
+                shulkerBefore, shulkerAfter));
+        assertTrue(enderBefore.equals(enderAfter), String.format(
+                "the Ender panel changed after being evicted:%n  before %s%n  after  %s",
+                enderBefore, enderAfter));
+    }
+
+    /**
+     * A sampled panel colour survives being pushed out of its cache.
+     *
+     * <p>{@link ResourcePackPanelColors} evicts least-recently-used too, and its misses are the
+     * expensive kind - a miss decodes the whole texture to count pixels. The probes are a real
+     * texture, which gets sampled, against a missing one, which falls back, so the two answers
+     * differ by construction and a swapped entry is visible.</p>
+     */
+    private void evictionNeverHandsBackTheWrongPanelColour(ClientGameTestContext context) {
+        Identifier real = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
+        Identifier missing = Identifier.fromNamespaceAndPath("bettershulker", "textures/gui/absent_panel.png");
+        int fallback = 0x00FACADE;
+
+        int realBefore = context.computeOnClient(client ->
+                ResourcePackPanelColors.dominantColor(real, fallback));
+        int missingBefore = context.computeOnClient(client ->
+                ResourcePackPanelColors.dominantColor(missing, fallback));
+
+        assertTrue(realBefore != missingBefore,
+                "the colour probes agree, so this test cannot detect a cache handing back the"
+                        + " wrong entry");
+
+        // Missing textures fail fast, so the cache can be overrun without decoding 200 images.
+        context.computeOnClient(client -> {
+            for (int i = 0; i < 200; i++) {
+                ResourcePackPanelColors.dominantColor(Identifier.fromNamespaceAndPath(
+                        "bettershulker", "textures/gui/filler_" + i + ".png"), fallback);
+            }
+            return null;
+        });
+
+        int realAfter = context.computeOnClient(client ->
+                ResourcePackPanelColors.dominantColor(real, fallback));
+        int missingAfter = context.computeOnClient(client ->
+                ResourcePackPanelColors.dominantColor(missing, fallback));
+
+        assertTrue(realBefore == realAfter, String.format(
+                "a sampled panel colour changed after eviction: before %08X, after %08X",
+                realBefore, realAfter));
+        assertTrue(missingBefore == missingAfter, String.format(
+                "a fallback panel colour changed after eviction: before %08X, after %08X",
+                missingBefore, missingAfter));
+    }
+
+    /**
+     * A resolved layout survives being pushed out of its cache.
+     *
+     * <p>{@link ResourcePackLayoutProfiles} was previously unbounded and is now an LRU, so this
+     * is the first time eviction can happen there at all. The probes lean on the built-in OptiGUI
+     * profile, which is the one texture that resolves to something other than the standard
+     * geometry without a pack having to supply anything.</p>
+     */
+    private void evictionNeverHandsBackTheWrongLayout(ClientGameTestContext context) {
+        Identifier profiled = Identifier.fromNamespaceAndPath("optigui", "gui/shulkers/shulker/shulker.png");
+        Identifier standard = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
+
+        String profiledBefore = context.computeOnClient(client ->
+                ResourcePackLayoutProfiles.resolveBase(profiled).toString());
+        String standardBefore = context.computeOnClient(client ->
+                ResourcePackLayoutProfiles.resolveBase(standard).toString());
+
+        assertTrue(!profiledBefore.equals(standardBefore),
+                "the layout probes resolve alike, so this test cannot detect a cache handing back"
+                        + " the wrong entry");
+
+        context.computeOnClient(client -> {
+            for (int i = 0; i < 200; i++) {
+                ResourcePackLayoutProfiles.resolveBase(Identifier.fromNamespaceAndPath(
+                        "bettershulker", "textures/gui/filler_" + i + ".png"));
+            }
+            return null;
+        });
+
+        String profiledAfter = context.computeOnClient(client ->
+                ResourcePackLayoutProfiles.resolveBase(profiled).toString());
+        String standardAfter = context.computeOnClient(client ->
+                ResourcePackLayoutProfiles.resolveBase(standard).toString());
+
+        assertTrue(profiledBefore.equals(profiledAfter), String.format(
+                "a layout changed after eviction:%n  before %s%n  after  %s",
+                profiledBefore, profiledAfter));
+        assertTrue(standardBefore.equals(standardAfter), String.format(
+                "a layout changed after eviction:%n  before %s%n  after  %s",
+                standardBefore, standardAfter));
+    }
 
     /**
      * Whether there is a pack to test against at all, and that it gives each dye its own panel.

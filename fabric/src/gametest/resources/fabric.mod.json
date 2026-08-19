@@ -14,7 +14,8 @@
     "fabric-client-gametest": [
       "com.bettershulker.gametest.ShulkerInteractionGameTest",
       "com.bettershulker.gametest.EnderChestInteractionGameTest",
-      "com.bettershulker.gametest.ModernTooltipPackGameTest"
+      "com.bettershulker.gametest.ModernTooltipPackGameTest",
+      "com.bettershulker.gametest.ContainerCapacityGameTest"
     ]
   }
 }

@@ -25,7 +25,6 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
-import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -707,12 +706,11 @@ public abstract class HandledScreenMixin extends Screen {
             ItemStack containerStack = this.hoveredSlot.getItem();
             if (!ContainerHelper.isContainer(containerStack)) return;
 
-            NonNullList<ItemStack> contents = ContainerSelection.contentsOf(containerStack);
             var player = Minecraft.getInstance().player;
             if (player == null || player.containerMenu.getCarried().isEmpty()) return;
 
-            int usedSlots = ContainerActions.countNonNullSlots(contents);
-            float fillFraction = (float) usedSlots / Math.max(1, contents.size());
+            int usedSlots = ContainerSelection.occupiedSlotCount(containerStack);
+            float fillFraction = (float) usedSlots / ContainerHelper.SHULKER_SLOT_COUNT;
 
             int slotX = this.leftPos + this.hoveredSlot.x;
             int slotY = this.topPos + this.hoveredSlot.y;
@@ -774,7 +772,7 @@ public abstract class HandledScreenMixin extends Screen {
         if (carried.isEmpty()) return false;
         ItemStack slotStack = slot.getItem();
         if (!ContainerHelper.isShulkerBox(slotStack) || ContainerHelper.isShulkerBox(carried)) return false;
-        return ContainerTransfer.canInsert(ContainerHelper.getContainerContents(slotStack), carried);
+        return ContainerHelper.canInsertInto(slotStack, carried);
     }
 
     @Inject(method = "extractSlot", at = @At("HEAD"))

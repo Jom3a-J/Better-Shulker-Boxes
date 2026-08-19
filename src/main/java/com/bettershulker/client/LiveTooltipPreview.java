@@ -468,22 +468,76 @@ final class LiveTooltipPreview {
         }
     }
 
+    /**
+     * Cloth's list widget and the three bounds fields on it, resolved once per class.
+     *
+     * <p>This runs on every frame the settings screen draws, and the lookups it needs - a field
+     * on the screen, then three more walked up the widget's hierarchy and unlocked - cost far
+     * more than the assignments they exist to make. The class is part of the key so a different
+     * Cloth build never reuses fields resolved against the previous one.</p>
+     */
+    private record ClothListBounds(Class<?> screenType, Class<?> listType,
+                                   java.lang.reflect.Field listField,
+                                   java.lang.reflect.Field left,
+                                   java.lang.reflect.Field right,
+                                   java.lang.reflect.Field width) {}
+
+    /** Last resolved set, or null when the last attempt failed or none has run yet. */
+    private static ClothListBounds clothListBounds;
+
+    /** Screen class the last attempt was made for, so a failure is not retried every frame. */
+    private static Class<?> clothListBoundsAttemptedFor;
+
     private static void updateClothListBounds(Screen screen, int right) {
         try {
-            var listField = screen.getClass().getField("listWidget");
+            ClothListBounds bounds = resolveClothListBounds(screen);
+            if (bounds == null) return;
+
+            Object list = bounds.listField().get(screen);
+            if (list == null || list.getClass() != bounds.listType()) {
+                // The widget was swapped for one of another type; resolve against it next frame.
+                clothListBoundsAttemptedFor = null;
+                return;
+            }
+            int left = bounds.left().getInt(list);
+            int newRight = Math.max(left + 260, right);
+            bounds.right().setInt(list, newRight);
+            bounds.width().setInt(list, newRight - left);
+        } catch (Exception ignored) {
+            // Keep the preview optional; never break settings if Cloth internals change.
+        }
+    }
+
+    private static ClothListBounds resolveClothListBounds(Screen screen) {
+        Class<?> screenType = screen.getClass();
+        if (clothListBoundsAttemptedFor == screenType) {
+            return clothListBounds != null && clothListBounds.screenType() == screenType
+                    ? clothListBounds
+                    : null;
+        }
+        clothListBoundsAttemptedFor = screenType;
+        clothListBounds = null;
+
+        try {
+            var listField = screenType.getField("listWidget");
             Object list = listField.get(screen);
-            var leftField = findField(list.getClass(), "left");
-            var rightField = findField(list.getClass(), "right");
-            var widthField = findField(list.getClass(), "width");
+            if (list == null) {
+                // Nothing to resolve the bounds fields against yet; try again next frame.
+                clothListBoundsAttemptedFor = null;
+                return null;
+            }
+            Class<?> listType = list.getClass();
+            var leftField = findField(listType, "left");
+            var rightField = findField(listType, "right");
+            var widthField = findField(listType, "width");
             leftField.setAccessible(true);
             rightField.setAccessible(true);
             widthField.setAccessible(true);
-            int left = leftField.getInt(list);
-            int newRight = Math.max(left + 260, right);
-            rightField.setInt(list, newRight);
-            widthField.setInt(list, newRight - left);
+            clothListBounds = new ClothListBounds(screenType, listType, listField,
+                    leftField, rightField, widthField);
+            return clothListBounds;
         } catch (Exception ignored) {
-            // Keep the preview optional; never break settings if Cloth internals change.
+            return null;
         }
     }
 
