@@ -19,6 +19,12 @@
 Internally, the panel sampler now reads the pack's panel rather than the slot band, and a client
 game test drives the four dyed previews under a real pack and checks each card against its dye.
 
+The inventory screen also stops rebuilding a box's 27 stacks just to ask whether it holds
+anything, how full it is, or whether one more item would fit — it reads what the box stores
+directly. The three resource-pack caches drop their coldest entry when full instead of emptying
+themselves, so passing a chest of renamed boxes no longer throws away every panel it had already
+worked out. Neither changes what you see; both are covered by new game tests.
+
 ## 1.5.0
 
 ### New
