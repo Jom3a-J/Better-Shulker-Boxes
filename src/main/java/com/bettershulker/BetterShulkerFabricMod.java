@@ -12,6 +12,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import com.bettershulker.server.InteractionRateLimiter;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -20,7 +21,8 @@ import net.minecraft.server.level.ServerPlayer;
 public final class BetterShulkerFabricMod implements ModInitializer {
     @Override
     public void onInitialize() {
-        BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing Fabric module for Minecraft 26.2");
+        BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing Fabric module for Minecraft {}",
+                SharedConstants.getCurrentVersion().name());
 
         // Only the server direction. The client entrypoint installs the other half, and neither
         // can clobber the other regardless of which initializer runs first.

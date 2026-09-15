@@ -20,7 +20,9 @@ and 26.3 spell something differently - polling whether a key is held, handing a 
 player, and drawing a tooltip - sit behind `src/compat/mc26.3` and `src/compat/mc26.2`, and each
 loader compiles only the copy matching its own version. Everything else stays shared. The client
 game tests run against 26.3 and pass; they also stopped hard-coding mouse button numbers, which is
-what caught the SDL renumbering in the first place.
+what caught the SDL renumbering in the first place. Quilt's Mixin and MixinExtras pins now match
+the versions Quilt Loader itself ships, and the line each loader logs on startup reads the running
+Minecraft version instead of naming one that had been written into the source.
 
 ## 1.5.1
 
