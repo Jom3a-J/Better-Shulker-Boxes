@@ -7,6 +7,7 @@ import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.client.render.ResourcePackCacheReloader;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
@@ -22,7 +23,6 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
 import net.neoforged.neoforge.common.NeoForge;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * NeoForge client entrypoint.
@@ -70,15 +70,15 @@ public final class BetterShulkerNeoForgeClient {
     private void registerKeyMappings(RegisterKeyMappingsEvent event) {
         event.registerCategory(ClientKeybinds.getCustomCategory());
         ClientKeybinds.setKeyMappings(
-                registerKey(event, "key.bettershulker.settings", GLFW.GLFW_KEY_B),
-                registerKey(event, "key.bettershulker.extract", GLFW.GLFW_KEY_E),
-                registerKey(event, "key.bettershulker.select_slot", GLFW.GLFW_KEY_SPACE),
-                registerKey(event, "key.bettershulker.precision", GLFW.GLFW_KEY_LEFT_CONTROL),
-                registerKey(event, "key.bettershulker.alt_force", GLFW.GLFW_KEY_LEFT_ALT),
-                registerKey(event, "key.bettershulker.scroll_left", GLFW.GLFW_KEY_LEFT),
-                registerKey(event, "key.bettershulker.scroll_right", GLFW.GLFW_KEY_RIGHT),
-                registerKey(event, "key.bettershulker.restock", GLFW.GLFW_KEY_R),
-                registerKey(event, "key.bettershulker.show_full_tooltip", GLFW.GLFW_KEY_V)
+                registerKey(event, "key.bettershulker.settings", InputConstants.KEY_B),
+                registerKey(event, "key.bettershulker.extract", InputConstants.KEY_E),
+                registerKey(event, "key.bettershulker.select_slot", InputConstants.KEY_SPACE),
+                registerKey(event, "key.bettershulker.precision", InputConstants.KEY_LCONTROL),
+                registerKey(event, "key.bettershulker.alt_force", InputConstants.KEY_LALT),
+                registerKey(event, "key.bettershulker.scroll_left", InputConstants.KEY_LEFT),
+                registerKey(event, "key.bettershulker.scroll_right", InputConstants.KEY_RIGHT),
+                registerKey(event, "key.bettershulker.restock", InputConstants.KEY_R),
+                registerKey(event, "key.bettershulker.show_full_tooltip", InputConstants.KEY_V)
         );
     }
 

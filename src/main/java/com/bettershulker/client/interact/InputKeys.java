@@ -1,12 +1,10 @@
 package com.bettershulker.client.interact;
 
 import com.bettershulker.BetterShulkerConfig;
-import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.ClientKeybinds;
+import com.bettershulker.client.compat.HeldKeys;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
 
 /** Modifier keys the container preview reads, each gated on the setting that owns it. */
 public final class InputKeys {
@@ -19,15 +17,13 @@ public final class InputKeys {
     }
 
     public static boolean isShiftDown() {
-        var window = Minecraft.getInstance().getWindow();
-        return InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_SHIFT)
-            || InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
+        return HeldKeys.isHeld(InputConstants.KEY_LSHIFT)
+            || HeldKeys.isHeld(InputConstants.KEY_RSHIFT);
     }
 
     public static boolean isAltDown() {
         if (!BetterShulkerConfig.altForceTooltipEnabled) return false;
-        var window = Minecraft.getInstance().getWindow();
-        return GLFW.glfwGetKey(window.handle(), GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-            || GLFW.glfwGetKey(window.handle(), GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
+        return HeldKeys.isHeld(InputConstants.KEY_LALT)
+            || HeldKeys.isHeld(InputConstants.KEY_RALT);
     }
 }

@@ -3,6 +3,7 @@ package com.bettershulker.client.render;
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.ClientKeybinds;
+import com.bettershulker.client.compat.TooltipCompat;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -996,7 +997,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         int textWidth = font.width(name.getVisualOrderText());
         int tooltipAnchorX = panelX + getPanelWidth() / 2 - 12 - textWidth / 2;
         int tooltipAnchorY = panelY - 1;
-        context.tooltip(font,
+        TooltipCompat.tooltip(context, font,
                 List.of(selectedNameTooltip),
                 tooltipAnchorX,
                 tooltipAnchorY,
@@ -1025,7 +1026,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         context.fill(bridgeX, panelY - 2, bridgeX + bridgeWidth, panelY + 1, bridgeColor);
         context.fill(bridgeX + 1, panelY - 1, bridgeX + bridgeWidth - 1, panelY + 1, bridgeFill);
 
-        context.tooltip(font,
+        TooltipCompat.tooltip(context, font,
                 List.of(selectedNameTooltip),
                 tooltipAnchorX,
                 tooltipAnchorY,

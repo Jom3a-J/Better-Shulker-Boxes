@@ -1,18 +1,17 @@
 package com.bettershulker.client;
 
 import com.bettershulker.BetterShulkerConfig;
+import com.bettershulker.client.compat.HeldKeys;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The mod's key mappings, registered by each loader's client entrypoint and read from everywhere.
  *
- * <p>Held-state is asked of GLFW directly rather than through {@link KeyMapping#isDown()}, which
- * counts presses and so answers "was it pressed since last asked" - the wrong question for a
+ * <p>Held-state is polled from the window directly rather than through {@link KeyMapping#isDown()},
+ * which counts presses and so answers "was it pressed since last asked" - the wrong question for a
  * modifier that has to stay true for as long as it is held.</p>
  */
 public final class ClientKeybinds {
@@ -115,8 +114,8 @@ public final class ClientKeybinds {
         if (key == null || key.isUnbound()) return false;
         try {
             var boundKey = InputConstants.getKey(key.saveString());
-            if (boundKey.getType() == InputConstants.Type.KEYSYM) {
-                return GLFW.glfwGetKey(Minecraft.getInstance().getWindow().handle(), boundKey.getValue()) == GLFW.GLFW_PRESS;
+            if (HeldKeys.isKeyboard(boundKey)) {
+                return HeldKeys.isHeld(boundKey.getValue());
             }
         } catch (Exception e) {
             // fallback

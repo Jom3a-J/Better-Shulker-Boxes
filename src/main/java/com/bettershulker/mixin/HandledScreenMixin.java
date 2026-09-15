@@ -24,7 +24,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import org.lwjgl.glfw.GLFW;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -527,13 +526,13 @@ public abstract class HandledScreenMixin extends Screen {
         // Left/Right use the configured scroll keys; Up/Down move one row in the 9x3 grid.
         if (BetterShulkerConfig.secondaryTooltipEnabled && BetterShulkerClient.isTooltipActive()) {
             int scrollDelta = 0;
-            if (ClientKeybinds.getScrollLeftKey().matches(keyEvent) || keyCode == GLFW.GLFW_KEY_LEFT) {
+            if (ClientKeybinds.getScrollLeftKey().matches(keyEvent) || keyCode == InputConstants.KEY_LEFT) {
                 scrollDelta = -1;
-            } else if (ClientKeybinds.getScrollRightKey().matches(keyEvent) || keyCode == GLFW.GLFW_KEY_RIGHT) {
+            } else if (ClientKeybinds.getScrollRightKey().matches(keyEvent) || keyCode == InputConstants.KEY_RIGHT) {
                 scrollDelta = 1;
-            } else if (keyCode == GLFW.GLFW_KEY_UP) {
+            } else if (keyCode == InputConstants.KEY_UP) {
                 scrollDelta = -9;
-            } else if (keyCode == GLFW.GLFW_KEY_DOWN) {
+            } else if (keyCode == InputConstants.KEY_DOWN) {
                 scrollDelta = 9;
             }
 

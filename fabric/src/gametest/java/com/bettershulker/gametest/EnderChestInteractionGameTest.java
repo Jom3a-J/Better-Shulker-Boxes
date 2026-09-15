@@ -1,5 +1,6 @@
 package com.bettershulker.gametest;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.EnderChestCache;
 
@@ -37,7 +38,7 @@ public class EnderChestInteractionGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
-            singleplayer.getClientLevel().waitForChunksRender();
+            singleplayer.getConnection().waitForChunksRender();
             singleplayer.getServer().runCommand("gamemode creative");
 
             contentsReachTheClientBeforeTheTooltipOpens(context, singleplayer);
@@ -92,8 +93,8 @@ public class EnderChestInteractionGameTest implements FabricClientGameTest {
         hoverInventorySlot(context, CHEST_SLOT);
         context.waitTicks(15);
 
-        clickInventorySlot(context, ITEM_SLOT, 0);
-        clickInventorySlot(context, CHEST_SLOT, 1);
+        clickInventorySlot(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        clickInventorySlot(context, CHEST_SLOT, InputConstants.MOUSE_BUTTON_RIGHT);
         context.waitTicks(10);
 
         int stored = countInEnderChest(sp, Items.GOLD_INGOT);
@@ -115,7 +116,7 @@ public class EnderChestInteractionGameTest implements FabricClientGameTest {
         hoverInventorySlot(context, CHEST_SLOT);
         context.waitTicks(15);
 
-        clickInventorySlot(context, CHEST_SLOT, 1);
+        clickInventorySlot(context, CHEST_SLOT, InputConstants.MOUSE_BUTTON_RIGHT);
         context.waitTicks(10);
 
         int left = countInEnderChest(sp, Items.DIAMOND);

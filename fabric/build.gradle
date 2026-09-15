@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'net.fabricmc.fabric-loom' version '1.17.11'
+    id 'net.fabricmc.fabric-loom' version '1.17.21'
 }
 
 group = rootProject.maven_group
@@ -11,6 +11,7 @@ base {
 }
 
 sourceSets.main.java.srcDir rootProject.file('src/main/java')
+sourceSets.main.java.srcDir rootProject.file('src/compat/mc26.3/java')
 sourceSets.main.resources.srcDir rootProject.file('src/main/resources')
 sourceSets.main.java.exclude '**/BetterShulkerNeoForgeMod.java'
 sourceSets.main.java.exclude '**/BetterShulkerNeoForgeClient.java'
@@ -45,11 +46,11 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    minecraft "com.mojang:minecraft:${rootProject.fabric_minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
-    compileOnly "maven.modrinth:modmenu:20.0.0-beta.2"
-    implementation "me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_config_version}"
+    compileOnly "maven.modrinth:modmenu:${rootProject.modmenu_version}"
+    implementation "me.shedaniel.cloth:cloth-config-fabric:${rootProject.fabric_cloth_config_version}"
 }
 
 processResources {

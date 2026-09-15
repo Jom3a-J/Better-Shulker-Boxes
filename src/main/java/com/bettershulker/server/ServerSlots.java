@@ -1,6 +1,7 @@
 package com.bettershulker.server;
 
 import com.bettershulker.BetterShulkerMod;
+import com.bettershulker.compat.InventoryCompat;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
 
@@ -80,7 +81,7 @@ public final class ServerSlots {
             BetterShulkerMod.LOGGER.error("[BetterShulker] Extracted stack no longer matches its source slot for"
                     + " player {}; returning {} to their inventory",
                     player.getName().getString(), remainder);
-            player.getInventory().placeItemBackInInventory(remainder);
+            InventoryCompat.placeItemBack(player, remainder);
         }
     }
 

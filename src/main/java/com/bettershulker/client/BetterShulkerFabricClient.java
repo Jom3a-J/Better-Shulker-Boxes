@@ -7,6 +7,7 @@ import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.client.render.ResourcePackCacheReloader;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
@@ -19,7 +20,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.ClientTooltipComponentCallbac
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.server.packs.PackType;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * Fabric client entrypoint. Keeps Fabric APIs out of the shared client state class.
@@ -52,15 +52,15 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         );
 
         ClientKeybinds.setKeyMappings(
-                registerKey("key.bettershulker.settings", GLFW.GLFW_KEY_B),
-                registerKey("key.bettershulker.extract", GLFW.GLFW_KEY_E),
-                registerKey("key.bettershulker.select_slot", GLFW.GLFW_KEY_SPACE),
-                registerKey("key.bettershulker.precision", GLFW.GLFW_KEY_LEFT_CONTROL),
-                registerKey("key.bettershulker.alt_force", GLFW.GLFW_KEY_LEFT_ALT),
-                registerKey("key.bettershulker.scroll_left", GLFW.GLFW_KEY_LEFT),
-                registerKey("key.bettershulker.scroll_right", GLFW.GLFW_KEY_RIGHT),
-                registerKey("key.bettershulker.restock", GLFW.GLFW_KEY_R),
-                registerKey("key.bettershulker.show_full_tooltip", GLFW.GLFW_KEY_V)
+                registerKey("key.bettershulker.settings", InputConstants.KEY_B),
+                registerKey("key.bettershulker.extract", InputConstants.KEY_E),
+                registerKey("key.bettershulker.select_slot", InputConstants.KEY_SPACE),
+                registerKey("key.bettershulker.precision", InputConstants.KEY_LCONTROL),
+                registerKey("key.bettershulker.alt_force", InputConstants.KEY_LALT),
+                registerKey("key.bettershulker.scroll_left", InputConstants.KEY_LEFT),
+                registerKey("key.bettershulker.scroll_right", InputConstants.KEY_RIGHT),
+                registerKey("key.bettershulker.restock", InputConstants.KEY_R),
+                registerKey("key.bettershulker.show_full_tooltip", InputConstants.KEY_V)
         );
 
         ClientTickEvents.END_CLIENT_TICK.register(BetterShulkerClient::handleClientTick);

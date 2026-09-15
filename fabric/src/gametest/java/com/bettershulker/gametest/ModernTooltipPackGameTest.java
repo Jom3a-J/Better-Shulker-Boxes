@@ -80,7 +80,7 @@ public class ModernTooltipPackGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
-            singleplayer.getClientLevel().waitForChunksRender();
+            singleplayer.getConnection().waitForChunksRender();
             singleplayer.getServer().runCommand("gamemode creative");
 
             evictionNeverHandsBackTheWrongPanel(context);

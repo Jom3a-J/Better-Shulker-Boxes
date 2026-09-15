@@ -2,6 +2,7 @@ package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
+import com.bettershulker.compat.InventoryCompat;
 import com.bettershulker.server.EnderChestSync;
 import com.bettershulker.server.EnderChestService;
 import com.bettershulker.util.ContainerHelper;
@@ -218,7 +219,7 @@ public abstract class ItemMixin {
             BetterShulkerMod.LOGGER.error("[BetterShulker] Extracted stack no longer matches its"
                     + " source slot for player {}; returning {} to their inventory",
                     player.getName().getString(), remainder);
-            player.getInventory().placeItemBackInInventory(remainder);
+            InventoryCompat.placeItemBack(player, remainder);
         }
     }
 
