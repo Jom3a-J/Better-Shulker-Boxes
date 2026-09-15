@@ -11,7 +11,6 @@ base {
 }
 
 sourceSets.main.java.srcDir rootProject.file('src/main/java')
-sourceSets.main.java.srcDir rootProject.file('src/compat/mc26.3/java')
 sourceSets.main.resources.srcDir rootProject.file('src/main/resources')
 sourceSets.main.java.exclude '**/BetterShulkerNeoForgeMod.java'
 sourceSets.main.java.exclude '**/BetterShulkerNeoForgeClient.java'
@@ -37,7 +36,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:${rootProject.fabric_minecraft_version}"
+    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
     implementation "org.quiltmc:quilt-loader:${rootProject.quilt_loader_version}"
     implementation "net.fabricmc:sponge-mixin:0.17.4+mixin.0.8.7"
     implementation "org.quiltmc:quilt-json5:1.0.4+final"
@@ -48,7 +47,7 @@ dependencies {
     // so the Quilt build intentionally reuses the tested Fabric platform entrypoints.
     implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
     compileOnly "maven.modrinth:modmenu:${rootProject.modmenu_version}"
-    implementation("me.shedaniel.cloth:cloth-config-fabric:${rootProject.fabric_cloth_config_version}") {
+    implementation("me.shedaniel.cloth:cloth-config-fabric:${rootProject.cloth_config_version}") {
         // Quilt Loader already provides Fabric Loader compatibility classes. Keeping Cloth
         // Config's transitive Fabric Loader here would put two signed implementations on the
         // development runtime classpath and cause a signer mismatch during launch.
@@ -74,7 +73,7 @@ tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEac
     doFirst {
         def runtimeMods = configurations.runtimeClasspath.files.findAll { file ->
             file.name.startsWith("fabric-api-${rootProject.fabric_api_version}")
-                    || file.name.startsWith("cloth-config-fabric-${rootProject.fabric_cloth_config_version}")
+                    || file.name.startsWith("cloth-config-fabric-${rootProject.cloth_config_version}")
         }
         def modFiles = [tasks.named('jar').get().archiveFile.get().asFile] + runtimeMods
         jvmArgs "-Dloader.addMods=${modFiles.join(File.pathSeparator)}"

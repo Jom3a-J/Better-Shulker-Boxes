@@ -4,9 +4,7 @@
 
 ### New
 
-- **Minecraft 26.3 support on Fabric and Quilt.** NeoForge stays on 26.2 for now: no NeoForge
-  build for 26.3 has been published yet, and neither has a Cloth Config for it. The NeoForge jar
-  is unchanged in behaviour and still targets 26.2, so nothing is lost by waiting.
+- **Minecraft 26.3 support**, on Fabric, NeoForge and Quilt alike.
 
 ### Fixed
 
@@ -15,14 +13,12 @@
   1 to 3. Each key the mod reads is now asked for by name rather than by number, so the defaults,
   your rebinds and the modifier keys all land on the same keys they did before.
 
-Internally, the mod now builds against two Minecraft versions at once. The few places where 26.2
-and 26.3 spell something differently - polling whether a key is held, handing a stack back to a
-player, and drawing a tooltip - sit behind `src/compat/mc26.3` and `src/compat/mc26.2`, and each
-loader compiles only the copy matching its own version. Everything else stays shared. The client
-game tests run against 26.3 and pass; they also stopped hard-coding mouse button numbers, which is
-what caught the SDL renumbering in the first place. Quilt's Mixin and MixinExtras pins now match
-the versions Quilt Loader itself ships, and the line each loader logs on startup reads the running
-Minecraft version instead of naming one that had been written into the source.
+Internally, three calls changed shape under 26.3 and were updated in place: polling whether a key
+is held, handing a stack back to a player, and drawing a tooltip. The client game tests run against
+26.3 and pass; they also stopped hard-coding mouse button numbers, which is what caught the SDL
+renumbering in the first place. Quilt's Mixin and MixinExtras pins now match the versions Quilt
+Loader itself ships, and the line each loader logs on startup reads the running Minecraft version
+instead of naming one that had been written into the source.
 
 ## 1.5.1
 
