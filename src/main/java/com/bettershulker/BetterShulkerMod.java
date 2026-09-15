@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  * Responsibilities:
  * Loader-specific entrypoints register networking/events and call into this shared validation layer.
  *
- * Minecraft 26.2 is unobfuscated — all names use Mojang official mappings.
+ * Minecraft is unobfuscated — all names use Mojang official mappings.
  */
 public class BetterShulkerMod {
 

@@ -8,6 +8,7 @@ import com.bettershulker.server.EnderChestService;
 import com.bettershulker.platform.PlatformNetworking;
 import com.bettershulker.server.InteractionRateLimiter;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -24,7 +25,8 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 @Mod(BetterShulkerMod.MOD_ID)
 public final class BetterShulkerNeoForgeMod {
     public BetterShulkerNeoForgeMod(IEventBus modBus) {
-        BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing NeoForge module for Minecraft 26.2");
+        BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing NeoForge module for Minecraft {}",
+                SharedConstants.getCurrentVersion().name());
 
         // Only the server direction. BetterShulkerNeoForgeClient installs the client sender, and
         // FML may construct these two @Mod classes in either order.
