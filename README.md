@@ -121,6 +121,11 @@ One source set in `src/main/java/com/bettershulker` is shared by all three loade
 contributes only an entrypoint (`BetterShulkerFabricMod`, `BetterShulkerNeoForgeMod`, and the
 Quilt resources) that registers networking and events, then calls into the shared code below.
 
+Fabric and Quilt build against Minecraft 26.3; NeoForge stays on 26.2 until one is published for
+26.3. The handful of places where the two versions spell something differently live in
+`src/compat/mc26.3` and `src/compat/mc26.2`, and each loader's build adds only the directory
+matching its own version. Everything else is shared.
+
 ```
 com.bettershulker
 ├── BetterShulkerMod            mod init, packet dispatch

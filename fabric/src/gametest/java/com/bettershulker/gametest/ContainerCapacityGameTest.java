@@ -36,7 +36,7 @@ public class ContainerCapacityGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
-            singleplayer.getClientLevel().waitForChunksRender();
+            singleplayer.getConnection().waitForChunksRender();
 
             String failure = context.computeOnClient(client -> checkEveryCase());
             assertTrue(failure == null, failure);

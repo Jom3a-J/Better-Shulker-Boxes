@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.6.0
+
+### New
+
+- **Minecraft 26.3 support on Fabric and Quilt.** NeoForge stays on 26.2 for now: no NeoForge
+  build for 26.3 has been published yet, and neither has a Cloth Config for it. The NeoForge jar
+  is unchanged in behaviour and still targets 26.2, so nothing is lost by waiting.
+
+### Fixed
+
+- **Keys and mouse buttons still do what they say.** 26.3 replaced GLFW with SDL behind the
+  window, which renumbers every key and mouse button underneath — right-click, for one, moved from
+  1 to 3. Each key the mod reads is now asked for by name rather than by number, so the defaults,
+  your rebinds and the modifier keys all land on the same keys they did before.
+
+Internally, the mod now builds against two Minecraft versions at once. The few places where 26.2
+and 26.3 spell something differently - polling whether a key is held, handing a stack back to a
+player, and drawing a tooltip - sit behind `src/compat/mc26.3` and `src/compat/mc26.2`, and each
+loader compiles only the copy matching its own version. Everything else stays shared. The client
+game tests run against 26.3 and pass; they also stopped hard-coding mouse button numbers, which is
+what caught the SDL renumbering in the first place.
+
 ## 1.5.1
 
 ### Fixed

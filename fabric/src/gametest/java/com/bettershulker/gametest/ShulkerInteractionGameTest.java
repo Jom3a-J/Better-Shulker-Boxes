@@ -1,5 +1,6 @@
 package com.bettershulker.gametest;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.bettershulker.client.BetterShulkerClient;
 import com.bettershulker.client.ClientKeybinds;
 
@@ -41,7 +42,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
-            singleplayer.getClientLevel().waitForChunksRender();
+            singleplayer.getConnection().waitForChunksRender();
             singleplayer.getServer().runCommand("gamemode creative");
 
             hoveringABoxOpensTheTooltip(context, singleplayer);
@@ -82,8 +83,8 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         openInventory(context);
 
         // Pick the stone up, then drop it into the box.
-        clickInventorySlot(context, ITEM_SLOT, 0);
-        clickInventorySlot(context, BOX_SLOT, 1);
+        clickInventorySlot(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_RIGHT);
         context.waitTicks(5);
 
         int stored = countInBoxAt(sp, BOX_SLOT, Items.STONE);
@@ -99,7 +100,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         openInventory(context);
 
         hoverInventorySlot(context, BOX_SLOT);
-        clickInventorySlot(context, BOX_SLOT, 1);
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_RIGHT);
         context.waitTicks(5);
 
         int left = countInBoxAt(sp, BOX_SLOT, Items.DIAMOND);
