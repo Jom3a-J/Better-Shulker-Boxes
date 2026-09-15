@@ -1,7 +1,6 @@
 package com.bettershulker.client;
 
 import com.bettershulker.BetterShulkerConfig;
-import com.bettershulker.client.compat.HeldKeys;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -114,8 +113,8 @@ public final class ClientKeybinds {
         if (key == null || key.isUnbound()) return false;
         try {
             var boundKey = InputConstants.getKey(key.saveString());
-            if (HeldKeys.isKeyboard(boundKey)) {
-                return HeldKeys.isHeld(boundKey.getValue());
+            if (boundKey.getType() == InputConstants.Type.KEYBOARD) {
+                return InputConstants.isKeyDown(boundKey.getValue());
             }
         } catch (Exception e) {
             // fallback

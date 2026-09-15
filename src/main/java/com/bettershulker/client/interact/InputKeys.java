@@ -2,7 +2,6 @@ package com.bettershulker.client.interact;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.ClientKeybinds;
-import com.bettershulker.client.compat.HeldKeys;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
@@ -17,13 +16,13 @@ public final class InputKeys {
     }
 
     public static boolean isShiftDown() {
-        return HeldKeys.isHeld(InputConstants.KEY_LSHIFT)
-            || HeldKeys.isHeld(InputConstants.KEY_RSHIFT);
+        return InputConstants.isKeyDown(InputConstants.KEY_LSHIFT)
+            || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
     }
 
     public static boolean isAltDown() {
         if (!BetterShulkerConfig.altForceTooltipEnabled) return false;
-        return HeldKeys.isHeld(InputConstants.KEY_LALT)
-            || HeldKeys.isHeld(InputConstants.KEY_RALT);
+        return InputConstants.isKeyDown(InputConstants.KEY_LALT)
+            || InputConstants.isKeyDown(InputConstants.KEY_RALT);
     }
 }
