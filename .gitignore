@@ -2,7 +2,11 @@
 **/.gradle/
 **/build/
 **/run/
-assets for modrenth/
+# Mod-page material. The GIFs and card cut-outs are ~10 MB of binaries and stay out; the
+# description and the script that cuts the GIFs are text worth keeping history for.
+assets for modrenth/*
+!assets for modrenth/mod-description.md
+!assets for modrenth/make-gif.ps1
 
 # Local dependency jars; every dependency is resolved from a repository in build.gradle.
 libs/
