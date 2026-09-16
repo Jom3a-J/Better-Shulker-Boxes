@@ -1,16 +1,46 @@
 # Better Shulker Boxes
 
-![banner](https://cdn.modrinth.com/data/cached_images/dd214565060dc8eb10493d839449f7acaa942134.png)
+![banner](https://cdn.modrinth.com/data/cached_images/2462097c51baa015a7cf92b4a802b77d53dddf55.png)
 
 Better Shulker Boxes is a highly interactive UI/UX mod that revolutionizes how you interact with Shulker Boxes in Minecraft. Instead of the tedious cycle of placing down a Shulker Box, opening it, interacting with it, breaking it, and picking it back up, this mod allows you to interact with Shulker Boxes and Ender Chests directly from your inventory using an advanced interactive tooltip!
 
 ---
 
+## Requirements
+
+| | |
+|---|---|
+| Minecraft | 26.3 |
+| Java | 25 or newer |
+| Fabric | Fabric Loader 0.19.0+, Fabric API, Cloth Config 26.3.158+ |
+| NeoForge | NeoForge 26.3.0.1-beta+, Cloth Config 26.3.158+ |
+| Quilt | Quilt Loader 0.31.0-beta.4+, Fabric API, Cloth Config 26.3.158+ |
+
+Mod Menu is optional on Fabric and Quilt; the settings screen is reachable from the in-game keybind
+either way.
+
+---
+
 ## Key Features
+
+### The Modern Tooltip
+
+![modern tooltip](https://cdn.modrinth.com/data/cached_images/0dbbfaf62e654e1f1bfd4bc73ed36cb92d306bae.jpeg)
+
+A flat rounded card, coloured by the box's own dye, with the container name and the selected item's
+name in tabs along its top edge. It is the default style as of 1.5.0, and the previous look is still
+available as the **Vanilla** style.
+
+- **Modern** — a dye-coloured card, no vanilla tooltip frame
+- **Vanilla** — built from the container's GUI texture, as before
+- Every dye has its own card colour, and Ender Chests have theirs
+- Theme and colour sliders apply to the Vanilla style; Modern colours itself
+
+---
 
 ### Full & Compact Tooltips
 
-![full and compact tooltip](https://cdn.modrinth.com/data/cached_images/a31fd3d506215ea1da14f1df85b6e4031a460fe6.gif)
+![full and compact tooltip](https://cdn.modrinth.com/data/cached_images/c55e87bd2ac2973e13dbbaef430df2c417817215.gif)
 
 Quickly check what is inside a Shulker Box without placing it down. Use the full 9×3 preview when you want to see every slot, or compact mode when you only need a small summary of the most important contents.
 
@@ -19,12 +49,11 @@ Quickly check what is inside a Shulker Box without placing it down. Use the full
 - Total item counts in compact view
 - Empty compact containers stay hidden to reduce clutter
 
-
 ---
 
 ### Fast Insertion & Extraction
 
-![extraction and insertion](https://cdn.modrinth.com/data/cached_images/6c392f269d841fecc813e33b1ed554a34a851569.gif)
+![extraction and insertion](https://cdn.modrinth.com/data/cached_images/b31cf6c3d34afe7c2b45155c08251a5b028b5d96.gif)
 
 Move items in and out of Shulker Boxes directly from the tooltip. The mod gives instant visual feedback while still keeping the server authoritative.
 
@@ -33,11 +62,12 @@ Move items in and out of Shulker Boxes directly from the tooltip. The mod gives 
 - Extract items directly from preview slots
 - Smart merging with existing stacks
 - Smooth client-side feedback with server-side validation
+
 ---
 
 ### Select Slots and Extract with `E`
 
-![select and extract](https://cdn.modrinth.com/data/cached_images/43db6de9a8353f6724d6e3ef4a7b515cc7c222c4.gif)
+![select and extract](https://cdn.modrinth.com/data/cached_images/a50917e481b3cdfaefdf0cd249e829ba4817837e.gif)
 
 Select specific slots from the tooltip and extract them together. This makes it easy to grab only the items you want without opening or placing the box.
 
@@ -49,7 +79,7 @@ Select specific slots from the tooltip and extract them together. This makes it 
 
 ### Keyboard & Scroll Navigation
 
-![arrow and scroll](https://cdn.modrinth.com/data/cached_images/9d82a0904c3a989cd8a6a122566831bd9421aa29.gif)
+![arrow and scroll](https://cdn.modrinth.com/data/cached_images/5d2a00a2f961a210f6c2ca81ac9cf40653f17bef.gif)
 
 Navigate tooltip slots with the mouse wheel or arrow keys for faster control, especially when managing boxes with many items.
 
@@ -57,11 +87,12 @@ Navigate tooltip slots with the mouse wheel or arrow keys for faster control, es
 - Arrow-key slot navigation
 - Stable selected-slot highlight
 - Smooth selection behavior while hovering tooltips
+
 ---
 
 ### Restock & Deposit
 
-![restock and deposit](https://cdn.modrinth.com/data/cached_images/6e302400a03464c191ab3e10b6e245bb00c90bcb.gif)
+![restock and deposit](https://cdn.modrinth.com/data/cached_images/1681e438002b93da14c61e63a49f0425d9b0891c.gif)
 
 Use the **Restock / Deposit** key to quickly move matching items between your inventory and the hovered container. By default this key is **`R`**.
 
@@ -69,7 +100,6 @@ Use the **Restock / Deposit** key to quickly move matching items between your in
 - Use the same **shift**+**`R`** key to deposit matching inventory items into storage
 - Works with Shulker Boxes and Ender Chests
 - The keybind can be changed in Minecraft’s controls menu
-
 
 ---
 
@@ -89,6 +119,7 @@ Better Shulker Boxes is designed to respect custom GUI textures from resource pa
   - Default Dark Mode
   - GUI Retextures
   - Translucent GUI and HUD
+
 ### Custom resource-pack layout metadata
 
 Resource packs that move the storage grid can add a JSON profile under
@@ -101,7 +132,6 @@ used for small adjustments.
 
 ## More Features
 
-- Two tooltip styles: **Modern**, a rounded card coloured by the box's own dye, and **Vanilla**, built from the container GUI texture
 - Alt Force tooltip while holding a box
 - Colored shulker support
 - Selected item name tooltip
