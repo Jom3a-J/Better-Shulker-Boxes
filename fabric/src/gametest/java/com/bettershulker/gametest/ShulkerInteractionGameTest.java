@@ -48,6 +48,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
             hoveringABoxOpensTheTooltip(context, singleplayer);
             rightClickInsertsTheCarriedStack(context, singleplayer);
             rightClickExtractsBackOut(context, singleplayer);
+            leftClickPlacesTheCarriedBox(context, singleplayer);
             selectionSkipsEmptySlots(context, singleplayer);
             marksDoNotFollowToAnotherBox(context, singleplayer);
             restockPullsFromTheBoxIntoTheHotbar(context, singleplayer);
@@ -107,6 +108,29 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         assertTrue(left == 0, "the diamonds should have left the box, " + left + " remained");
 
         closeScreen(context);
+    }
+
+    /**
+     * Left-clicking an empty slot while carrying a box puts the box down, contents and all. Under
+     * 26.3's SDL numbering left is button 1, which the click replay once handed straight to vanilla
+     * as a right-click, so the box stayed on the cursor and its first stack fell out instead.
+     */
+    private void leftClickPlacesTheCarriedBox(ClientGameTestContext context, TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, boxHolding(new ItemStack(Items.DIAMOND, 5), 0));
+        givePlayer(sp, ITEM_SLOT, ItemStack.EMPTY);
+        openInventory(context);
+
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        clickInventorySlot(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        context.waitTicks(5);
+
+        int boxes = GameTestSupport.countInInventorySlot(sp, ITEM_SLOT, Items.SHULKER_BOX);
+        int kept = countInBoxAt(sp, ITEM_SLOT, Items.DIAMOND);
+        assertTrue(boxes == 1, "the box should have been put down in the empty slot, found " + boxes);
+        assertTrue(kept == 5, "the box should still hold all 5 diamonds, held " + kept);
+
+        closeScreen(context);
+        GameTestSupport.clearCursor(sp);
     }
 
     /**

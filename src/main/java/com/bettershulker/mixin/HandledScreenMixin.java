@@ -71,8 +71,14 @@ public abstract class HandledScreenMixin extends Screen {
     @Shadow
     protected int topPos;
 
+    /**
+     * Vanilla's own click from a mouse event. It turns the SDL button (left is 1 in 26.3) into the
+     * menu's click button (left is 0); passing the raw button made a left click a right click.
+     */
     @Shadow
-    protected abstract void slotClicked(Slot slot, int slotId, int mouseButton, ContainerInput clickType);
+    private void slotClicked(Slot slot, int slotId, MouseButtonEvent event, ContainerInput clickType) {
+        throw new AssertionError();
+    }
 
 
     // =========================================================================
@@ -275,14 +281,14 @@ public abstract class HandledScreenMixin extends Screen {
                         // The custom action had no valid destination or source. The initial
                         // mouseClicked was intercepted to start the drag, so replay the
                         // vanilla click instead of swallowing a no-op right-click.
-                        this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, button, ContainerInput.PICKUP);
+                        this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, event, ContainerInput.PICKUP);
                     }
                 }
             } else if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
                 // Left-click tap → simulate vanilla click to grab/place the carried container.
                 // Previously this was skipped after even a 1px accidental drag, swallowing the click
                 // and making users click twice to pick up or release the item.
-                this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, button, ContainerInput.PICKUP);
+                this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, event, ContainerInput.PICKUP);
             }
         }
 
