@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.1
+
+### Fixed
+
+- **A carried Shulker Box would not go back down.** On 26.3, left-clicking an empty slot with a
+  box on the cursor took the box's first stack out instead of placing the box. The click reached
+  Minecraft with 26.3's new number for the left button, which it read as a right-click. It now
+  goes through Minecraft's own conversion first, so left places and right extracts, as before.
+
+A client game test now picks up a filled box, puts it down in an empty slot, and checks on the
+server that the box arrived with everything still inside.
+
 ## 1.6.0
 
 ### New
