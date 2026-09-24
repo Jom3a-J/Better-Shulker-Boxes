@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.2
+
+### Fixed
+
+- **NeoForge: a dark frame showed around the Modern tooltip.** Vanilla's tooltip frame was drawn
+  under the card, sticking out past its right and bottom edges and showing through the gap
+  between the title tabs. NeoForge draws item tooltips its own way, which skipped the hook that
+  hides the frame. The hook now covers both paths. Fabric and Quilt were not affected.
+
+Tested on NeoForge 26.3.0.16-beta with Cloth Config 26.3.159, the first Cloth Config release for
+NeoForge on 26.3.
+
 ## 1.6.1
 
 ### Fixed
