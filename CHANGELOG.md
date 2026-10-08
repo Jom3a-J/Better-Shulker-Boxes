@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.3
+
+### Changed
+
+- **Built against newer dependencies:** NeoForge 26.3.0.57-beta, Fabric API 0.162.0, Cloth Config
+  26.3.159 and Mod Menu 21.0.0. The mod itself is unchanged.
+- **NeoForge accepts any 26.3.x Minecraft.** It used to require exactly 26.3, while Fabric and
+  Quilt already took any 26.3.x.
+
+The oldest versions the mod runs on stay the same: NeoForge 26.3.0.1-beta, Fabric Loader 0.19.0,
+Quilt Loader 0.31.0-beta.4 and Cloth Config 26.3.158. You don't need to update anything to use
+1.6.3.
+
 ## 1.6.2
 
 ### Fixed
