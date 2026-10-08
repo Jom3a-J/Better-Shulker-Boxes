@@ -25,12 +25,12 @@
     "bettershulker.mixins.json"
   ],
   "depends": {
-    "quilt_loader": ">=${quilt_loader_version}",
-    "fabricloader": ">=0.19.0",
+    "quilt_loader": ">=${quilt_loader_version_min}",
+    "fabricloader": ">=${loader_version_min}",
     "minecraft": "~26.3",
     "java": ">=25",
     "fabric-api": "*",
-    "cloth-config": ">=26.3.158"
+    "cloth-config": ">=${cloth_config_version_min}"
   },
   "suggests": {
     "modmenu": "*"
