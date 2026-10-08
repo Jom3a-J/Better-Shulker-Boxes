@@ -10,8 +10,8 @@
   Quilt already took any 26.3.x.
 
 The oldest versions the mod runs on stay the same: NeoForge 26.3.0.1-beta, Fabric Loader 0.19.0,
-Quilt Loader 0.31.0-beta.4 and Cloth Config 26.3.158. You don't need to update anything to use
-1.6.3.
+Quilt Loader 0.31.0-beta.4, and Cloth Config 26.3.158 on Fabric and Quilt or 26.3.159 on NeoForge
+(its first NeoForge release for 26.3). You don't need to update anything to use 1.6.3.
 
 ## 1.6.2
 

@@ -55,7 +55,7 @@ tasks.withType(ProcessResources).configureEach {
             mod_name               : rootProject.mod_name,
             mod_license            : rootProject.mod_license,
             mod_version            : rootProject.mod_version,
-            cloth_config_version_min: rootProject.cloth_config_version_min,
+            cloth_config_version_min: rootProject.neo_cloth_config_version_min,
     ]
     inputs.properties replaceProperties
     filesMatching(['META-INF/neoforge.mods.toml']) {
