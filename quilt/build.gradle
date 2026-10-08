@@ -56,13 +56,15 @@ dependencies {
 }
 
 processResources {
-    inputs.property 'version', project.version
-    inputs.property 'quilt_loader_version', rootProject.quilt_loader_version
+    var replaceProperties = [
+            version                 : project.version,
+            quilt_loader_version_min: rootProject.quilt_loader_version_min,
+            loader_version_min      : rootProject.loader_version_min,
+            cloth_config_version_min: rootProject.cloth_config_version_min,
+    ]
+    inputs.properties replaceProperties
     from('src/quiltResources') {
-        expand(
-                version: project.version,
-                quilt_loader_version: rootProject.quilt_loader_version
-        )
+        expand replaceProperties
     }
 }
 

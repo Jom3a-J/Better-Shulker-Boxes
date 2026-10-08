@@ -50,12 +50,12 @@ tasks.withType(ProcessResources).configureEach {
     var replaceProperties = [
             minecraft_version      : rootProject.minecraft_version,
             minecraft_version_range: rootProject.minecraft_version_range,
-            neo_version            : rootProject.neo_version,
+            neo_version_min        : rootProject.neo_version_min,
             mod_id                 : rootProject.mod_id,
             mod_name               : rootProject.mod_name,
             mod_license            : rootProject.mod_license,
             mod_version            : rootProject.mod_version,
-            cloth_config_version   : rootProject.cloth_config_version,
+            cloth_config_version_min: rootProject.cloth_config_version_min,
     ]
     inputs.properties replaceProperties
     filesMatching(['META-INF/neoforge.mods.toml']) {
