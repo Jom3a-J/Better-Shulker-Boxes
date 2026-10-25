@@ -659,7 +659,8 @@ public abstract class HandledScreenMixin extends Screen {
                 ContainerHelper.getShulkerColor(carried),
                 ContainerHelper.isEnderChest(carried),
                 selectedItemName,
-                carried.getHoverName().getString());
+                carried.getHoverName().getString(),
+                ContainerHelper.isEnderChest(carried) ? null : ShulkerTooltipData.screenTitleOf(carried));
             // Cursor/held Alt-Force tooltips bypass ItemStack#getTooltipLines, so add the
             // container name explicitly. The selected-item label is rendered by the custom
             // component and is anchored to the preview panel's upper edge below this line.

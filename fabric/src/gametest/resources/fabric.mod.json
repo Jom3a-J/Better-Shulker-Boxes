@@ -15,7 +15,9 @@
       "com.bettershulker.gametest.ShulkerInteractionGameTest",
       "com.bettershulker.gametest.EnderChestInteractionGameTest",
       "com.bettershulker.gametest.ModernTooltipPackGameTest",
-      "com.bettershulker.gametest.ContainerCapacityGameTest"
+      "com.bettershulker.gametest.ContainerCapacityGameTest",
+      "com.bettershulker.gametest.PackDefinitionGameTest",
+      "com.bettershulker.gametest.PackGalleryGameTest"
     ]
   }
 }

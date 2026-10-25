@@ -55,7 +55,8 @@ public abstract class ItemStackMixin {
                 }
             }
             var color = ContainerHelper.getShulkerColor(self);
-            ci.setReturnValue(Optional.of(new ShulkerTooltipData(contents, color, false, selectedItemName, self.getHoverName().getString())));
+            ci.setReturnValue(Optional.of(new ShulkerTooltipData(contents, color, false, selectedItemName,
+                    self.getHoverName().getString(), ShulkerTooltipData.screenTitleOf(self))));
         } else if (ContainerHelper.isEnderChest(self)) {
             var player = Minecraft.getInstance().player;
             if (player == null || !player.isAlive() || player.isSpectator()
@@ -84,7 +85,8 @@ public abstract class ItemStackMixin {
                     selectedItemName = selectedStack.getHoverName().getString();
                 }
             }
-            ci.setReturnValue(Optional.of(new ShulkerTooltipData(cachedContents, null, true, selectedItemName, self.getHoverName().getString())));
+            ci.setReturnValue(Optional.of(new ShulkerTooltipData(cachedContents, null, true, selectedItemName,
+                    self.getHoverName().getString(), null)));
         }
     }
 

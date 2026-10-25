@@ -5,6 +5,7 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.client.render.ShulkerTooltipComponent;
 import com.bettershulker.client.render.ShulkerTooltipData;
 import com.bettershulker.client.render.ResourcePackCacheReloader;
+import com.bettershulker.client.render.ResourcePackContainerTextures;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.platform.PlatformNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -33,6 +34,7 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         BetterShulkerConfig.load();
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
                 ResourcePackCacheReloader.ID, ResourcePackCacheReloader.create());
+        ResourcePackContainerTextures.setOptiGuiLoaded(FabricLoader.getInstance().isModLoaded("optigui"));
 
         // Only the client direction. The common entrypoint installs the server sender, on this
         // dist too, which is what the integrated server uses.
