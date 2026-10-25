@@ -50,6 +50,7 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
         mostlyClearPanelsAreNotPanels();
         aCoveringInventoryTabNeverReachesThePreview();
         context.runOnClient(client -> vanillaPanelsGetTheirBottomBorder());
+        theBottomEdgeNeverReadsOutsideThePanel();
     }
 
     /**
@@ -303,6 +304,36 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
                         "the storage box's outline was not drawn under the " + layout.id() + " layout");
                 assertTrue((cap[cap.length - 1][10] & 0xFFFFFF) == 0,
                         "the outline stops short under the tab with the " + layout.id() + " layout");
+            }
+        }
+    }
+
+    /**
+     * A pack's layout file may put the grid at the very top of its panel, leaving no row above
+     * it to rebuild a covered left border from. The left border then has to stay as drawn: the
+     * row "above" the grid is outside the panel, and at slots.y = 1 outside the texture.
+     */
+    private void theBottomEdgeNeverReadsOutsideThePanel() {
+        int body = 0xFF7426A9;
+        int grey = 0xFFC6C6C6;
+        // Grid from row 1, so the body row under it is 54 and the storage edge is row 58.
+        ResourcePackLayout layout = new ResourcePackLayout("top-grid", 0, 0, 176, 166, 8, 1, 18, 9, 3,
+                176, 8, 7, 54, 7, 256, 256);
+        try (NativeImage image = new NativeImage(256, 256, true)) {
+            for (int y = 0; y < 256; y++) {
+                for (int x = 0; x < 256; x++) {
+                    int color = 0;
+                    if (x < 176 && y < 166) color = y < 58 ? body : (y == 58 ? 0xFF000000 : grey);
+                    if (x < 64 && y >= 53 && y < 60 && x > 0) color = grey;
+                    image.setPixel(x, y, color);
+                }
+            }
+            PanelBottomEdge edge = PanelBottomEdge.analyse(image, layout);
+            for (PanelBottomEdge.Blit blit : edge.plan(layout, 0, 61, 7, 8, 162, 170, 6)) {
+                assertTrue(blit.v() >= layout.sourcePanelY()
+                                && blit.v() + blit.height() <= layout.textureHeight(),
+                        "the bottom edge reads rows " + blit.v() + "-" + (blit.v() + blit.height() - 1)
+                                + ", outside the panel; " + edge);
             }
         }
     }

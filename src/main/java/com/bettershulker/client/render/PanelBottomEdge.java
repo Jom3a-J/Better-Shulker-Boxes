@@ -121,10 +121,12 @@ public record PanelBottomEdge(int bodyRow, int borderTop, int borderHeight,
             runStart--;
         }
 
-        // The left border is clean when its body rows read as it does just above the grid.
+        // The left border is clean when its body rows read as it does just above the grid. A
+        // layout with the grid at the very top has no such row, so the border stays as drawn
+        // rather than being rebuilt from outside the panel.
         int aboveGrid = layout.sourceSlotY() - 2;
-        boolean leftCovered = aboveGrid < layout.sourcePanelY();
-        for (int y = bodyRow; y < borderTop && !leftCovered; y++) {
+        boolean leftCovered = false;
+        for (int y = bodyRow; y < borderTop && !leftCovered && aboveGrid >= layout.sourcePanelY(); y++) {
             leftCovered = !rowsMatch(px, y, aboveGrid, left, slotLeft);
         }
 
