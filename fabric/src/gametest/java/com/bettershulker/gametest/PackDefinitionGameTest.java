@@ -1,5 +1,6 @@
 package com.bettershulker.gametest;
 
+import com.bettershulker.client.render.PanelBottomEdge;
 import com.bettershulker.client.render.ResourcePackLayout;
 import com.bettershulker.client.render.ResourcePackPanelColors;
 import com.bettershulker.client.render.ShulkerGuiRules;
@@ -47,6 +48,8 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
         context.runOnClient(client -> unnamedBoxesAreMatchedByTheirScreenTitle());
         hdPanelsAreSampledAcrossTheWholePanel();
         mostlyClearPanelsAreNotPanels();
+        aCoveringInventoryTabNeverReachesThePreview();
+        context.runOnClient(client -> vanillaPanelsGetTheirBottomBorder());
     }
 
     /**
@@ -219,6 +222,118 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
             assertTrue(!ResourcePackPanelColors.isMostlyTransparent(solid, ResourcePackLayout.standard()),
                     "a solid panel was rejected as clear");
         }
+    }
+
+    /**
+     * A one-tone panel closes with its own bottom rows. Repeating the row under the grid, as the
+     * painter used to, ended the preview on plain body colour with no outline at all.
+     */
+    private void vanillaPanelsGetTheirBottomBorder() {
+        Identifier id = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
+        try (var stream = net.minecraft.client.Minecraft.getInstance().getResourceManager().open(id);
+             NativeImage image = NativeImage.read(stream)) {
+            int[][] cap = drawBottom(image);
+            int last = cap.length - 1;
+            assertTrue((cap[last][88] & 0xFFFFFF) == 0x000000, String.format(
+                    "the preview should end on vanilla's black outline, but its last row is #%06X",
+                    cap[last][88] & 0xFFFFFF));
+            assertTrue((cap[last - 1][88] & 0xFFFFFF) == 0x555555, String.format(
+                    "vanilla's shadow row is missing above the outline: #%06X", cap[last - 1][88] & 0xFFFFFF));
+        } catch (java.io.IOException e) {
+            throw new AssertionError("could not read vanilla's Shulker panel", e);
+        }
+    }
+
+    /**
+     * Colourful Containers lays the inventory's grey label tab over the left of the rows under
+     * the grid, and over the grid's last row. Copying those rows drew the tab as a white bar.
+     */
+    private void aCoveringInventoryTabNeverReachesThePreview() {
+        int outline = 0xFF000000;
+        int body = 0xFF7426A9;
+        int light = 0xFFA06AC5;
+        int dark = 0xFF3E105D;
+        int slot = 0xFF5E1F99;
+        int grey = 0xFFC6C6C6;
+        int white = 0xFFFFFFFF;
+        try (NativeImage image = new NativeImage(256, 256, true)) {
+            for (int y = 0; y < 256; y++) {
+                for (int x = 0; x < 256; x++) {
+                    int color = 0;
+                    if (x < 176 && y < 166) color = y <= 75 ? body : (y == 76 ? white : grey);
+                    if (x < 176 && y == 75) color = outline;
+                    if (x < 176 && y < 75 && (x == 0 || y == 0)) color = outline;
+                    if (x < 176 && y < 75 && (x == 1 || x == 2)) color = light;
+                    image.setPixel(x, y, color);
+                }
+            }
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 9; col++) {
+                    int x0 = 7 + col * 18;
+                    int y0 = 17 + row * 18;
+                    for (int y = y0; y < y0 + 18; y++) {
+                        for (int x = x0; x < x0 + 18; x++) {
+                            boolean topLeft = x == x0 || y == y0;
+                            boolean bottomRight = x == x0 + 17 || y == y0 + 17;
+                            image.setPixel(x, y, topLeft ? dark : bottomRight ? light : slot);
+                        }
+                    }
+                }
+            }
+            // The tab: a black top edge on the last slot row's bottom edge, grey beneath.
+            for (int y = 70; y <= 76; y++) {
+                for (int x = 1; x < 64; x++) image.setPixel(x, y, y == 70 ? outline : y == 71 ? white : grey);
+            }
+
+            // The built-in Colourful Containers profile cuts its panel at row 75, the outline row.
+            ResourcePackLayout standard = ResourcePackLayout.standard();
+            ResourcePackLayout cut = new ResourcePackLayout("cut", 0, 0, 176, 75, 8, 18, 18, 9, 3,
+                    176, 8, 7, 71, 7, 256, 256);
+            for (ResourcePackLayout layout : List.of(standard, cut)) {
+                int[][] cap = drawBottom(image, layout);
+                // From the grid's last two rows down to the end of the preview.
+                for (int y = cap.length - 9; y < cap.length; y++) {
+                    for (int x = 0; x < 176; x++) {
+                        int rgb = cap[y][x] & 0xFFFFFF;
+                        assertTrue(rgb != (grey & 0xFFFFFF) && rgb != (white & 0xFFFFFF), String.format(
+                                "the inventory tab reached the %s preview: #%06X at %d,%d", layout.id(), rgb, x, y));
+                    }
+                }
+                assertTrue((cap[cap.length - 1][100] & 0xFFFFFF) == 0,
+                        "the storage box's outline was not drawn under the " + layout.id() + " layout");
+                assertTrue((cap[cap.length - 1][10] & 0xFFFFFF) == 0,
+                        "the outline stops short under the tab with the " + layout.id() + " layout");
+            }
+        }
+    }
+
+    /**
+     * The last grid rows and the bottom cap of a standard-layout preview, laid out as the
+     * painter lays them: grid source rows 18-71 then seven cap rows, 176 wide.
+     */
+    private static int[][] drawBottom(NativeImage image) {
+        return drawBottom(image, ResourcePackLayout.standard());
+    }
+
+    private static int[][] drawBottom(NativeImage image, ResourcePackLayout layout) {
+        int capY = layout.outputSlotY() + layout.rows() * layout.slotSize();
+        int[][] canvas = new int[capY + layout.bottomCapHeight()][176];
+        for (int y = layout.outputSlotY(); y < capY; y++) {
+            for (int x = 0; x < 176; x++) {
+                canvas[y][x] = image.getPixel(x, layout.sourceSlotY() + y - layout.outputSlotY());
+            }
+        }
+        PanelBottomEdge edge = PanelBottomEdge.analyse(image, layout);
+        for (PanelBottomEdge.Blit blit : edge.plan(layout, 0, capY, layout.bottomCapHeight(),
+                layout.outputSlotX(), layout.columns() * layout.slotSize(),
+                layout.sourceRightX(), layout.sourceRightWidth())) {
+            for (int j = 0; j < blit.height(); j++) {
+                for (int i = 0; i < blit.width(); i++) {
+                    canvas[blit.y() + j][blit.x() + i] = image.getPixel(blit.u() + i, blit.v() + j);
+                }
+            }
+        }
+        return canvas;
     }
 
     // =========================================================================

@@ -14,7 +14,8 @@ import java.util.Optional;
 
 /**
  * Samples a resource pack's container panel texture: its dominant body colour, so the Modern
- * card can take a pack's palette while keeping its own shape, and whether it is a panel at all.
+ * card can take a pack's palette while keeping its own shape, whether it is a panel at all, and
+ * how its storage section closes off at the bottom.
  *
  * <p>The storage grid is deliberately cut out of the crop first. On a standard panel the slot
  * squares are 58% of the pixels around the grid, so a straight count over the whole crop returns
@@ -38,9 +39,12 @@ public final class ResourcePackPanelColors {
     private static final double MAX_CLEAR_SHARE = 0.5;
     private static final int MAX_CACHE_ENTRIES = 32;
 
-    /** What sampling a texture found; a colour of 0 means nothing solid enough to use. */
-    private record Sample(int color, boolean mostlyTransparent) {
-        static final Sample UNREADABLE = new Sample(0, false);
+    /**
+     * What sampling a texture found; a colour of 0 means nothing solid enough to use, and a null
+     * bottom edge that the texture could not be read.
+     */
+    private record Sample(int color, boolean mostlyTransparent, PanelBottomEdge bottomEdge) {
+        static final Sample UNREADABLE = new Sample(0, false, null);
     }
 
     /**
@@ -87,6 +91,15 @@ public final class ResourcePackPanelColors {
         return texture != null && sampleCached(texture).mostlyTransparent();
     }
 
+    /**
+     * How to close off the bottom of the panel's storage section; see {@link PanelBottomEdge}.
+     * An unreadable texture gets the plain repeated row, worked out from {@code layout}.
+     */
+    public static synchronized PanelBottomEdge bottomEdge(Identifier texture, ResourcePackLayout layout) {
+        PanelBottomEdge edge = texture == null ? null : sampleCached(texture).bottomEdge();
+        return edge != null ? edge : PanelBottomEdge.repeatBodyRow(layout);
+    }
+
     public static synchronized void clearCache() {
         CACHE.clear();
     }
@@ -109,7 +122,8 @@ public final class ResourcePackPanelColors {
         try (InputStream stream = resource.get().open();
              NativeImage image = NativeImage.read(stream)) {
             ResourcePackLayout layout = ResourcePackLayoutProfiles.resolveBase(texture);
-            return new Sample(dominantColor(image, layout), isMostlyTransparent(image, layout));
+            return new Sample(dominantColor(image, layout), isMostlyTransparent(image, layout),
+                    PanelBottomEdge.analyse(image, layout));
         } catch (Exception ignored) {
             // A pack can ship a texture Minecraft itself would reject; fall back rather than
             // taking the tooltip down with it.
