@@ -193,6 +193,37 @@ final class GameTestSupport {
         context.waitTicks(3);
     }
 
+    /**
+     * Presses on the top edge of a hotbar position and drifts up off the slot before letting go.
+     * Above the hotbar is the gap to the main inventory, so the pointer ends over no slot at all;
+     * that is checked here, since a release that landed on the row above would test nothing.
+     */
+    static void clickHotbarSlotDriftingIntoTheGap(ClientGameTestContext context, int position, int button) {
+        double[] pos = context.computeOnClient(client -> {
+            Slot slot = findSlot(client, position);
+            double scale = client.getWindow().getGuiScale();
+            int left = (client.gui.screen().width - INVENTORY_IMAGE_WIDTH) / 2;
+            int top = (client.gui.screen().height - INVENTORY_IMAGE_HEIGHT) / 2;
+            double x = slot.x + 8;
+            // A slot answers to the pointer from one pixel outside its 16, so y - 0.5 is still on it.
+            double pressY = slot.y - 0.5;
+            double releaseY = slot.y - 3.5;
+            assertTrue(slotUnder(client, x, pressY) == slot,
+                    "the press point should be on the slot under test");
+            assertTrue(slotUnder(client, x, releaseY) == null,
+                    "the release point should be over no slot, found " + slotUnder(client, x, releaseY));
+            return new double[] {(left + x) * scale, (top + pressY) * scale, (top + releaseY) * scale};
+        });
+        context.getInput().setCursorPos(pos[0], pos[1]);
+        context.waitTicks(2);
+        context.getInput().holdMouse(button);
+        context.waitTicks(1);
+        context.getInput().setCursorPos(pos[0], pos[2]);
+        context.waitTicks(2);
+        context.getInput().releaseMouse(button);
+        context.waitTicks(3);
+    }
+
     /** Presses on one position, drags straight to another, and lets go there. */
     static void dragBetweenInventorySlots(ClientGameTestContext context, int from, int to, int button) {
         hoverInventorySlot(context, from);
@@ -212,6 +243,19 @@ final class GameTestSupport {
             }
         }
         throw new AssertionError("no menu slot exposes inventory position " + position);
+    }
+
+    /** The slot a point in panel coordinates is over, by the same bounds the screen uses. */
+    private static Slot slotUnder(Minecraft client, double x, double y) {
+        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.gui.screen();
+        for (Slot slot : screen.getMenu().slots) {
+            if (slot.isActive()
+                    && x >= slot.x - 1 && x < slot.x + 17
+                    && y >= slot.y - 1 && y < slot.y + 17) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     static void assertTrue(boolean condition, String message) {

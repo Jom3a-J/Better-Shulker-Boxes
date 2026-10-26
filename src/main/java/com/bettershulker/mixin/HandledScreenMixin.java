@@ -288,24 +288,27 @@ public abstract class HandledScreenMixin extends Screen {
         if (button != bettershulker$dragButton) return;
 
         var self = bettershulker$self();
+        // A drag that never reached another slot is a click on the one it began on, even if the
+        // pointer has since drifted off it into empty space.
+        Slot clicked = bettershulker$leftPressSlot ? this.hoveredSlot : bettershulker$pressSlot;
 
         if (!bettershulker$dragDidWork) {
             if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 // Right-click tap → extract selected item to hovered slot. Tiny mouse jitter can fire
                 // mouseDragged before release, so treat any no-work drag as a normal tap.
-                if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
-                    if (!ContainerActions.tapExtractToSlot(self, this.hoveredSlot)) {
+                if (clicked != null && clicked.isActive()) {
+                    if (!ContainerActions.tapExtractToSlot(self, clicked)) {
                         // The custom action had no valid destination or source. The initial
                         // mouseClicked was intercepted to start the drag, so replay the
                         // vanilla click instead of swallowing a no-op right-click.
-                        this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, event, ContainerInput.PICKUP);
+                        this.slotClicked(clicked, clicked.index, event, ContainerInput.PICKUP);
                     }
                 }
-            } else if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
+            } else if (clicked != null && clicked.isActive()) {
                 // Left-click tap → simulate vanilla click to grab/place the carried container.
                 // Previously this was skipped after even a 1px accidental drag, swallowing the click
                 // and making users click twice to pick up or release the item.
-                this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, event, ContainerInput.PICKUP);
+                this.slotClicked(clicked, clicked.index, event, ContainerInput.PICKUP);
             }
         }
 
@@ -339,8 +342,10 @@ public abstract class HandledScreenMixin extends Screen {
             // A hand drifts a pixel or two during a click. Treating that as a drag swept the
             // clicked stack into the carried box, where vanilla would have swapped the two. Only
             // once the pointer reaches another slot is it a drag, and the slot it started on is
-            // then swept like the rest; until then, release replays the click to vanilla.
-            if (slot == bettershulker$pressSlot) {
+            // then swept like the rest; until then, release replays the click to vanilla. Empty
+            // space is not another slot: drifting off a slot's edge, say into the gap above the
+            // hotbar, is still a click on it.
+            if (slot == null || slot == bettershulker$pressSlot) {
                 ci.setReturnValue(true);
                 ci.cancel();
                 return;

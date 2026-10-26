@@ -50,6 +50,7 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
             rightClickExtractsBackOut(context, singleplayer);
             leftClickPlacesTheCarriedBox(context, singleplayer);
             leftClickOnAStackSwapsEvenWithJitter(context, singleplayer);
+            leftClickOnAStackSwapsWhenDriftingOffTheSlot(context, singleplayer);
             leftDragSweepsStacksIntoTheCarriedBox(context, singleplayer);
             selectionSkipsEmptySlots(context, singleplayer);
             marksDoNotFollowToAnotherBox(context, singleplayer);
@@ -150,6 +151,35 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         GameTestSupport.clickInventorySlotWithJitter(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
         context.waitTicks(5);
 
+        assertBoxSwappedWithTheStone(sp);
+
+        // Cleared before closing, so the stone is not put back into the inventory for later tests.
+        GameTestSupport.clearCursor(sp);
+        closeScreen(context);
+    }
+
+    /**
+     * The same click, drifting off the slot's edge into empty space instead of staying on it.
+     * Reaching no slot is not reaching another one, so it is still a click on the first.
+     */
+    private void leftClickOnAStackSwapsWhenDriftingOffTheSlot(ClientGameTestContext context,
+                                                             TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, new ItemStack(Items.SHULKER_BOX));
+        givePlayer(sp, ITEM_SLOT, new ItemStack(Items.STONE, 64));
+        openInventory(context);
+
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        GameTestSupport.clickHotbarSlotDriftingIntoTheGap(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        context.waitTicks(5);
+
+        assertBoxSwappedWithTheStone(sp);
+
+        GameTestSupport.clearCursor(sp);
+        closeScreen(context);
+    }
+
+    /** After a box on the cursor is left-clicked onto 64 stone at {@link #ITEM_SLOT}. */
+    private void assertBoxSwappedWithTheStone(TestSingleplayerContext sp) {
         // Read first: if the click was taken as a drag, the stone is in the box still on the cursor.
         int swallowed = GameTestSupport.countInCarriedBox(sp, Items.STONE);
         assertTrue(swallowed == 0, "the clicked stone was swept into the carried box, which held " + swallowed);
@@ -160,10 +190,6 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
         assertTrue(boxes == 1, "the box should have swapped into the clicked slot, found " + boxes);
         assertTrue(stored == 0, "the clicked stone should not be inside the box, held " + stored);
         assertTrue(carriedStone == 64, "the stone should be on the cursor after the swap, held " + carriedStone);
-
-        // Cleared before closing, so the stone is not put back into the inventory for later tests.
-        GameTestSupport.clearCursor(sp);
-        closeScreen(context);
     }
 
     /**
