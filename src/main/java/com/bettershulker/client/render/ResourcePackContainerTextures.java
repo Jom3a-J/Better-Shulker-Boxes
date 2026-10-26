@@ -226,7 +226,11 @@ public final class ResourcePackContainerTextures {
         for (ResolvedRule resolved : rules()) {
             if (resolved.rule().appliesTo(boxId, screenTitle)) return resolved.texture();
         }
-        return guessShulkerTexture(color);
+        // A guessed file that a definition points at belongs to that definition's conditions: a
+        // purple.png kept for boxes named "Loot" must not turn up on every other purple box.
+        Identifier guess = guessShulkerTexture(color);
+        if (guess != null && rules().stream().anyMatch(resolved -> resolved.texture().equals(guess))) return null;
+        return guess;
     }
 
     /**

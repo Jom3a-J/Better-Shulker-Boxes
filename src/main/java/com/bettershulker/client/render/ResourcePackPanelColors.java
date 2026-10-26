@@ -37,7 +37,12 @@ public final class ResourcePackPanelColors {
     private static final int MAX_CLEAR_ALPHA = 16;
     /** Share of the panel that may be clear before it stops counting as a panel. */
     private static final double MAX_CLEAR_SHARE = 0.5;
-    private static final int MAX_CACHE_ENTRIES = 32;
+    /**
+     * Recolourful Containers alone ships 34 Shulker panels - a plain and a label one per dye, plus
+     * two undyed - and the painter asks for one every frame, so 32 entries thrashed while hovering
+     * through a chest of boxes.
+     */
+    private static final int MAX_CACHE_ENTRIES = 64;
 
     /**
      * What sampling a texture found; a colour of 0 means nothing solid enough to use, and a null
