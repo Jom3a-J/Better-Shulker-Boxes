@@ -3,8 +3,11 @@ package com.bettershulker.client.render;
 import com.bettershulker.BetterShulkerConfig;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.world.item.DyeColor;
@@ -15,19 +18,20 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.regex.Pattern;
 
 /**
  * Resolves the GUI panel a resource pack supplies for Better Shulker previews.
  *
  * <p>The vanilla texture is always the safe base because it is what Minecraft renders when a
- * pack directly replaces a normal Shulker GUI. Packs that ship conventional OptiFine Custom GUI
- * or OptiGUI definitions are resolved for dye-specific Shulker panels. Ender previews intentionally
- * retain Better Shulker's own theme rather than inheriting a placed-container resource-pack GUI.</p>
+ * pack directly replaces a normal Shulker GUI. Dye- and name-specific panels come from the pack's
+ * OptiFine Custom GUI and OptiGUI definitions, parsed by {@link ShulkerGuiRules}. Ender previews
+ * intentionally retain Better Shulker's own theme rather than inheriting a placed-container
+ * resource-pack GUI.</p>
  */
 public final class ResourcePackContainerTextures {
     private static final Identifier SHULKER_PANEL = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
@@ -40,9 +44,8 @@ public final class ResourcePackContainerTextures {
      * <p>A resolution is keyed partly by the container's name, so the number of distinct keys is
      * whatever a player chooses to rename their boxes to. Discarding the whole cache on overflow
      * made that unbounded input costly: passing a chest of uniquely named boxes threw away every
-     * resolution, including the one for the box about to be hovered again, and each miss rereads
-     * the pack's OptiFine and OptiGUI definitions off disk. Dropping only the coldest entry keeps
-     * the boxes actually in use resolved.</p>
+     * resolution, including the one for the box about to be hovered again. Dropping only the
+     * coldest entry keeps the boxes actually in use resolved.</p>
      *
      * <p>Access order means {@code get} mutates the map, so every read has to stay inside this
      * class's synchronized methods - as they all already do.</p>
@@ -56,6 +59,14 @@ public final class ResourcePackContainerTextures {
             };
     private static Object cachedResourceManager;
     private static Boolean cachedGuiActive;
+    /** Every Shulker definition in the active packs, in the order they are tried. */
+    private static List<ResolvedRule> cachedRules;
+
+    /**
+     * Whether OptiGUI is installed, which decides how a definition without {@code colors} reads.
+     * Set once by the Fabric entrypoint; OptiGUI has no NeoForge build.
+     */
+    private static volatile boolean optiGuiLoaded;
 
     private ResourcePackContainerTextures() {
     }
@@ -66,18 +77,31 @@ public final class ResourcePackContainerTextures {
                         ResourcePackLayout layout) {
     }
 
-    private record ResolutionKey(DyeColor color, boolean enderChest, String containerName,
+    private record ResolutionKey(DyeColor color, boolean enderChest, String screenTitle,
                                  BetterShulkerConfig.ResourcePackMode mode,
                                  int offsetX, int offsetY, int capHeight) {
+    }
+
+    /** A definition whose texture was found, and whether it came from a pack the player added. */
+    private record ResolvedRule(ShulkerGuiRules.Rule rule, Identifier texture, boolean external) {
+    }
+
+    public static void setOptiGuiLoaded(boolean loaded) {
+        optiGuiLoaded = loaded;
     }
 
     public static synchronized Panel resolve(DyeColor color, boolean enderChest) {
         return resolve(color, enderChest, null);
     }
 
-    /** Resolves a panel while allowing name-based OptiFine rules to be evaluated. */
-    public static synchronized Panel resolve(DyeColor color, boolean enderChest, String containerName) {
-        return resolveCached(color, enderChest, containerName, BetterShulkerConfig.getResourcePackMode());
+    /**
+     * Resolves a panel while allowing name-based OptiFine and OptiGUI rules to be evaluated.
+     *
+     * @param screenTitle the title the box's own screen would show - see
+     *                    {@link ShulkerTooltipData#screenTitleOf} - or null for an unnamed box
+     */
+    public static synchronized Panel resolve(DyeColor color, boolean enderChest, String screenTitle) {
+        return resolveCached(color, enderChest, screenTitle, BetterShulkerConfig.getResourcePackMode());
     }
 
     /** Resolves only the currently active external resource-pack GUI, ignoring the saved mode. */
@@ -85,8 +109,8 @@ public final class ResourcePackContainerTextures {
         return resolveDetected(color, enderChest, null);
     }
 
-    public static synchronized Panel resolveDetected(DyeColor color, boolean enderChest, String containerName) {
-        return resolveCached(color, enderChest, containerName, BetterShulkerConfig.ResourcePackMode.AUTO);
+    public static synchronized Panel resolveDetected(DyeColor color, boolean enderChest, String screenTitle) {
+        return resolveCached(color, enderChest, screenTitle, BetterShulkerConfig.ResourcePackMode.AUTO);
     }
 
     /** Returns whether an external resource pack currently supplies a Shulker GUI asset. */
@@ -96,11 +120,11 @@ public final class ResourcePackContainerTextures {
             if (hasExternalResource(SHULKER_PANEL) || hasExternalShulkerDefinition()) {
                 cachedGuiActive = true;
             } else {
-                Identifier genericTexture = findShulkerTexture(null, null);
+                Identifier genericTexture = guessShulkerTexture(null);
                 cachedGuiActive = genericTexture != null && hasExternalResource(genericTexture);
                 if (!cachedGuiActive) {
                     for (DyeColor color : DyeColor.values()) {
-                        Identifier dyedTexture = findShulkerTexture(color, null);
+                        Identifier dyedTexture = guessShulkerTexture(color);
                         if (dyedTexture != null && hasExternalResource(dyedTexture)) {
                             cachedGuiActive = true;
                             break;
@@ -116,17 +140,18 @@ public final class ResourcePackContainerTextures {
     public static synchronized void clearCache() {
         PANEL_CACHE.clear();
         cachedGuiActive = null;
+        cachedRules = null;
         cachedResourceManager = null;
         ResourcePackLayoutProfiles.clearCache();
     }
 
-    private static Panel resolveCached(DyeColor color, boolean enderChest, String containerName,
+    private static Panel resolveCached(DyeColor color, boolean enderChest, String screenTitle,
                                        BetterShulkerConfig.ResourcePackMode mode) {
         ensureCacheForCurrentResources();
         ResolutionKey key = new ResolutionKey(
                 color,
                 enderChest,
-                containerName,
+                screenTitle != null ? screenTitle : defaultScreenTitle(),
                 mode,
                 BetterShulkerConfig.getResourcePackLayoutOffsetX(),
                 BetterShulkerConfig.getResourcePackLayoutOffsetY(),
@@ -135,9 +160,14 @@ public final class ResourcePackContainerTextures {
         Panel cached = PANEL_CACHE.get(key);
         if (cached != null) return cached;
 
-        Panel resolved = resolveUncached(color, enderChest, containerName, mode);
+        Panel resolved = resolveUncached(color, enderChest, key.screenTitle(), mode);
         PANEL_CACHE.put(key, resolved);
         return resolved;
+    }
+
+    /** What an unnamed box's screen is titled in the current language; packs can blank it. */
+    private static String defaultScreenTitle() {
+        return Component.translatable("container.shulkerBox").getString();
     }
 
     private static void ensureCacheForCurrentResources() {
@@ -145,12 +175,13 @@ public final class ResourcePackContainerTextures {
         if (cachedResourceManager != resourceManager) {
             PANEL_CACHE.clear();
             cachedGuiActive = null;
+            cachedRules = null;
             cachedResourceManager = resourceManager;
             ResourcePackLayoutProfiles.clearCache();
         }
     }
 
-    private static Panel resolveUncached(DyeColor color, boolean enderChest, String containerName,
+    private static Panel resolveUncached(DyeColor color, boolean enderChest, String screenTitle,
                                          BetterShulkerConfig.ResourcePackMode mode) {
         if (enderChest) {
             // Keep the established Better Shulker Ender presentation independent of resource packs.
@@ -160,28 +191,53 @@ public final class ResourcePackContainerTextures {
         }
 
         if (mode == BetterShulkerConfig.ResourcePackMode.DISABLED) {
+            if (ResourcePackPanelColors.isMostlyTransparent(SHULKER_PANEL)) return vanillaFallback();
             // Keep the normal tooltip geometry when the user turns resource-pack mode off.
             ResourcePackLayout layout = ResourcePackLayout.standard();
             return new Panel(SHULKER_PANEL, SHULKER_PANEL, false, false,
                     layout.bottomCapSourceY(), layout.bottomCapHeight(), layout);
         }
 
-        Identifier customTexture = findShulkerTexture(color, containerName);
+        Identifier customTexture = findShulkerTexture(color, screenTitle);
+        Identifier texture = customTexture != null ? customTexture : SHULKER_PANEL;
+        // Some packs ship a panel that is not one: Immersive Interfaces leaves most of it clear
+        // for its core shaders to paint. Recomposing that draws holes, so use vanilla's instead.
+        if (ResourcePackPanelColors.isMostlyTransparent(texture)) return vanillaFallback();
+
         boolean customGuiFound = customTexture != null && hasExternalResource(customTexture);
         boolean packGuiFound = customGuiFound || hasExternalResource(SHULKER_PANEL)
                 || (color == null && hasExternalShulkerDefinition());
-        Identifier texture = customTexture != null ? customTexture : SHULKER_PANEL;
         boolean useResourcePackLayout = mode == BetterShulkerConfig.ResourcePackMode.ENABLED || packGuiFound;
         ResourcePackLayout layout = ResourcePackLayoutProfiles.resolve(texture);
         return new Panel(texture, texture, useResourcePackLayout, customGuiFound,
                 layout.bottomCapSourceY(), layout.bottomCapHeight(), layout);
     }
 
-    private static Identifier findShulkerTexture(DyeColor color, String containerName) {
-        Identifier propertyTexture = findTextureFromCustomGuiProperties(false, color, containerName);
-        if (propertyTexture != null) return propertyTexture;
-        Identifier optiGuiTexture = findTextureFromOptiGuiIni(color);
-        if (optiGuiTexture != null) return optiGuiTexture;
+    /** The bottom-most vanilla panel, as Better Shulker draws when no pack is involved. */
+    private static Panel vanillaFallback() {
+        Identifier vanilla = VanillaTooltipTextures.shulker();
+        ResourcePackLayout layout = ResourcePackLayout.standard();
+        return new Panel(vanilla, vanilla, false, false,
+                layout.bottomCapSourceY(), layout.bottomCapHeight(), layout);
+    }
+
+    private static Identifier findShulkerTexture(DyeColor color, String screenTitle) {
+        String boxId = ShulkerGuiRules.boxId(color);
+        for (ResolvedRule resolved : rules()) {
+            if (resolved.rule().appliesTo(boxId, screenTitle)) return resolved.texture();
+        }
+        // A guessed file that a definition points at belongs to that definition's conditions: a
+        // purple.png kept for boxes named "Loot" must not turn up on every other purple box.
+        Identifier guess = guessShulkerTexture(color);
+        if (guess != null && rules().stream().anyMatch(resolved -> resolved.texture().equals(guess))) return null;
+        return guess;
+    }
+
+    /**
+     * Common file names, for packs that ship per-dye panels without a definition pointing at them.
+     * Every surveyed pack ships definitions, so this is only reached when none applies.
+     */
+    private static Identifier guessShulkerTexture(DyeColor color) {
         if (color == null) {
             return firstAvailable("optigui", List.of(
                     "gui/shulkers/shulker/shulker.png",
@@ -196,7 +252,7 @@ public final class ResourcePackContainerTextures {
         ));
         if (optiGuiDirectTexture != null) return optiGuiDirectTexture;
 
-        return firstAvailable(List.of(
+        return firstAvailable("minecraft", List.of(
                 "optifine/gui/container/shulker_box/" + dye + ".png",
                 "optifine/gui/container/shulker_box/" + dye + "_shulker_box.png",
                 "optifine/gui/container/shulker_box/shulker_box_" + dye + ".png",
@@ -207,211 +263,115 @@ public final class ResourcePackContainerTextures {
         ));
     }
 
-    /**
-     * Reads OptiGUI's section-based replacement files, for example:
-     * <pre>
-     * [purple_shulker_box]
-     * replacement = purple.png
-     * </pre>
-    */
-    private static Identifier findTextureFromOptiGuiIni(DyeColor color) {
-        List<String> sectionNames = new ArrayList<>();
-        if (color != null) {
-            // Packs often define one generic section for every dyed Shulker Box instead of
-            // duplicating sixteen color sections. Try the exact section first, then the generic
-            // fallback so the active pack still controls the panel.
-            sectionNames.add(color.getName() + "_shulker_box");
-        }
-        sectionNames.add("shulker_box");
-        try {
-            var resources = Minecraft.getInstance().getResourceManager().listResources(
-                    "gui/shulkers", id -> "optigui".equals(id.getNamespace())
-                            && id.getPath().endsWith(".ini"));
-            List<Map.Entry<Identifier, Resource>> entries = new ArrayList<>(resources.entrySet());
-            entries.sort(Map.Entry.comparingByKey(Comparator.comparing(Identifier::toString)));
-            for (String sectionName : sectionNames) {
-                for (Map.Entry<Identifier, Resource> entry : entries) {
-                    Identifier texture = textureFromOptiGuiIni(entry.getKey(), entry.getValue(), sectionName);
-                    if (texture != null) return texture;
-                }
-            }
-            return null;
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
+    // =========================================================================
+    //  Definition index
+    // =========================================================================
 
-    private static Identifier textureFromOptiGuiIni(Identifier iniId, Resource resource, String sectionName) {
-        try (InputStream input = resource.open();
-             BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
-            boolean matchingSection = false;
-            String replacement = null;
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String value = line.trim();
-                if (value.isEmpty() || value.startsWith("#") || value.startsWith(";")) continue;
-
-                if (value.startsWith("[") && value.endsWith("]")) {
-                    matchingSection = sectionName.equalsIgnoreCase(
-                            value.substring(1, value.length() - 1).trim());
-                    replacement = null;
-                    continue;
-                }
-                if (!matchingSection) continue;
-
-                int separator = value.indexOf('=');
-                if (separator <= 0) continue;
-                String key = value.substring(0, separator).trim();
-                String candidate = value.substring(separator + 1).trim();
-                if ("replacement".equalsIgnoreCase(key) || "texture".equalsIgnoreCase(key)) {
-                    replacement = candidate;
-                }
-            }
-            return replacement == null || replacement.isBlank()
-                    ? null
-                    : resolveTexture(iniId, replacement);
-        } catch (Exception ignored) {
-            return null;
-        }
+    private static List<ResolvedRule> rules() {
+        if (cachedRules == null) cachedRules = loadRules();
+        return cachedRules;
     }
 
     /**
-     * Reads standard OptiFine Custom GUI definitions from the active resource stack. This supports
-     * packs whose texture names are custom rather than one of the common file-name conventions.
+     * Parses every Shulker definition once per resource reload and puts them in trying order.
+     *
+     * <p>Each mod puts its own format first. Under OptiGUI that is INI sections, then OptiFine
+     * files, each ordered by {@code load.priority} and then path. OptiFine reads only its own
+     * files, top pack first and then by path, so INI sections are left for last. A definition
+     * whose texture is missing is dropped, as both mods drop it.</p>
      */
-    private static Identifier findTextureFromCustomGuiProperties(boolean enderChest, DyeColor color,
-                                                                 String containerName) {
-        try {
-            var resources = Minecraft.getInstance().getResourceManager().listResources(
-                    "optifine/gui/container", id -> id.getPath().endsWith(".properties"));
-            return resources.entrySet().stream()
-                    .sorted(java.util.Map.Entry.comparingByKey(Comparator.comparing(Identifier::toString)))
-                    .map(entry -> textureFromProperties(entry.getKey(), entry.getValue(), enderChest, color, containerName))
-                    .filter(texture -> texture != null)
-                    .findFirst()
-                    .orElse(null);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
+    private static List<ResolvedRule> loadRules() {
+        ResourceManager resourceManager = Minecraft.getInstance().getResourceManager();
+        boolean optiGui = optiGuiLoaded;
+        Map<String, Integer> packOrder = packOrder(resourceManager);
 
-    private static Identifier textureFromProperties(Identifier propertiesId, Resource resource,
-                                                     boolean enderChest, DyeColor color,
-                                                     String containerName) {
+        record Candidate(ShulkerGuiRules.Rule rule, Resource definition, int order) {}
+        List<Candidate> candidates = new ArrayList<>();
+        int order = 0;
         try {
-            Properties properties = new Properties();
-            try (InputStream input = resource.open()) {
-                properties.load(input);
+            for (Map.Entry<Identifier, Resource> entry : sorted(resourceManager.listResources("gui",
+                    id -> "optigui".equals(id.getNamespace()) && id.getPath().endsWith(".ini")))) {
+                try (InputStream input = entry.getValue().open();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+                    for (ShulkerGuiRules.Rule rule : ShulkerGuiRules.parseIni(entry.getKey(), reader)) {
+                        candidates.add(new Candidate(rule, entry.getValue(), order++));
+                    }
+                } catch (Exception ignored) {
+                    // One unreadable file should not cost the pack its other definitions.
+                }
             }
-            if (!matchesContainer(properties, enderChest, color, containerName)) return null;
-
-            String texture = properties.getProperty("texture");
-            if (texture == null || texture.isBlank()) return null;
-            return resolveTexture(propertiesId, texture);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private static boolean matchesContainer(Properties properties, boolean enderChest, DyeColor color,
-                                            String containerName) {
-        String container = properties.getProperty("container", "").trim();
-        if (enderChest || !"shulker_box".equalsIgnoreCase(container)) return false;
-
-        String nameRule = properties.getProperty("name", "").trim();
-        if (!nameRule.isEmpty()
-                && (containerName == null || !matchesNameRule(nameRule, containerName))) return false;
-        String colors = properties.getProperty("colors", "").trim();
-        // An Ender Chest has no dye colour, so it may use only the pack's generic Shulker rule.
-        if (color == null) return colors.isEmpty();
-        if (colors.isEmpty()) return true;
-        for (String candidate : colors.split("[\\s,]+")) {
-            if (color.getName().equalsIgnoreCase(candidate)) return true;
-        }
-        return false;
-    }
-
-    private static boolean matchesNameRule(String rule, String containerName) {
-        try {
-            if (Pattern.matches(rule, containerName)) return true;
-        } catch (RuntimeException ignored) {
-            // Some packs use a simple wildcard instead of a Java-compatible expression.
-        }
-        String normalizedRule = rule.toLowerCase(java.util.Locale.ROOT)
-                .replace("*", ".*");
-        try {
-            return containerName.toLowerCase(java.util.Locale.ROOT).matches(normalizedRule);
-        } catch (RuntimeException ignored) {
-            return containerName.equalsIgnoreCase(rule);
-        }
-    }
-
-    private static Identifier resolveTexture(Identifier propertiesId, String textureValue) {
-        String raw = textureValue.trim().replace('\\', '/');
-        if (raw.isEmpty()) return null;
-        if (!raw.endsWith(".png")) raw += ".png";
-
-        String namespace = propertiesId.getNamespace();
-        String path = raw;
-        int namespaceSeparator = raw.indexOf(':');
-        if (namespaceSeparator > 0) {
-            namespace = raw.substring(0, namespaceSeparator);
-            path = raw.substring(namespaceSeparator + 1);
-        }
-
-        if (path.startsWith("assets/")) {
-            String assetPath = path.substring("assets/".length());
-            int assetNamespaceSeparator = assetPath.indexOf('/');
-            if (assetNamespaceSeparator <= 0) return null;
-            namespace = assetPath.substring(0, assetNamespaceSeparator);
-            path = assetPath.substring(assetNamespaceSeparator + 1);
-        }
-
-        path = path.replace("./", "");
-        if (path.startsWith("/")) path = path.substring(1);
-        if (path.contains("..") || path.contains(":")) return null;
-
-        String baseDirectory = propertiesId.getPath();
-        int lastSlash = baseDirectory.lastIndexOf('/');
-        baseDirectory = lastSlash >= 0 ? baseDirectory.substring(0, lastSlash + 1) : "";
-
-        List<String> candidates = new ArrayList<>();
-        if (!raw.startsWith("/") && namespaceSeparator < 0 && !path.startsWith("assets/")) {
-            candidates.add(baseDirectory + path);
-        }
-        if (path.startsWith("textures/") || path.startsWith("optifine/")) {
-            candidates.add(path);
-        } else {
-            if (path.startsWith("gui/") || path.startsWith("container/")) {
-                candidates.add("optifine/" + path);
-                candidates.add("textures/" + path);
+            for (Map.Entry<Identifier, Resource> entry : sorted(resourceManager.listResources(
+                    "optifine/gui/container", id -> id.getPath().endsWith(".properties")))) {
+                try (InputStream input = entry.getValue().open()) {
+                    Properties properties = new Properties();
+                    properties.load(input);
+                    ShulkerGuiRules.Rule rule = ShulkerGuiRules.parseProperties(entry.getKey(), properties, optiGui);
+                    if (rule != null) candidates.add(new Candidate(rule, entry.getValue(), order++));
+                } catch (Exception ignored) {
+                    // As above.
+                }
             }
-            candidates.add(path);
+        } catch (Exception ignored) {
+            return List.of();
         }
 
-        for (String candidate : candidates) {
-            Identifier resolved = createIdentifier(namespace, candidate);
-            if (resolved != null && hasResource(resolved)) return resolved;
+        Comparator<Candidate> trying = Comparator
+                .comparingInt((Candidate c) -> c.rule().ini() == optiGui ? 0 : 1)
+                .thenComparing(Comparator.comparingInt((Candidate c) -> c.rule().priority()).reversed());
+        if (!optiGui) {
+            // OptiFine walks packs from the top; OptiGUI ignores which pack a file came from.
+            trying = trying.thenComparing(Comparator.comparingInt((Candidate c) ->
+                    -packOrder.getOrDefault(c.definition().sourcePackId(), 0)));
         }
-        return null;
+        candidates.sort(trying.thenComparingInt(Candidate::order));
+
+        List<ResolvedRule> rules = new ArrayList<>();
+        for (Candidate candidate : candidates) {
+            Identifier texture = firstAvailable(candidate.rule().textures());
+            if (texture == null) continue;
+            boolean external = isExternalPackResource(candidate.definition()) || hasExternalResource(texture);
+            rules.add(new ResolvedRule(candidate.rule(), texture, external));
+        }
+        return List.copyOf(rules);
     }
 
-    private static Identifier createIdentifier(String namespace, String path) {
+    private static List<Map.Entry<Identifier, Resource>> sorted(Map<Identifier, Resource> resources) {
+        List<Map.Entry<Identifier, Resource>> entries = new ArrayList<>(resources.entrySet());
+        entries.sort(Map.Entry.comparingByKey(Comparator.comparing(Identifier::toString)));
+        return entries;
+    }
+
+    /** Position of each pack in the stack, bottom first, so a higher number wins. */
+    private static Map<String, Integer> packOrder(ResourceManager resourceManager) {
+        Map<String, Integer> order = new HashMap<>();
         try {
-            return Identifier.fromNamespaceAndPath(namespace, path);
-        } catch (IllegalArgumentException ignored) {
-            return null;
+            List<PackResources> packs = resourceManager.listPacks().toList();
+            for (int i = 0; i < packs.size(); i++) order.put(packs.get(i).packId(), i);
+        } catch (Exception ignored) {
+            // Without an order every file ties and path order decides, which is OptiGUI's rule.
         }
+        return order;
     }
 
-    private static Identifier firstAvailable(List<String> paths) {
-        return firstAvailable("minecraft", paths);
-    }
+    // =========================================================================
+    //  Resource lookups
+    // =========================================================================
 
     private static Identifier firstAvailable(String namespace, List<String> paths) {
+        List<Identifier> textures = new ArrayList<>();
         for (String path : paths) {
-            Identifier texture = createIdentifier(namespace, path);
-            if (texture != null && hasResource(texture)) return texture;
+            try {
+                textures.add(Identifier.fromNamespaceAndPath(namespace, path));
+            } catch (IllegalArgumentException ignored) {
+                // Not a valid identifier, so no pack can supply it.
+            }
+        }
+        return firstAvailable(textures);
+    }
+
+    private static Identifier firstAvailable(List<Identifier> textures) {
+        for (Identifier texture : textures) {
+            if (hasResource(texture)) return texture;
         }
         return null;
     }
@@ -433,25 +393,9 @@ public final class ResourcePackContainerTextures {
         }
     }
 
+    /** Whether a player-added pack defines any Shulker panel, whatever folder it keeps it in. */
     private static boolean hasExternalShulkerDefinition() {
-        try {
-            var resourceManager = Minecraft.getInstance().getResourceManager();
-            boolean optiGui = resourceManager.listResources("gui/shulkers", id ->
-                            "optigui".equals(id.getNamespace())
-                                    && (id.getPath().endsWith(".ini") || id.getPath().endsWith(".png")))
-                    .keySet().stream()
-                    .anyMatch(ResourcePackContainerTextures::hasExternalResource);
-            if (optiGui) return true;
-
-            return resourceManager.listResources("optifine/gui/container", id -> {
-                        String path = id.getPath();
-                        return path.contains("/shulker_box/")
-                                && (path.endsWith(".properties") || path.endsWith(".png"));
-                    }).keySet().stream()
-                    .anyMatch(ResourcePackContainerTextures::hasExternalResource);
-        } catch (Exception ignored) {
-            return false;
-        }
+        return rules().stream().anyMatch(ResolvedRule::external);
     }
 
     private static boolean isExternalPackResource(Resource resource) {

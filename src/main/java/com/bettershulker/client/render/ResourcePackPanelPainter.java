@@ -10,7 +10,8 @@ import net.minecraft.resources.Identifier;
  * <p>The pack's panel is recomposed rather than cropped: its left edge, the slot grid, its right
  * cap and its bottom cap are blitted as separate slices, so a preview narrower or shorter than
  * the pack's full screen keeps every edge the pack drew. The profile decides where those slices
- * live; anything below the storage grid, such as a player inventory, is left behind.</p>
+ * live; anything below the storage grid, such as a player inventory, is left behind. Where the
+ * bottom cap comes from is read off the texture by {@link PanelBottomEdge}.</p>
  */
 final class ResourcePackPanelPainter {
 
@@ -23,6 +24,7 @@ final class ResourcePackPanelPainter {
     private final int rows;
     private final int panelWidth;
     private final int panelHeight;
+    private final PanelBottomEdge bottomEdge;
 
     ResourcePackPanelPainter(ResourcePackLayout layout, Identifier texture,
                              int columns, int rows, int panelWidth, int panelHeight) {
@@ -32,6 +34,7 @@ final class ResourcePackPanelPainter {
         this.rows = rows;
         this.panelWidth = panelWidth;
         this.panelHeight = panelHeight;
+        this.bottomEdge = ResourcePackPanelColors.bottomEdge(texture, layout);
     }
 
     public void drawFull(GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -47,9 +50,10 @@ final class ResourcePackPanelPainter {
                 layout.sourcePanelY(), layout.outputSlotY(), this.columns, renderColor);
         drawStorageRows(context, texture, panelX,
                 panelY + layout.outputSlotY(), this.rows, renderColor);
-        drawRepeatedRow(context, texture, panelX,
-                panelY + layout.outputSlotY() + this.rows * layout.slotSize(),
-                layout.bottomCapHeight(), renderColor);
+        drawBottom(context, texture, panelX,
+                panelY + layout.outputSlotY() + this.rows * layout.slotSize(), layout.bottomCapHeight(),
+                layout.outputSlotX(), this.columns * layout.slotSize(),
+                layout.sourceRightX(), layout.sourceRightWidth(), renderColor);
     }
 
     public void drawCompact(GuiGraphicsExtractor context, int panelX, int panelY) {
@@ -73,8 +77,7 @@ final class ResourcePackPanelPainter {
                 leftW, slotsW, rightSourceX, rightW, renderColor);
 
         if (bottomH > 0) {
-            int bottomY = panelY + topH;
-            drawRepeatedRow(context, texture, panelX, bottomY, bottomH,
+            drawBottom(context, texture, panelX, panelY + topH, bottomH,
                     leftW, slotsW, rightSourceX, rightW, renderColor);
         }
     }
@@ -109,26 +112,15 @@ final class ResourcePackPanelPainter {
         }
     }
 
-    private void drawRepeatedRow(GuiGraphicsExtractor context, Identifier texture,
-                                             int panelX, int y, int height, int renderColor) {
-        ResourcePackLayout layout = this.layout;
-        int leftW = layout.outputSlotX();
-        int rightSourceX = layout.sourceRightX();
-        int rightW = layout.sourceRightWidth();
-        int slotsW = this.columns * layout.slotSize();
-        drawRepeatedRow(context, texture, panelX, y, height,
-                leftW, slotsW, rightSourceX, rightW, renderColor);
-    }
-
-    private void drawRepeatedRow(GuiGraphicsExtractor context, Identifier texture,
-                                             int panelX, int y, int height,
-                                             int leftW, int slotsW, int rightSourceX, int rightW,
-                                             int renderColor) {
-        ResourcePackLayout layout = this.layout;
-        for (int row = 0; row < height; row++) {
-            blitHorizontalSlices(context, texture, panelX, y + row,
-                    layout.bottomCapSourceY(), 1,
-                    leftW, slotsW, rightSourceX, rightW, renderColor);
+    /** The rows under the grid: body, then the pack's own bottom border where it has one. */
+    private void drawBottom(GuiGraphicsExtractor context, Identifier texture,
+                            int panelX, int y, int height,
+                            int leftW, int slotsW, int rightSourceX, int rightW,
+                            int renderColor) {
+        for (PanelBottomEdge.Blit blit : this.bottomEdge.plan(this.layout, panelX, y, height,
+                leftW, slotsW, rightSourceX, rightW)) {
+            blitSlice(context, texture, blit.x(), blit.y(), blit.u(), blit.v(),
+                    blit.width(), blit.height(), renderColor);
         }
     }
 

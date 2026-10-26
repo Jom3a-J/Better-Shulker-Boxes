@@ -110,7 +110,7 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
         this.isContainerEmpty = empty;
         this.compactMode = ClientKeybinds.isCompactModeActive();
-        this.panelTexture = ResourcePackContainerTextures.resolve(this.color, this.isEnderChest, this.containerName);
+        this.panelTexture = ResourcePackContainerTextures.resolve(this.color, this.isEnderChest, data.screenTitle());
         this.resourcePackOverridesPanel = this.panelTexture.suppliedByPack();
         DisplayLayout displayLayout = buildDisplayLayout();
         this.displaySlots = displayLayout.slots();
