@@ -92,6 +92,26 @@ final class GameTestSupport {
         });
     }
 
+    /** Counts an item inside the box on the cursor, read from the server. */
+    static int countInCarriedBox(TestSingleplayerContext sp, Item item) {
+        return sp.getServer().computeOnServer(server -> {
+            ItemStack box = server.getPlayerList().getPlayers().getFirst().containerMenu.getCarried();
+            int total = 0;
+            for (ItemStack stack : ContainerHelper.getContainerContents(box)) {
+                if (stack.is(item)) total += stack.getCount();
+            }
+            return total;
+        });
+    }
+
+    /** Counts an item sitting loose on the cursor, read from the server. */
+    static int countOnCursor(TestSingleplayerContext sp, Item item) {
+        return sp.getServer().computeOnServer(server -> {
+            ItemStack stack = server.getPlayerList().getPlayers().getFirst().containerMenu.getCarried();
+            return stack.is(item) ? stack.getCount() : 0;
+        });
+    }
+
     /** Counts an item sitting loose in a player-inventory position, read from the server. */
     static int countInInventorySlot(TestSingleplayerContext sp, int position, Item item) {
         return sp.getServer().computeOnServer(server -> {
@@ -156,6 +176,30 @@ final class GameTestSupport {
     static void clickInventorySlot(ClientGameTestContext context, int position, int button) {
         hoverInventorySlot(context, position);
         context.getInput().pressMouse(button);
+        context.waitTicks(3);
+    }
+
+    /**
+     * A click as a real hand makes it: the pointer drifts a pixel while the button is down. That
+     * stays inside the slot, but the screen still sees it as a drag.
+     */
+    static void clickInventorySlotWithJitter(ClientGameTestContext context, int position, int button) {
+        hoverInventorySlot(context, position);
+        context.getInput().holdMouse(button);
+        context.waitTicks(1);
+        context.getInput().moveCursor(1.0, 0.0);
+        context.waitTicks(1);
+        context.getInput().releaseMouse(button);
+        context.waitTicks(3);
+    }
+
+    /** Presses on one position, drags straight to another, and lets go there. */
+    static void dragBetweenInventorySlots(ClientGameTestContext context, int from, int to, int button) {
+        hoverInventorySlot(context, from);
+        context.getInput().holdMouse(button);
+        context.waitTicks(1);
+        hoverInventorySlot(context, to);
+        context.getInput().releaseMouse(button);
         context.waitTicks(3);
     }
 
