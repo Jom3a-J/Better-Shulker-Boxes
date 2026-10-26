@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.6.4
+
+### Fixed
+
+- **Left-clicking a stack with a box on the cursor put the stack inside the box.** Vanilla swaps
+  the two, and so does the mod again. A normal click moves the mouse a pixel while the button is
+  down, which the mod took for the start of a drag-to-insert. A click now only becomes a drag once
+  the pointer reaches another slot.
+- **Resource packs that colour the Shulker GUI per dye picked the wrong panel.** The mod now reads
+  their OptiFine and OptiGUI files the way those mods do instead of guessing file names. OptiGUI
+  files are found in any folder, and name rules work, so unnamed and renamed boxes each get the
+  panel the pack meant. Tested with Recolourful Containers, Colourful Containers and Shulker UI.
+- **A white bar under the preview with Colourful Containers.** Previews under a pack now end on
+  the pack's own bottom border and corners, which they never drew before.
+- **HD packs gave the Modern card the wrong colour.** Under Faithful 32x and 64x only a corner of
+  the panel was sampled.
+- **Packs with a mostly see-through panel drew a preview full of holes.** Immersive Interfaces
+  leaves its panel clear for its shaders to paint; the vanilla panel is used instead.
+
 ## 1.6.3
 
 ### Changed
