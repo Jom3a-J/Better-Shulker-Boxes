@@ -80,6 +80,12 @@ public abstract class HandledScreenMixin extends Screen {
         throw new AssertionError();
     }
 
+    /** The slot under a point. {@link #hoveredSlot} lags a frame behind, which a fast drag outruns. */
+    @Shadow
+    private Slot getHoveredSlot(double mouseX, double mouseY) {
+        throw new AssertionError();
+    }
+
 
     // =========================================================================
     //  State Tracking Fields
@@ -96,6 +102,13 @@ public abstract class HandledScreenMixin extends Screen {
 
     @Unique
     private static boolean bettershulker$dragFired = false;
+
+    /** The slot the drag's button went down on. Movement inside it is a click, not a drag. */
+    @Unique
+    private static Slot bettershulker$pressSlot = null;
+
+    @Unique
+    private static boolean bettershulker$leftPressSlot = false;
 
     @Unique
     private static boolean bettershulker$tapHandled = false;
@@ -191,6 +204,8 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$dragButton = -1;
         bettershulker$dragDidWork = false;
         bettershulker$dragFired = false;
+        bettershulker$pressSlot = null;
+        bettershulker$leftPressSlot = false;
         bettershulker$processedDragSlots.clear();
     }
 
@@ -245,6 +260,8 @@ public abstract class HandledScreenMixin extends Screen {
         bettershulker$dragButton = event.button();
         bettershulker$dragDidWork = false;
         bettershulker$dragFired = false;
+        bettershulker$pressSlot = this.getHoveredSlot(event.x(), event.y());
+        bettershulker$leftPressSlot = false;
         bettershulker$processedDragSlots.clear();
 
         ci.setReturnValue(true);
@@ -271,24 +288,27 @@ public abstract class HandledScreenMixin extends Screen {
         if (button != bettershulker$dragButton) return;
 
         var self = bettershulker$self();
+        // A drag that never reached another slot is a click on the one it began on, even if the
+        // pointer has since drifted off it into empty space.
+        Slot clicked = bettershulker$leftPressSlot ? this.hoveredSlot : bettershulker$pressSlot;
 
         if (!bettershulker$dragDidWork) {
             if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 // Right-click tap → extract selected item to hovered slot. Tiny mouse jitter can fire
                 // mouseDragged before release, so treat any no-work drag as a normal tap.
-                if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
-                    if (!ContainerActions.tapExtractToSlot(self, this.hoveredSlot)) {
+                if (clicked != null && clicked.isActive()) {
+                    if (!ContainerActions.tapExtractToSlot(self, clicked)) {
                         // The custom action had no valid destination or source. The initial
                         // mouseClicked was intercepted to start the drag, so replay the
                         // vanilla click instead of swallowing a no-op right-click.
-                        this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, event, ContainerInput.PICKUP);
+                        this.slotClicked(clicked, clicked.index, event, ContainerInput.PICKUP);
                     }
                 }
-            } else if (this.hoveredSlot != null && this.hoveredSlot.isActive()) {
+            } else if (clicked != null && clicked.isActive()) {
                 // Left-click tap → simulate vanilla click to grab/place the carried container.
                 // Previously this was skipped after even a 1px accidental drag, swallowing the click
                 // and making users click twice to pick up or release the item.
-                this.slotClicked(this.hoveredSlot, this.hoveredSlot.index, event, ContainerInput.PICKUP);
+                this.slotClicked(clicked, clicked.index, event, ContainerInput.PICKUP);
             }
         }
 
@@ -317,22 +337,41 @@ public abstract class HandledScreenMixin extends Screen {
             return;
         }
 
-        Slot slot = this.hoveredSlot;
-        // Keyed on the encoded reference, not slot.index: a screen with its own menu can leave
-        // index degenerate, which would collapse this set and silently drop every slot after the
-        // first in a drag.
-        if (slot != null && slot.isActive()
-                && !bettershulker$processedDragSlots.contains(
-                        MenuSlotRef.encode(slot, Minecraft.getInstance().player))) {
-            if (bettershulker$dragButton == InputConstants.MOUSE_BUTTON_LEFT) {
-                bettershulker$tryDragInsert(self, slot);
-            } else if (bettershulker$dragButton == InputConstants.MOUSE_BUTTON_RIGHT) {
-                bettershulker$tryDragExtract(self, slot);
+        Slot slot = this.getHoveredSlot(event.x(), event.y());
+        if (!bettershulker$leftPressSlot) {
+            // A hand drifts a pixel or two during a click. Treating that as a drag swept the
+            // clicked stack into the carried box, where vanilla would have swapped the two. Only
+            // once the pointer reaches another slot is it a drag, and the slot it started on is
+            // then swept like the rest; until then, release replays the click to vanilla. Empty
+            // space is not another slot: drifting off a slot's edge, say into the gap above the
+            // hotbar, is still a click on it.
+            if (slot == null || slot == bettershulker$pressSlot) {
+                ci.setReturnValue(true);
+                ci.cancel();
+                return;
             }
+            bettershulker$leftPressSlot = true;
+            bettershulker$dragOverSlot(self, bettershulker$pressSlot);
         }
+        bettershulker$dragOverSlot(self, slot);
 
         ci.setReturnValue(true);
         ci.cancel();
+    }
+
+    @Unique
+    private void bettershulker$dragOverSlot(AbstractContainerScreen<?> self, Slot slot) {
+        // Keyed on the encoded reference, not slot.index: a screen with its own menu can leave
+        // index degenerate, which would collapse this set and silently drop every slot after the
+        // first in a drag.
+        if (slot == null || !slot.isActive()
+                || bettershulker$processedDragSlots.contains(
+                        MenuSlotRef.encode(slot, Minecraft.getInstance().player))) return;
+        if (bettershulker$dragButton == InputConstants.MOUSE_BUTTON_LEFT) {
+            bettershulker$tryDragInsert(self, slot);
+        } else if (bettershulker$dragButton == InputConstants.MOUSE_BUTTON_RIGHT) {
+            bettershulker$tryDragExtract(self, slot);
+        }
     }
 
     @Unique

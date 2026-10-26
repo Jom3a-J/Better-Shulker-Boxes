@@ -92,6 +92,26 @@ final class GameTestSupport {
         });
     }
 
+    /** Counts an item inside the box on the cursor, read from the server. */
+    static int countInCarriedBox(TestSingleplayerContext sp, Item item) {
+        return sp.getServer().computeOnServer(server -> {
+            ItemStack box = server.getPlayerList().getPlayers().getFirst().containerMenu.getCarried();
+            int total = 0;
+            for (ItemStack stack : ContainerHelper.getContainerContents(box)) {
+                if (stack.is(item)) total += stack.getCount();
+            }
+            return total;
+        });
+    }
+
+    /** Counts an item sitting loose on the cursor, read from the server. */
+    static int countOnCursor(TestSingleplayerContext sp, Item item) {
+        return sp.getServer().computeOnServer(server -> {
+            ItemStack stack = server.getPlayerList().getPlayers().getFirst().containerMenu.getCarried();
+            return stack.is(item) ? stack.getCount() : 0;
+        });
+    }
+
     /** Counts an item sitting loose in a player-inventory position, read from the server. */
     static int countInInventorySlot(TestSingleplayerContext sp, int position, Item item) {
         return sp.getServer().computeOnServer(server -> {
@@ -159,6 +179,61 @@ final class GameTestSupport {
         context.waitTicks(3);
     }
 
+    /**
+     * A click as a real hand makes it: the pointer drifts a pixel while the button is down. That
+     * stays inside the slot, but the screen still sees it as a drag.
+     */
+    static void clickInventorySlotWithJitter(ClientGameTestContext context, int position, int button) {
+        hoverInventorySlot(context, position);
+        context.getInput().holdMouse(button);
+        context.waitTicks(1);
+        context.getInput().moveCursor(1.0, 0.0);
+        context.waitTicks(1);
+        context.getInput().releaseMouse(button);
+        context.waitTicks(3);
+    }
+
+    /**
+     * Presses on the top edge of a hotbar position and drifts up off the slot before letting go.
+     * Above the hotbar is the gap to the main inventory, so the pointer ends over no slot at all;
+     * that is checked here, since a release that landed on the row above would test nothing.
+     */
+    static void clickHotbarSlotDriftingIntoTheGap(ClientGameTestContext context, int position, int button) {
+        double[] pos = context.computeOnClient(client -> {
+            Slot slot = findSlot(client, position);
+            double scale = client.getWindow().getGuiScale();
+            int left = (client.gui.screen().width - INVENTORY_IMAGE_WIDTH) / 2;
+            int top = (client.gui.screen().height - INVENTORY_IMAGE_HEIGHT) / 2;
+            double x = slot.x + 8;
+            // A slot answers to the pointer from one pixel outside its 16, so y - 0.5 is still on it.
+            double pressY = slot.y - 0.5;
+            double releaseY = slot.y - 3.5;
+            assertTrue(slotUnder(client, x, pressY) == slot,
+                    "the press point should be on the slot under test");
+            assertTrue(slotUnder(client, x, releaseY) == null,
+                    "the release point should be over no slot, found " + slotUnder(client, x, releaseY));
+            return new double[] {(left + x) * scale, (top + pressY) * scale, (top + releaseY) * scale};
+        });
+        context.getInput().setCursorPos(pos[0], pos[1]);
+        context.waitTicks(2);
+        context.getInput().holdMouse(button);
+        context.waitTicks(1);
+        context.getInput().setCursorPos(pos[0], pos[2]);
+        context.waitTicks(2);
+        context.getInput().releaseMouse(button);
+        context.waitTicks(3);
+    }
+
+    /** Presses on one position, drags straight to another, and lets go there. */
+    static void dragBetweenInventorySlots(ClientGameTestContext context, int from, int to, int button) {
+        hoverInventorySlot(context, from);
+        context.getInput().holdMouse(button);
+        context.waitTicks(1);
+        hoverInventorySlot(context, to);
+        context.getInput().releaseMouse(button);
+        context.waitTicks(3);
+    }
+
     /** The menu slot exposing a given player-inventory position. */
     private static Slot findSlot(Minecraft client, int position) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.gui.screen();
@@ -168,6 +243,19 @@ final class GameTestSupport {
             }
         }
         throw new AssertionError("no menu slot exposes inventory position " + position);
+    }
+
+    /** The slot a point in panel coordinates is over, by the same bounds the screen uses. */
+    private static Slot slotUnder(Minecraft client, double x, double y) {
+        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) client.gui.screen();
+        for (Slot slot : screen.getMenu().slots) {
+            if (slot.isActive()
+                    && x >= slot.x - 1 && x < slot.x + 17
+                    && y >= slot.y - 1 && y < slot.y + 17) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     static void assertTrue(boolean condition, String message) {

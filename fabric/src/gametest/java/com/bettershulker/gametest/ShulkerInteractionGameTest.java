@@ -49,6 +49,9 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
             rightClickInsertsTheCarriedStack(context, singleplayer);
             rightClickExtractsBackOut(context, singleplayer);
             leftClickPlacesTheCarriedBox(context, singleplayer);
+            leftClickOnAStackSwapsEvenWithJitter(context, singleplayer);
+            leftClickOnAStackSwapsWhenDriftingOffTheSlot(context, singleplayer);
+            leftDragSweepsStacksIntoTheCarriedBox(context, singleplayer);
             selectionSkipsEmptySlots(context, singleplayer);
             marksDoNotFollowToAnotherBox(context, singleplayer);
             restockPullsFromTheBoxIntoTheHotbar(context, singleplayer);
@@ -131,6 +134,88 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
 
         closeScreen(context);
         GameTestSupport.clearCursor(sp);
+    }
+
+    /**
+     * Left-clicking a stack while carrying a box swaps them, as in vanilla, even when the pointer
+     * drifts a pixel during the click. That drift reads as a drag, and a left drag sweeps stacks
+     * into the box, so the clicked stack used to vanish inside it.
+     */
+    private void leftClickOnAStackSwapsEvenWithJitter(ClientGameTestContext context,
+                                                      TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, new ItemStack(Items.SHULKER_BOX));
+        givePlayer(sp, ITEM_SLOT, new ItemStack(Items.STONE, 64));
+        openInventory(context);
+
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        GameTestSupport.clickInventorySlotWithJitter(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        context.waitTicks(5);
+
+        assertBoxSwappedWithTheStone(sp);
+
+        // Cleared before closing, so the stone is not put back into the inventory for later tests.
+        GameTestSupport.clearCursor(sp);
+        closeScreen(context);
+    }
+
+    /**
+     * The same click, drifting off the slot's edge into empty space instead of staying on it.
+     * Reaching no slot is not reaching another one, so it is still a click on the first.
+     */
+    private void leftClickOnAStackSwapsWhenDriftingOffTheSlot(ClientGameTestContext context,
+                                                             TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, new ItemStack(Items.SHULKER_BOX));
+        givePlayer(sp, ITEM_SLOT, new ItemStack(Items.STONE, 64));
+        openInventory(context);
+
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        GameTestSupport.clickHotbarSlotDriftingIntoTheGap(context, ITEM_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        context.waitTicks(5);
+
+        assertBoxSwappedWithTheStone(sp);
+
+        GameTestSupport.clearCursor(sp);
+        closeScreen(context);
+    }
+
+    /** After a box on the cursor is left-clicked onto 64 stone at {@link #ITEM_SLOT}. */
+    private void assertBoxSwappedWithTheStone(TestSingleplayerContext sp) {
+        // Read first: if the click was taken as a drag, the stone is in the box still on the cursor.
+        int swallowed = GameTestSupport.countInCarriedBox(sp, Items.STONE);
+        assertTrue(swallowed == 0, "the clicked stone was swept into the carried box, which held " + swallowed);
+
+        int boxes = GameTestSupport.countInInventorySlot(sp, ITEM_SLOT, Items.SHULKER_BOX);
+        int stored = countInBoxAt(sp, ITEM_SLOT, Items.STONE);
+        int carriedStone = GameTestSupport.countOnCursor(sp, Items.STONE);
+        assertTrue(boxes == 1, "the box should have swapped into the clicked slot, found " + boxes);
+        assertTrue(stored == 0, "the clicked stone should not be inside the box, held " + stored);
+        assertTrue(carriedStone == 64, "the stone should be on the cursor after the swap, held " + carriedStone);
+    }
+
+    /**
+     * A real left drag with a box on the cursor still sweeps every stack it crosses into the box,
+     * the one it started on included. Only movement that never leaves the first slot is a click.
+     */
+    private void leftDragSweepsStacksIntoTheCarriedBox(ClientGameTestContext context,
+                                                       TestSingleplayerContext sp) {
+        givePlayer(sp, BOX_SLOT, new ItemStack(Items.SHULKER_BOX));
+        givePlayer(sp, ITEM_SLOT, new ItemStack(Items.STONE, 10));
+        givePlayer(sp, UNRELATED_SLOT, new ItemStack(Items.STONE, 20));
+        openInventory(context);
+
+        clickInventorySlot(context, BOX_SLOT, InputConstants.MOUSE_BUTTON_LEFT);
+        GameTestSupport.dragBetweenInventorySlots(context, ITEM_SLOT, UNRELATED_SLOT,
+                InputConstants.MOUSE_BUTTON_LEFT);
+        context.waitTicks(5);
+
+        int stored = GameTestSupport.countInCarriedBox(sp, Items.STONE);
+        int leftBehind = GameTestSupport.countInInventorySlot(sp, ITEM_SLOT, Items.STONE)
+                + GameTestSupport.countInInventorySlot(sp, UNRELATED_SLOT, Items.STONE);
+        assertTrue(stored == 30, "the drag should have swept both stacks into the box, it held " + stored);
+        assertTrue(leftBehind == 0, "no stone should be left in the dragged slots, found " + leftBehind);
+
+        GameTestSupport.clearCursor(sp);
+        closeScreen(context);
     }
 
     /**
