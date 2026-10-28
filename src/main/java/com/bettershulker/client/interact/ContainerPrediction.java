@@ -11,6 +11,7 @@ import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
@@ -27,7 +28,7 @@ import java.util.Set;
  *
  * <p>Every interaction is applied locally the moment it is sent, so the preview and the cursor
  * move with the click rather than a round trip later, and is reconciled when the server's own
- * view of the menu arrives. Creative mode never sends at all: the cursor there is client-only,
+ * view of the menu arrives. The creative inventory never sends at all: the cursor there is client-only,
  * so a validated packet could only be rejected, and the rejection resyncs the player.</p>
  *
  * <p>Lifted out of the screen mixin, which it only ever needed for the screen itself.</p>
@@ -46,7 +47,7 @@ public final class ContainerPrediction {
     }
 
     /**
-     * Handles an interaction locally in creative mode, returning whether it consumed it.
+     * Handles an interaction locally in the creative inventory, returning whether it consumed it.
      *
      * <p>The validated path cannot serve creative at all. The cursor there is client-only, so the
      * server sees an empty one and any action naming it does nothing - and the rejection resyncs
@@ -63,6 +64,11 @@ public final class ContainerPrediction {
      */
         private static boolean handleCreatively(AbstractContainerScreen<?> self, int containerSlotId, int targetIndex,
                                                     int actionId, int inventorySlotId) {
+        // Only the creative inventory keeps its cursor on the client. Any other screen a creative
+        // player opens, such as a chest, is server-backed like survival and takes the validated
+        // path. Handling those here wrote the box by creative packet while the extracted stack sat
+        // on a cursor the server never saw, deleting it.
+        if (!(self instanceof CreativeModeInventoryScreen)) return false;
         var mc = Minecraft.getInstance();
         var player = mc.player;
         if (player == null || mc.gameMode == null || !player.hasInfiniteMaterials()) return false;

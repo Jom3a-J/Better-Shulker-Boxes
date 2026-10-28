@@ -18,7 +18,8 @@
       "com.bettershulker.gametest.ContainerCapacityGameTest",
       "com.bettershulker.gametest.PackDefinitionGameTest",
       "com.bettershulker.gametest.PackGalleryGameTest",
-      "com.bettershulker.gametest.StackedBoxGameTest"
+      "com.bettershulker.gametest.StackedBoxGameTest",
+      "com.bettershulker.gametest.CreativeChestGameTest"
     ]
   }
 }
