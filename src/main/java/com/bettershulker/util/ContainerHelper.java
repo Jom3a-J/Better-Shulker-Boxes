@@ -96,6 +96,17 @@ public final class ContainerHelper {
     }
 
     /**
+     * Whether the stack may be stored inside a Shulker Box.
+     *
+     * <p>Vanilla's own rule, the one its Shulker Box slots use: the item decides. Shulker Boxes
+     * refuse, and mods override it to keep backpacks and other containers out, since nesting them
+     * without limit lets item data grow until a chunk holding it no longer loads.</p>
+     */
+    public static boolean canGoInsideShulkerBox(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem().canFitInsideContainerItems();
+    }
+
+    /**
      * Whether this mod may read or change the container through its item.
      *
      * <p>Respects vanilla's lock component. A Shulker Box must also be a stack of exactly one:
