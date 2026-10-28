@@ -57,6 +57,7 @@ public class ContainerRefusalGameTest implements FabricClientGameTest {
         int inside = countInBoxAt(sp, BOX_SLOT, TestItems.notForContainers)
                 + countInCarriedBox(sp, TestItems.notForContainers);
         assertTrue(inside == 0, "the item refuses containers, but the box took " + inside);
+        assertItemSurvived(sp);
 
         clearCursor(sp);
         closeScreen(context);
@@ -76,8 +77,17 @@ public class ContainerRefusalGameTest implements FabricClientGameTest {
         int inside = countInCarriedBox(sp, TestItems.notForContainers)
                 + countInBoxAt(sp, ITEM_SLOT, TestItems.notForContainers);
         assertTrue(inside == 0, "the item refuses containers, but the box took " + inside);
+        assertItemSurvived(sp);
 
         clearCursor(sp);
         closeScreen(context);
+    }
+
+    /** Kept out of the box is only half of it: the item must still be loose somewhere, not gone. */
+    private static void assertItemSurvived(TestSingleplayerContext sp) {
+        int loose = GameTestSupport.countOnCursor(sp, TestItems.notForContainers)
+                + GameTestSupport.countInInventorySlot(sp, BOX_SLOT, TestItems.notForContainers)
+                + GameTestSupport.countInInventorySlot(sp, ITEM_SLOT, TestItems.notForContainers);
+        assertTrue(loose == 1, "the refused item should still be loose, found " + loose);
     }
 }
