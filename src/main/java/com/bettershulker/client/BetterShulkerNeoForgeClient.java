@@ -40,6 +40,10 @@ public final class BetterShulkerNeoForgeClient {
         // Only the client direction. BetterShulkerNeoForgeMod installs the server sender, on this
         // dist too, which is what the integrated server uses.
         PlatformNetworking.setClientSender(payload -> ClientPacketDistributor.sendToServer(payload));
+        PlatformNetworking.setServerChannelCheck(type -> {
+            var connection = Minecraft.getInstance().getConnection();
+            return connection != null && connection.hasChannel(type);
+        });
         BetterShulkerMod.setClientEnderChestSupplier(EnderChestCache::getEnderChestContents);
 
         IConfigScreenFactory configScreenFactory = (container, parent) -> BetterShulkerClothConfigScreen.create(parent);

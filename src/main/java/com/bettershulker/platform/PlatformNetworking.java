@@ -28,13 +28,33 @@ public final class PlatformNetworking {
         void sendToPlayer(ServerPlayer player, CustomPacketPayload payload);
     }
 
+    /** Whether the connected server can receive a payload type. Absent on a dedicated server. */
+    public interface ServerChannelCheck {
+        boolean canSend(CustomPacketPayload.Type<?> type);
+    }
+
     private static volatile ClientSender clientSender;
     private static volatile ServerSender serverSender;
+    private static volatile ServerChannelCheck serverChannelCheck;
 
     private PlatformNetworking() {}
 
     public static void setClientSender(ClientSender sender) {
         clientSender = sender;
+    }
+
+    public static void setServerChannelCheck(ServerChannelCheck check) {
+        serverChannelCheck = check;
+    }
+
+    /**
+     * Whether the server this client is connected to has the mod, judged by whether it can
+     * receive {@code type}. A Fabric client can join a server without the mod, and anything sent
+     * there is dropped: the client would predict a move the server never makes.
+     */
+    public static boolean canSendToServer(CustomPacketPayload.Type<?> type) {
+        ServerChannelCheck check = serverChannelCheck;
+        return check != null && check.canSend(type);
     }
 
     public static void setServerSender(ServerSender sender) {

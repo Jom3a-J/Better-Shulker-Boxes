@@ -41,9 +41,26 @@ public final class ContainerPrediction {
         if (handleCreatively(self, containerSlotId, targetIndex, actionId, inventorySlotId)) {
             return;
         }
+        // Predicting a move the server will never hear about would only show items that jump back.
+        if (!PlatformNetworking.canSendToServer(ContainerInteractPayload.TYPE)) return;
 
         predictAction(self, containerSlotId, targetIndex, actionId, inventorySlotId);
         PlatformNetworking.sendToServer(new ContainerInteractPayload(containerSlotId, targetIndex, actionId, inventorySlotId));
+    }
+
+    /**
+     * Whether the mod's container interactions can work on this screen at all.
+     *
+     * <p>They need a server with the mod, except in the creative inventory, which commits through
+     * vanilla's own creative packets and so works on any server. Everywhere else, without the mod
+     * on the server, clicks and keys are left to vanilla instead of being taken over.</p>
+     */
+    public static boolean canInteract(AbstractContainerScreen<?> self) {
+        var player = Minecraft.getInstance().player;
+        if (self instanceof CreativeModeInventoryScreen && player != null && player.hasInfiniteMaterials()) {
+            return true;
+        }
+        return PlatformNetworking.canSendToServer(ContainerInteractPayload.TYPE);
     }
 
     /**
