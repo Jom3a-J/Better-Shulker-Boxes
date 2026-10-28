@@ -23,7 +23,8 @@
       "com.bettershulker.gametest.PackGalleryGameTest",
       "com.bettershulker.gametest.StackedBoxGameTest",
       "com.bettershulker.gametest.CreativeChestGameTest",
-      "com.bettershulker.gametest.ContainerRefusalGameTest"
+      "com.bettershulker.gametest.ContainerRefusalGameTest",
+      "com.bettershulker.gametest.ServerWithoutModGameTest"
     ]
   }
 }

@@ -63,6 +63,8 @@ public final class EnderChestCache {
 
     /** Sends a C2S Ender Chest sync request tied to the current tooltip source. */
     public static void requestEnderChestSync(int sourceSlotId) {
+        // A server without the mod cannot answer, so the preview stays empty rather than asking.
+        if (!PlatformNetworking.canSendToServer(EnderChestRequestPayload.TYPE)) return;
         long now = System.currentTimeMillis();
         if (now - lastEnderChestRequestTime >= ENDER_CHEST_REQUEST_COOLDOWN_MS) {
             lastEnderChestRequestTime = now;

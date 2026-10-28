@@ -216,6 +216,8 @@ public abstract class HandledScreenMixin extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void bettershulker$onMouseClicked(MouseButtonEvent event, boolean handled, CallbackInfoReturnable<Boolean> ci) {
         var self = bettershulker$self();
+        // Without the mod on the server every click here belongs to vanilla.
+        if (!ContainerPrediction.canInteract(self)) return;
         ItemStack carried = self.getMenu().getCarried();
 
 
@@ -529,7 +531,8 @@ public abstract class HandledScreenMixin extends Screen {
         int keyCode = keyEvent.key();
 
         // 00000. Restock or Deposit via configurable restock key when tooltip is active
-        if (ClientKeybinds.getRestockKey().matches(keyEvent) && BetterShulkerClient.isTooltipActive()) {
+        if (ClientKeybinds.getRestockKey().matches(keyEvent) && BetterShulkerClient.isTooltipActive()
+                && ContainerPrediction.canInteract(bettershulker$self())) {
             boolean shiftHeld = InputKeys.isShiftDown();
             ContainerActions.restockOrDeposit(bettershulker$self(), bettershulker$getActiveContainer(), shiftHeld);
             ci.setReturnValue(true);
@@ -560,7 +563,8 @@ public abstract class HandledScreenMixin extends Screen {
         // If nothing is selected, do not consume the key so Minecraft closes the inventory normally.
         if (ClientKeybinds.getExtractKey().matches(keyEvent)
                 && BetterShulkerClient.isTooltipActive()
-                && !BetterShulkerClient.getSelectedSlotsSet().isEmpty()) {
+                && !BetterShulkerClient.getSelectedSlotsSet().isEmpty()
+                && ContainerPrediction.canInteract(bettershulker$self())) {
             ContainerActions.multiSelectExtract(bettershulker$self(), bettershulker$getActiveContainer());
             ci.setReturnValue(true);
             ci.cancel();

@@ -2,6 +2,7 @@ package com.bettershulker.mixin;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
+import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.server.EnderChestSync;
 import com.bettershulker.server.EnderChestService;
 import com.bettershulker.util.ContainerHelper;
@@ -248,8 +249,13 @@ public abstract class ItemMixin {
                 || !slot.allowModification(player)) {
             return false;
         }
-        return player.level().isClientSide()
-                || (player instanceof ServerPlayer serverPlayer && InteractionRateLimiter.consume(serverPlayer));
+        // On the client this predicts what the server's copy of this hook will do, so it only
+        // runs when the server has the mod; otherwise vanilla's click would be overridden here
+        // and nowhere else.
+        if (player.level().isClientSide()) {
+            return PlatformNetworking.canSendToServer(ContainerInteractPayload.TYPE);
+        }
+        return player instanceof ServerPlayer serverPlayer && InteractionRateLimiter.consume(serverPlayer);
     }
 
     @org.spongepowered.asm.mixin.Unique

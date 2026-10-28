@@ -39,6 +39,7 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
         // Only the client direction. The common entrypoint installs the server sender, on this
         // dist too, which is what the integrated server uses.
         PlatformNetworking.setClientSender(ClientPlayNetworking::send);
+        PlatformNetworking.setServerChannelCheck(ClientPlayNetworking::canSend);
         BetterShulkerMod.setClientEnderChestSupplier(EnderChestCache::getEnderChestContents);
 
         ClientTooltipComponentCallback.EVENT.register(data -> {
