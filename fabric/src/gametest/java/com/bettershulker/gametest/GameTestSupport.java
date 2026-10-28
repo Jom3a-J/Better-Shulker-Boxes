@@ -7,12 +7,19 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.NonNullList;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+
+import java.util.function.Function;
 
 /**
  * Driving the inventory screen from a client game test.
@@ -26,6 +33,8 @@ final class GameTestSupport {
     /** Vanilla inventory screen dimensions, used to place the cursor over a known slot. */
     private static final int INVENTORY_IMAGE_WIDTH = 176;
     private static final int INVENTORY_IMAGE_HEIGHT = 166;
+    /** A chest screen's height before its rows, which add 18 each. */
+    private static final int CHEST_IMAGE_BASE_HEIGHT = 114;
 
     private GameTestSupport() {}
 
@@ -144,6 +153,23 @@ final class GameTestSupport {
         context.waitTicks(2);
     }
 
+    /**
+     * Opens a server-backed three-row chest holding {@code firstSlot} in its first slot. The
+     * container belongs to no block, so it is valid wherever the player stands.
+     */
+    static void openChest(ClientGameTestContext context, TestSingleplayerContext sp, ItemStack firstSlot) {
+        sp.getServer().runOnServer(server -> {
+            var player = server.getPlayerList().getPlayers().getFirst();
+            SimpleContainer chest = new SimpleContainer(27);
+            chest.setItem(0, firstSlot.copy());
+            player.openMenu(new SimpleMenuProvider(
+                    (id, inventory, p) -> ChestMenu.threeRows(id, inventory, chest),
+                    Component.literal("Test chest")));
+        });
+        context.waitForScreen(ContainerScreen.class);
+        context.waitTicks(2);
+    }
+
     static void closeScreen(ClientGameTestContext context) {
         context.runOnClient(client -> {
             if (client.gui.screen() != null) client.gui.screen().onClose();
@@ -159,18 +185,35 @@ final class GameTestSupport {
      * inventory's fixed size, the screen's own being protected.</p>
      */
     static void hoverInventorySlot(ClientGameTestContext context, int position) {
+        hoverSlot(context, client -> findSlot(client, position));
+    }
+
+    /** Puts the mouse over a slot by its index in the open menu, for slots the player does not own. */
+    static void hoverMenuSlot(ClientGameTestContext context, int menuIndex) {
+        hoverSlot(context, client -> ((AbstractContainerScreen<?>) client.gui.screen()).getMenu().getSlot(menuIndex));
+    }
+
+    private static void hoverSlot(ClientGameTestContext context, Function<Minecraft, Slot> slotFinder) {
         double[] pos = context.computeOnClient(client -> {
-            Slot slot = findSlot(client, position);
+            Slot slot = slotFinder.apply(client);
             double scale = client.getWindow().getGuiScale();
-            int left = (client.gui.screen().width - INVENTORY_IMAGE_WIDTH) / 2;
-            int top = (client.gui.screen().height - INVENTORY_IMAGE_HEIGHT) / 2;
+            int[] origin = panelOrigin(client);
             return new double[] {
-                    (left + slot.x + 8) * scale,
-                    (top + slot.y + 8) * scale
+                    (origin[0] + slot.x + 8) * scale,
+                    (origin[1] + slot.y + 8) * scale
             };
         });
         context.getInput().setCursorPos(pos[0], pos[1]);
         context.waitTicks(2);
+    }
+
+    /** Top-left of the open screen's panel. A chest's height depends on its row count. */
+    private static int[] panelOrigin(Minecraft client) {
+        var screen = client.gui.screen();
+        int height = screen instanceof ContainerScreen chest
+                ? CHEST_IMAGE_BASE_HEIGHT + chest.getMenu().getRowCount() * 18
+                : INVENTORY_IMAGE_HEIGHT;
+        return new int[] {(screen.width - INVENTORY_IMAGE_WIDTH) / 2, (screen.height - height) / 2};
     }
 
     static void clickInventorySlot(ClientGameTestContext context, int position, int button) {
@@ -202,8 +245,9 @@ final class GameTestSupport {
         double[] pos = context.computeOnClient(client -> {
             Slot slot = findSlot(client, position);
             double scale = client.getWindow().getGuiScale();
-            int left = (client.gui.screen().width - INVENTORY_IMAGE_WIDTH) / 2;
-            int top = (client.gui.screen().height - INVENTORY_IMAGE_HEIGHT) / 2;
+            int[] origin = panelOrigin(client);
+            int left = origin[0];
+            int top = origin[1];
             double x = slot.x + 8;
             // A slot answers to the pointer from one pixel outside its 16, so y - 0.5 is still on it.
             double pressY = slot.y - 0.5;
