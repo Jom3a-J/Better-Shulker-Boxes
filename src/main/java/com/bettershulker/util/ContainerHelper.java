@@ -95,9 +95,17 @@ public final class ContainerHelper {
         return isShulkerBox(stack) || isEnderChest(stack);
     }
 
-    /** Respects vanilla's lock component before exposing portable container interactions. */
+    /**
+     * Whether this mod may read or change the container through its item.
+     *
+     * <p>Respects vanilla's lock component. A Shulker Box must also be a stack of exactly one:
+     * boxes can be made to stack, and their contents live in the stack's component, so one item
+     * written into a stack of four lands in all four boxes. An Ender Chest's contents live on the
+     * player, so its stack size does not matter.</p>
+     */
     public static boolean canAccessContainer(ItemStack stack, @Nullable Player player) {
         if (player == null) return false;
+        if (isShulkerBox(stack) && stack.getCount() != 1) return false;
         LockCode lock = stack.get(DataComponents.LOCK);
         return lock == null || lock.canUnlock(player);
     }

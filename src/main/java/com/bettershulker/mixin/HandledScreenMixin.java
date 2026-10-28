@@ -817,7 +817,9 @@ public abstract class HandledScreenMixin extends Screen {
         if (carried.isEmpty()) return false;
         ItemStack slotStack = slot.getItem();
         if (!ContainerHelper.isShulkerBox(slotStack) || ContainerHelper.isShulkerBox(carried)) return false;
-        return ContainerHelper.canInsertInto(slotStack, carried);
+        // A box the click would refuse, stacked or locked, must not invite the drop either.
+        return ContainerHelper.canAccessContainer(slotStack, Minecraft.getInstance().player)
+                && ContainerHelper.canInsertInto(slotStack, carried);
     }
 
     @Inject(method = "extractSlot", at = @At("HEAD"))
