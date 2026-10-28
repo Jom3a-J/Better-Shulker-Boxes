@@ -241,8 +241,8 @@ public abstract class HandledScreenMixin extends Screen {
             && ContainerActions.canModifyContainerSlot(this.hoveredSlot)
             && ContainerHelper.isContainer(this.hoveredSlot.getItem())) {
             
-            // Safety check: Prevent nesting a Shulker Box inside another Shulker Box
-            if (ContainerHelper.isShulkerBox(carried) && ContainerHelper.isShulkerBox(this.hoveredSlot.getItem())) {
+            // Safety check: keep Shulker Boxes and modded containers out of a Shulker Box
+            if (!ContainerHelper.canGoInsideShulkerBox(carried) && ContainerHelper.isShulkerBox(this.hoveredSlot.getItem())) {
                 return;
             }
 
@@ -390,8 +390,8 @@ public abstract class HandledScreenMixin extends Screen {
                 || !slot.allowModification(player)) return;
 
         if (ContainerHelper.isContainer(carried)) {
-            // Safety check: Prevent nesting a Shulker Box inside another Shulker Box
-            if (ContainerHelper.isShulkerBox(carried) && ContainerHelper.isShulkerBox(slotStack)) {
+            // Safety check: keep Shulker Boxes and modded containers out of a Shulker Box
+            if (ContainerHelper.isShulkerBox(carried) && !ContainerHelper.canGoInsideShulkerBox(slotStack)) {
                 return;
             }
 
@@ -816,7 +816,7 @@ public abstract class HandledScreenMixin extends Screen {
     private boolean bettershulker$slotContainerAcceptsCarried(Slot slot, ItemStack carried) {
         if (carried.isEmpty()) return false;
         ItemStack slotStack = slot.getItem();
-        if (!ContainerHelper.isShulkerBox(slotStack) || ContainerHelper.isShulkerBox(carried)) return false;
+        if (!ContainerHelper.isShulkerBox(slotStack) || !ContainerHelper.canGoInsideShulkerBox(carried)) return false;
         // A box the click would refuse, stacked or locked, must not invite the drop either.
         return ContainerHelper.canAccessContainer(slotStack, Minecraft.getInstance().player)
                 && ContainerHelper.canInsertInto(slotStack, carried);

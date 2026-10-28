@@ -40,7 +40,8 @@ public class StackedBoxGameTest implements FabricClientGameTest {
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             singleplayer.getConnection().waitForChunksRender();
-            singleplayer.getServer().runCommand("gamemode survival");
+            // The server console is not a player, so the command needs an explicit target.
+            singleplayer.getServer().runCommand("gamemode survival @a");
 
             rightClickingAStackOfBoxesWithAnItemDoesNotDuplicateIt(context, singleplayer);
             rightClickingWithAStackOfBoxesDoesNotDuplicateTheItem(context, singleplayer);

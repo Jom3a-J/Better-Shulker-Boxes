@@ -11,6 +11,9 @@
     "fabric-client-gametest-api-v1": "*"
   },
   "entrypoints": {
+    "main": [
+      "com.bettershulker.gametest.TestItems"
+    ],
     "fabric-client-gametest": [
       "com.bettershulker.gametest.ShulkerInteractionGameTest",
       "com.bettershulker.gametest.EnderChestInteractionGameTest",
@@ -19,7 +22,8 @@
       "com.bettershulker.gametest.PackDefinitionGameTest",
       "com.bettershulker.gametest.PackGalleryGameTest",
       "com.bettershulker.gametest.StackedBoxGameTest",
-      "com.bettershulker.gametest.CreativeChestGameTest"
+      "com.bettershulker.gametest.CreativeChestGameTest",
+      "com.bettershulker.gametest.ContainerRefusalGameTest"
     ]
   }
 }

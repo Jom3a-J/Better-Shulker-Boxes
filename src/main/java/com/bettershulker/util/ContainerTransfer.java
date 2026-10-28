@@ -41,9 +41,10 @@ public final class ContainerTransfer {
      *       into the first available empty slot.</li>
      * </ol>
      *
-     * <p><b>Anti-exploit:</b> Shulker boxes cannot be inserted into shulker
-     * boxes (prevents infinite recursive nesting). This check runs before any
-     * insertion attempt and immediately returns the full stack unchanged.</p>
+     * <p><b>Anti-exploit:</b> items that refuse to go inside container items -
+     * Shulker Boxes, and modded containers such as backpacks - are rejected
+     * (prevents unbounded nesting). This check runs before any insertion attempt
+     * and immediately returns the full stack unchanged.</p>
      *
      * @param contents   the container's mutable slot list (will be modified in place)
      * @param toInsert   the stack to insert (will NOT be modified — caller should
@@ -55,7 +56,7 @@ public final class ContainerTransfer {
      */
     public static ItemStack tryInsert(NonNullList<ItemStack> contents, ItemStack toInsert, boolean singleItem) {
         if (toInsert.isEmpty()) return ItemStack.EMPTY;
-        if (ContainerHelper.isShulkerBox(toInsert)) return toInsert.copy();
+        if (!ContainerHelper.canGoInsideShulkerBox(toInsert)) return toInsert.copy();
 
         int insertCount = singleItem ? 1 : toInsert.getCount();
         int maxStackSize = toInsert.getMaxStackSize();
