@@ -14,6 +14,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
@@ -35,6 +36,7 @@ public final class BetterShulkerNeoForgeClient {
         this.modContainer = modContainer;
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing NeoForge client module");
 
+        BetterShulkerConfig.setConfigDir(FMLPaths.CONFIGDIR.get());
         BetterShulkerConfig.load();
 
         // Only the client direction. BetterShulkerNeoForgeMod installs the server sender, on this

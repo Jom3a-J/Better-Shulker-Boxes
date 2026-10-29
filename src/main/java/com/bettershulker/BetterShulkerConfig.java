@@ -242,12 +242,39 @@ public class BetterShulkerConfig {
     //  Configuration Persistence
     // =========================================================================
 
-    private static final Path CONFIG_PATH = Path.of("config", "bettershulker-plus.properties");
+    private static final String CONFIG_FILE_NAME = "bettershulker-plus.properties";
+
+    /**
+     * Where the file was written before the loader's folder was used: relative to the working
+     * directory. That is the game's folder only when the launcher starts the game there, so it is
+     * kept just to read an existing config from once.
+     */
+    private static final Path LEGACY_CONFIG_PATH = Path.of("config", CONFIG_FILE_NAME);
+
+    private static volatile Path configPath = LEGACY_CONFIG_PATH;
+
+    /** Points the config at the loader's own config folder. Called before {@link #load()}. */
+    public static void setConfigDir(Path dir) {
+        configPath = dir.resolve(CONFIG_FILE_NAME);
+    }
+
+    public static Path getConfigPath() {
+        return configPath;
+    }
 
     /** Load config from disk (called once during mod initialization). */
     public static void load() {
-        if (!Files.exists(CONFIG_PATH)) return;
-        try (var reader = Files.newBufferedReader(CONFIG_PATH)) {
+        Path path = configPath;
+        if (!Files.exists(path)) {
+            // A config written by an older version may sit under the working directory instead.
+            // Read it so the settings carry over; the next save writes to the new place.
+            if (path.toAbsolutePath().equals(LEGACY_CONFIG_PATH.toAbsolutePath())
+                    || !Files.exists(LEGACY_CONFIG_PATH)) {
+                return;
+            }
+            path = LEGACY_CONFIG_PATH;
+        }
+        try (var reader = Files.newBufferedReader(path)) {
             Properties props = new Properties();
             props.load(reader);
             tooltipEnabled          = bool(props, "tooltipEnabled", tooltipEnabled);
@@ -284,7 +311,7 @@ public class BetterShulkerConfig {
             customNameBorderColor = hexVal(props, "customNameBorderColor", customNameBorderColor);
             customNameTextColor   = hexVal(props, "customNameTextColor", customNameTextColor);
             customSelectionSquareColor = hexVal(props, "customSelectionSquareColor", customSelectionSquareColor);
-            BetterShulkerMod.LOGGER.info("[BetterShulker] Config loaded from {}", CONFIG_PATH);
+            BetterShulkerMod.LOGGER.info("[BetterShulker] Config loaded from {}", path);
         } catch (Exception e) {
             BetterShulkerMod.LOGGER.warn("[BetterShulker] Failed to load config", e);
         }
@@ -303,7 +330,8 @@ public class BetterShulkerConfig {
             setResourcePackLayoutOffsetX(resourcePackLayoutOffsetX);
             setResourcePackLayoutOffsetY(resourcePackLayoutOffsetY);
             setResourcePackLayoutBottomCapHeight(resourcePackLayoutBottomCapHeight);
-            Files.createDirectories(CONFIG_PATH.getParent());
+            Path path = configPath;
+            Files.createDirectories(path.toAbsolutePath().getParent());
             Properties props = new Properties();
             props.setProperty("tooltipEnabled", String.valueOf(tooltipEnabled));
             props.setProperty("precisionModeEnabled", String.valueOf(precisionModeEnabled));
@@ -331,10 +359,18 @@ public class BetterShulkerConfig {
             props.setProperty("customNameBorderColor", String.format("0x%08X", customNameBorderColor));
             props.setProperty("customNameTextColor", String.format("0x%08X", customNameTextColor));
             props.setProperty("customSelectionSquareColor", String.format("0x%08X", customSelectionSquareColor));
-            try (var writer = Files.newBufferedWriter(CONFIG_PATH)) {
+            // Written beside the real file and moved over it, so a crash mid-save leaves the old
+            // config in place rather than a truncated one.
+            Path temp = path.resolveSibling(CONFIG_FILE_NAME + ".tmp");
+            try (var writer = Files.newBufferedWriter(temp)) {
                 props.store(writer, "Better Shulker Plus Configuration");
             }
-            BetterShulkerMod.LOGGER.info("[BetterShulker] Config saved to {}", CONFIG_PATH);
+            try {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+            BetterShulkerMod.LOGGER.info("[BetterShulker] Config saved to {}", path);
         } catch (Exception e) {
             BetterShulkerMod.LOGGER.warn("[BetterShulker] Failed to save config", e);
         }
