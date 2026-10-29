@@ -1,26 +1,12 @@
 package com.bettershulker.server;
 
-import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.ContainerInteractPayload;
-import com.bettershulker.network.EnderChestRequestPayload;
-import com.bettershulker.network.EnderChestSyncPayload;
-import com.bettershulker.network.MenuSlotRef;
-import com.bettershulker.platform.PlatformNetworking;
-import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.util.InteractionSounds;
-import com.bettershulker.util.ContainerTransfer;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Server-side Ender Chest handling.
@@ -35,14 +21,6 @@ import java.util.UUID;
  */
 public final class EnderChestService {
     private EnderChestService() {}
-
-
-
-
-
-
-
-
 
     public static NonNullList<ItemStack> copyEnderChestContents(ServerPlayer player) {
         var enderInv = player.getEnderChestInventory();

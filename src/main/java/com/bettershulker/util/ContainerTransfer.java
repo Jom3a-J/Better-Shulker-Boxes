@@ -88,6 +88,34 @@ public final class ContainerTransfer {
     }
 
     /**
+     * Puts as much of {@code stack} into Ender Chest contents as fits, shrinking {@code stack} by
+     * what went in: matching stacks first, then empty slots chosen by
+     * {@link #findSmartMergeEmptySlot}.
+     *
+     * <p>Unlike {@link #tryInsert} this refuses nothing, since an Ender Chest may hold anything,
+     * Shulker Boxes included. The one copy of this logic: the server's actions, the client's
+     * prediction and the click hook all go through it, so they place items alike.</p>
+     */
+    public static void insertIntoEnderChest(NonNullList<ItemStack> contents, ItemStack stack) {
+        for (int i = 0; i < contents.size() && !stack.isEmpty(); i++) {
+            ItemStack existing = contents.get(i);
+            if (existing.isEmpty() || !ItemStack.isSameItemSameComponents(existing, stack)) continue;
+            int toInsert = Math.min(existing.getMaxStackSize() - existing.getCount(), stack.getCount());
+            if (toInsert > 0) {
+                existing.grow(toInsert);
+                stack.shrink(toInsert);
+            }
+        }
+        while (!stack.isEmpty()) {
+            int bestSlot = findSmartMergeEmptySlot(contents, stack);
+            if (bestSlot == -1) break;
+            int toInsert = Math.min(stack.getMaxStackSize(), stack.getCount());
+            contents.set(bestSlot, stack.copyWithCount(toInsert));
+            stack.shrink(toInsert);
+        }
+    }
+
+    /**
      * Whether these contents have room for at least one of {@code toInsert}.
      *
      * <p>Mirrors the two places {@link #tryInsert} can put something — a matching stack that still

@@ -1,8 +1,6 @@
 package com.bettershulker.server;
 
-import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.ContainerInteractPayload;
-import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.util.InteractionSounds;
 import com.bettershulker.util.ContainerTransfer;

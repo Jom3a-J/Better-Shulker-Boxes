@@ -1,16 +1,9 @@
 package com.bettershulker.client;
 
-import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.BetterShulkerMod;
-import com.bettershulker.network.EnderChestRequestPayload;
-import com.bettershulker.network.EnderChestSyncPayload;
-import com.bettershulker.platform.PlatformNetworking;
-import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.resources.Identifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -33,9 +26,6 @@ import java.util.Set;
 public class BetterShulkerClient {
 
     // =========================================================================
-    //  Keybindings
-    // =========================================================================
-    // =========================================================================
     //  Client State Definitions
     // =========================================================================
     /** Current selected slot index inside the 9x3 grid (controlled by mouse scroll). */
@@ -48,7 +38,6 @@ public class BetterShulkerClient {
     private static ItemStack activeContainerStack = ItemStack.EMPTY;
     private static final Set<Integer> selectedSlotsSet = new HashSet<>();
 
-    /** Cooldown tracking to limit ender chest sync request packets. */
     private static int lastMouseX = 0;
     private static int lastMouseY = 0;
     // =========================================================================
@@ -77,16 +66,12 @@ public class BetterShulkerClient {
         public final long id;
         public final long timestamp;
         public final ItemStack originalCarried;
-        public final ItemStack originalContainer;
-        public final int containerSlotId;
         public final Map<Integer, ItemStack> originalSlots = new HashMap<>();
 
-        public PredictionTransaction(long id, ItemStack carried, ItemStack container, int containerSlotId) {
+        public PredictionTransaction(long id, ItemStack carried) {
             this.id = id;
             this.timestamp = System.currentTimeMillis();
             this.originalCarried = carried.copy();
-            this.originalContainer = container.copy();
-            this.containerSlotId = containerSlotId;
         }
     }
 
@@ -94,10 +79,8 @@ public class BetterShulkerClient {
     private static final List<PredictionTransaction> activeTransactions = new ArrayList<>();
 
     // =========================================================================
-    //  Loader-neutral Client Initialization Hooks
-
-
-
+    //  Loader-neutral Client Hooks
+    // =========================================================================
 
     public static void handleClientTick(Minecraft client) {
         KeyMapping settingsKey = ClientKeybinds.getSettingsKey();
@@ -112,9 +95,9 @@ public class BetterShulkerClient {
         }
     }
 
+    // =========================================================================
     //  Public Accessors & Control Methods
     // =========================================================================
-
 
     public static int getSelectedSlotIndex() {
         return selectedSlotIndex;
@@ -135,10 +118,6 @@ public class BetterShulkerClient {
     public static void setTooltipActive(boolean active) {
         tooltipActive = active;
     }
-
-
-
-
 
     public static int getHoveredTooltipSlotIndex() {
         return hoveredTooltipSlotIndex;
@@ -188,18 +167,6 @@ public class BetterShulkerClient {
         lastMouseY = y;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
     public static float getCurrentSelectedCol() { return currentSelectedCol; }
     public static void setCurrentSelectedCol(float v) { currentSelectedCol = v; }
     public static float getCurrentSelectedRow() { return currentSelectedRow; }
@@ -215,9 +182,9 @@ public class BetterShulkerClient {
     //  Prediction Methods
     // =========================================================================
 
-    public static long startPrediction(ItemStack carried, ItemStack container, int containerSlotId) {
+    public static long startPrediction(ItemStack carried) {
         long id = nextTransactionId++;
-        activeTransactions.add(new PredictionTransaction(id, carried, container, containerSlotId));
+        activeTransactions.add(new PredictionTransaction(id, carried));
         return id;
     }
 

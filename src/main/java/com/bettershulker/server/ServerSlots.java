@@ -7,9 +7,9 @@ import com.bettershulker.util.ContainerHelper;
 import net.minecraft.util.Prediction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Slot checks the server-side handlers share.
@@ -23,7 +23,6 @@ public final class ServerSlots {
 
     private ServerSlots() {}
 
-    // =========================================================================
     public static boolean isUsableSlot(Slot slot) {
         return slot != null && slot.isActive() && !slot.isFake();
     }
@@ -47,8 +46,11 @@ public final class ServerSlots {
     /**
      * Uses the vanilla slot insertion path while additionally rejecting fake/inactive slots and
      * occupied slots the player is not allowed to modify. The returned stack is the remainder.
+     *
+     * <p>Takes any player because the click hooks in {@code ItemMixin} run it on the client too,
+     * to predict what the server will do.</p>
      */
-    public static ItemStack safeInsertIntoSlot(ServerPlayer player, Slot slot, ItemStack stack) {
+    public static ItemStack safeInsertIntoSlot(Player player, Slot slot, ItemStack stack) {
         if (stack.isEmpty()
                 || !ContainerHelper.isPlayerInventorySlot(slot, player, 36)
                 || !slot.allowModification(player)
@@ -68,7 +70,7 @@ public final class ServerSlots {
      * that conserves it exactly: discarding it would delete items, and abandoning the operation
      * after the destination slot was already written would duplicate them.</p>
      */
-    public static void restoreExtractedStack(ServerPlayer player, NonNullList<ItemStack> contents,
+    public static void restoreExtractedStack(Player player, NonNullList<ItemStack> contents,
                                               int index, ItemStack remainder) {
         if (remainder.isEmpty()) return;
 
@@ -77,7 +79,8 @@ public final class ServerSlots {
             contents.set(index, remainder);
         } else if (ItemStack.isSameItemSameComponents(current, remainder)) {
             current.grow(remainder.getCount());
-        } else {
+        } else if (!player.level().isClientSide()) {
+            // Only the server hands the stack back; a client prediction leaves that to it.
             BetterShulkerMod.LOGGER.error("[BetterShulker] Extracted stack no longer matches its source slot for"
                     + " player {}; returning {} to their inventory",
                     player.getName().getString(), remainder);

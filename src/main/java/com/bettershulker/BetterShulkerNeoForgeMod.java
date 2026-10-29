@@ -4,7 +4,6 @@ import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.server.EnderChestSync;
-import com.bettershulker.server.EnderChestService;
 import com.bettershulker.platform.PlatformNetworking;
 import com.bettershulker.server.InteractionRateLimiter;
 

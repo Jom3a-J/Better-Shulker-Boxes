@@ -36,43 +36,19 @@ final class EnderChestActions {
 
     /** Inserts the whole carried stack, merging into matching stacks before taking empty slots. */
     static Outcome insert(ServerPlayer player) {
-        var enderInv = player.getEnderChestInventory();
         ItemStack cursorStack = player.containerMenu.getCarried();
         if (cursorStack.isEmpty()) return Outcome.NONE;
         int originalCount = cursorStack.getCount();
-        // Captured before the passes below shrink it. Reading it afterwards named the
+        // Captured before the insert shrinks it. Reading it afterwards named the
         // remainder, so a stack that fit entirely left an empty one behind and the
         // contextual sound fell back to its generic default instead of the item's own.
         ItemStack insertedSource = cursorStack.copy();
 
-        // First pass: merge with existing compatible stacks
-        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-            ItemStack existing = enderInv.getItem(i);
-            if (ServerSlots.canMergeInto(existing, cursorStack)) {
-                int canFit = existing.getMaxStackSize() - existing.getCount();
-                int toInsert = Math.min(canFit, cursorStack.getCount());
-                if (toInsert > 0) {
-                    existing.grow(toInsert);
-                    cursorStack.shrink(toInsert);
-                }
-            }
-            if (cursorStack.isEmpty()) break;
-        }
-
-        // Second pass: put into empty slots using smart-merge
-        if (!cursorStack.isEmpty()) {
-            while (cursorStack.getCount() > 0) {
-                NonNullList<ItemStack> enderList = EnderChestService.copyEnderChestContents(player);
-                int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, cursorStack);
-                if (bestSlot == -1) break;
-
-                int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
-                enderInv.setItem(bestSlot, cursorStack.copyWithCount(toInsert));
-                cursorStack.shrink(toInsert);
-            }
-        }
+        NonNullList<ItemStack> contents = EnderChestService.copyEnderChestContents(player);
+        ContainerTransfer.insertIntoEnderChest(contents, cursorStack);
 
         if (cursorStack.getCount() < originalCount) {
+            EnderChestService.applyEnderChestContents(player, contents);
             return new Outcome(true, true, insertedSource);
         }
         return Outcome.NONE;
@@ -168,7 +144,6 @@ final class EnderChestActions {
 
     /** Sweeps a whole inventory slot into the chest, writing the remainder back to that slot. */
     static Outcome sweepInsert(ServerPlayer player, int inventorySlotId) {
-        var enderInv = player.getEnderChestInventory();
         Slot targetSlot = ServerSlots.getPlayerInventorySlot(player, inventorySlotId, "SWEEP_INSERT");
         if (targetSlot == null || !targetSlot.allowModification(player)) return Outcome.NONE;
         ItemStack originalStack = targetSlot.getItem();
@@ -176,36 +151,12 @@ final class EnderChestActions {
         ItemStack invStack = originalStack.copy();
         int originalCount = invStack.getCount();
 
-        // Auto-insert invStack into the ender chest inventory
-        // First pass: merge with existing compatible stacks
-        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-            ItemStack existing = enderInv.getItem(i);
-            if (ServerSlots.canMergeInto(existing, invStack)) {
-                int canFit = existing.getMaxStackSize() - existing.getCount();
-                int toInsert = Math.min(canFit, invStack.getCount());
-                if (toInsert > 0) {
-                    existing.grow(toInsert);
-                    invStack.shrink(toInsert);
-                }
-            }
-            if (invStack.isEmpty()) break;
-        }
-
-        // Second pass: put into empty slots using smart-merge
-        if (!invStack.isEmpty()) {
-            while (invStack.getCount() > 0) {
-                NonNullList<ItemStack> enderList = EnderChestService.copyEnderChestContents(player);
-                int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(enderList, invStack);
-                if (bestSlot == -1) break;
-
-                int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                enderInv.setItem(bestSlot, invStack.copyWithCount(toInsert));
-                invStack.shrink(toInsert);
-            }
-        }
+        NonNullList<ItemStack> contents = EnderChestService.copyEnderChestContents(player);
+        ContainerTransfer.insertIntoEnderChest(contents, invStack);
 
         // Update the source inventory slot containing the remainder only after insertion succeeds.
         if (invStack.getCount() < originalCount) {
+            EnderChestService.applyEnderChestContents(player, contents);
             targetSlot.setByPlayer(invStack, originalStack);
             return new Outcome(true, true, originalStack.copy());
         }

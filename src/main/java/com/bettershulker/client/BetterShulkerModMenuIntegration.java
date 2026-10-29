@@ -2,7 +2,6 @@ package com.bettershulker.client;
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
-import net.minecraft.client.gui.screens.Screen;
 
 /**
  * ModMenu api integration for Better Shulker.

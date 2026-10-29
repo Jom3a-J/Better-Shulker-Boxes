@@ -1,11 +1,8 @@
 package com.bettershulker.util;
 
-import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.network.MenuSlotRef;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeColor;
@@ -15,14 +12,8 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import org.jetbrains.annotations.Nullable;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Central utility class for all container-related operations in Better Shulker.
@@ -32,9 +23,9 @@ import java.util.Set;
  * and perform validated insert/extract operations with full exploit prevention
  * (e.g. blocking nested shulker boxes).</p>
  *
- * <p>All methods are stateless and thread-safe — they operate purely on the
- * provided arguments with no side effects beyond mutating the passed-in
- * {@link NonNullList} or {@link ItemStack} as documented.</p>
+ * <p>All methods are stateless — they operate purely on the provided arguments
+ * with no side effects beyond mutating the passed-in {@link ItemStack} as
+ * documented.</p>
  */
 public final class ContainerHelper {
 
@@ -212,18 +203,7 @@ public final class ContainerHelper {
     }
 
     // =========================================================================
-    //  Insertion Logic
-    // =========================================================================
-
-
-
-    // =========================================================================
-    //  Extraction Logic
-    // =========================================================================
-
-
-    // =========================================================================
-    //  Capacity & Proximity Checks
+    //  Capacity Checks
     // =========================================================================
 
     /**
@@ -286,33 +266,10 @@ public final class ContainerHelper {
         return max == null ? 1 : max;
     }
 
-
-
     public static boolean containsAny(String value, String... needles) {
         for (String needle : needles) {
             if (value.contains(needle)) return true;
         }
         return false;
     }
-
-
-    // =========================================================================
-    //  Smart-Merge Proximity Heuristic
-    // =========================================================================
-
-
-    // =========================================================================
-    //  Contextual Sound Selection
-    // =========================================================================
-
-
-    // =========================================================================
-    //  Shared Action Operations (Restock, Deposit)
-
-
-
-    // =========================================================================
-    //  Audio Utility Wrap
-    // =========================================================================
-
 }
