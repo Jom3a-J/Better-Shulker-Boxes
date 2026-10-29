@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
@@ -35,6 +36,8 @@ final class GameTestSupport {
     private static final int INVENTORY_IMAGE_HEIGHT = 166;
     /** A chest screen's height before its rows, which add 18 each. */
     private static final int CHEST_IMAGE_BASE_HEIGHT = 114;
+    private static final int CREATIVE_IMAGE_WIDTH = 195;
+    private static final int CREATIVE_IMAGE_HEIGHT = 136;
 
     private GameTestSupport() {}
 
@@ -210,6 +213,9 @@ final class GameTestSupport {
     /** Top-left of the open screen's panel. A chest's height depends on its row count. */
     private static int[] panelOrigin(Minecraft client) {
         var screen = client.gui.screen();
+        if (screen instanceof CreativeModeInventoryScreen) {
+            return new int[] {(screen.width - CREATIVE_IMAGE_WIDTH) / 2, (screen.height - CREATIVE_IMAGE_HEIGHT) / 2};
+        }
         int height = screen instanceof ContainerScreen chest
                 ? CHEST_IMAGE_BASE_HEIGHT + chest.getMenu().getRowCount() * 18
                 : INVENTORY_IMAGE_HEIGHT;

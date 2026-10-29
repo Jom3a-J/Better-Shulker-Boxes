@@ -63,7 +63,9 @@ public class PackGalleryGameTest implements FabricClientGameTest {
         BetterShulkerConfig.TooltipStyle savedStyle = BetterShulkerConfig.getTooltipStyle();
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             singleplayer.getConnection().waitForChunksRender();
-            singleplayer.getServer().runCommand("gamemode creative");
+            // Survival, so the inventory key opens the survival screen these captures are laid out
+            // for. The console is not a player, so the command needs a target.
+            singleplayer.getServer().runCommand("gamemode survival @a");
 
             capturePack(context, singleplayer, null);
             for (String pack : packs) capturePack(context, singleplayer, pack);

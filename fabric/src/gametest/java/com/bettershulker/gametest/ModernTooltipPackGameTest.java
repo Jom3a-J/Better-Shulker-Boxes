@@ -81,7 +81,9 @@ public class ModernTooltipPackGameTest implements FabricClientGameTest {
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             singleplayer.getConnection().waitForChunksRender();
-            singleplayer.getServer().runCommand("gamemode creative");
+            // Survival, so the inventory key opens the survival screen these captures are laid out
+            // for. The console is not a player, so the command needs a target.
+            singleplayer.getServer().runCommand("gamemode survival @a");
 
             evictionNeverHandsBackTheWrongPanel(context);
             evictionNeverHandsBackTheWrongPanelColour(context);
