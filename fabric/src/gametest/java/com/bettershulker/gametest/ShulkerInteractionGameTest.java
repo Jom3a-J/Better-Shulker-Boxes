@@ -43,7 +43,10 @@ public class ShulkerInteractionGameTest implements FabricClientGameTest {
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             singleplayer.getConnection().waitForChunksRender();
-            singleplayer.getServer().runCommand("gamemode creative");
+            // Survival, on purpose: it opens the survival inventory and takes the server path these
+            // cases check. The console is not a player, so the command needs a target; the bare
+            // "gamemode creative" that used to be here did nothing. Creative is CreativeInventoryGameTest.
+            singleplayer.getServer().runCommand("gamemode survival @a");
 
             hoveringABoxOpensTheTooltip(context, singleplayer);
             rightClickInsertsTheCarriedStack(context, singleplayer);

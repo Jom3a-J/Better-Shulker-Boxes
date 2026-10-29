@@ -39,7 +39,9 @@ public class EnderChestInteractionGameTest implements FabricClientGameTest {
     public void runTest(ClientGameTestContext context) {
         try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
             singleplayer.getConnection().waitForChunksRender();
-            singleplayer.getServer().runCommand("gamemode creative");
+            // Survival, on purpose: Ender Chests cannot work in the creative inventory. The console
+            // is not a player, so the command needs a target; the bare form did nothing.
+            singleplayer.getServer().runCommand("gamemode survival @a");
 
             contentsReachTheClientBeforeTheTooltipOpens(context, singleplayer);
             rightClickInsertsIntoTheEnderChest(context, singleplayer);
