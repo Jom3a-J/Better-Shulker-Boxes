@@ -30,6 +30,9 @@ fabricApi {
         createSourceSet = true
         modId = "bettershulker-test"
         enableClientGameTests = true
+        // Every test here is a client test. Server game tests would only boot an empty test
+        // server as part of every build.
+        enableGameTests = false
     }
 }
 
