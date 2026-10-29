@@ -2,6 +2,7 @@ package com.bettershulker.gametest;
 
 import com.bettershulker.client.render.PanelBottomEdge;
 import com.bettershulker.client.render.ResourcePackLayout;
+import com.bettershulker.client.render.ResourcePackLayoutProfiles;
 import com.bettershulker.client.render.ResourcePackPanelColors;
 import com.bettershulker.client.render.ShulkerGuiRules;
 import com.bettershulker.client.render.ShulkerTooltipData;
@@ -43,6 +44,7 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
         iniSectionsAnywhereUnderGuiAreRead();
         iniSectionsForOtherTexturesOrBadPrioritiesAreDropped();
         nameRulesFollowOptiFineSyntax();
+        texturePatternsReadWildcardsLikeNameRules();
         aFileWithoutColorsReadsAsEachModReadsIt();
         texturePathsResolveLikeTheMods();
         context.runOnClient(client -> unnamedBoxesAreMatchedByTheirScreenTitle());
@@ -136,6 +138,25 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
     }
 
     /** OptiFine applies a file without colors to every box; OptiGUI only to the undyed one. */
+    /**
+     * A layout profile's {@code match.texture} uses the same wildcards as a {@code pattern:} name
+     * rule: {@code *} for any run of characters, {@code ?} for exactly one. The {@code ?} used to
+     * reach the regex untouched, where it made the character before it optional instead.
+     */
+    private void texturePatternsReadWildcardsLikeNameRules() {
+        String box = "minecraft:textures/gui/container/shulker_box.png";
+        assertTrue(ResourcePackLayoutProfiles.wildcardMatches("minecraft:textures/gui/container/shulker_bo?.png", box),
+                "? should stand for the one character it replaces");
+        assertTrue(!ResourcePackLayoutProfiles.wildcardMatches(
+                        "minecraft:textures/gui/container/shulker_box?.png",
+                        "minecraft:textures/gui/container/shulker_bo.png"),
+                "? should need exactly one character, not make the one before it optional");
+        assertTrue(ResourcePackLayoutProfiles.wildcardMatches("minecraft:textures/gui/*/shulker_*.png", box),
+                "* should still stand for any run of characters");
+        assertTrue(ResourcePackLayoutProfiles.wildcardMatches("MINECRAFT:textures/gui/container/shulker_box.png", box),
+                "texture patterns should stay case-insensitive");
+    }
+
     private void aFileWithoutColorsReadsAsEachModReadsIt() {
         String file = "container=shulker_box\ntexture=all\n";
         ShulkerGuiRules.Rule optiFine = properties(file, false);
