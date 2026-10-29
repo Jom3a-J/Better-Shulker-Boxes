@@ -3,7 +3,6 @@ package com.bettershulker.server;
 import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.util.ContainerHelper;
-import com.bettershulker.network.EnderChestRequestPayload;
 import com.bettershulker.platform.PlatformNetworking;
 
 import net.minecraft.core.NonNullList;

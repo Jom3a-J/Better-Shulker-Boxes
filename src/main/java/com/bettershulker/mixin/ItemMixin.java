@@ -5,14 +5,13 @@ import com.bettershulker.BetterShulkerMod;
 import com.bettershulker.network.ContainerInteractPayload;
 import com.bettershulker.server.EnderChestSync;
 import com.bettershulker.server.EnderChestService;
+import com.bettershulker.server.InteractionRateLimiter;
+import com.bettershulker.server.ServerSlots;
 import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.util.InteractionSounds;
 import com.bettershulker.util.ContainerTransfer;
 import com.bettershulker.platform.PlatformNetworking;
 
-import com.bettershulker.server.InteractionRateLimiter;
-
-import net.minecraft.util.Prediction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.SlotAccess;
@@ -56,8 +55,8 @@ public abstract class ItemMixin {
                     ItemStack extracted = ContainerTransfer.tryExtract(contents, extractionIndex, false);
                     ItemStack soundStack = extracted.copy();
                     int originalCount = extracted.getCount();
-                    ItemStack remainder = bettershulker$safeInsertIntoSlot(player, slot, extracted);
-                    bettershulker$restoreExtractedStack(player, contents, extractionIndex, remainder);
+                    ItemStack remainder = ServerSlots.safeInsertIntoSlot(player, slot, extracted);
+                    ServerSlots.restoreExtractedStack(player, contents, extractionIndex, remainder);
                     if (remainder.getCount() < originalCount) {
                         ContainerHelper.setContainerContents(stack, contents);
                         bettershulker$playLevelSound(player, soundStack, false);
@@ -96,7 +95,7 @@ public abstract class ItemMixin {
                         ItemStack transfer = sourceStack.copy();
                         ItemStack soundStack = transfer.copy();
                         int originalCount = transfer.getCount();
-                        ItemStack remainder = bettershulker$safeInsertIntoSlot(player, slot, transfer);
+                        ItemStack remainder = ServerSlots.safeInsertIntoSlot(player, slot, transfer);
                         int moved = originalCount - remainder.getCount();
                         if (moved > 0) {
                             sourceStack.shrink(moved);
@@ -170,7 +169,7 @@ public abstract class ItemMixin {
                 // Carried item right-clicked onto Ender Chest in slot -> Insert carried item into Ender Chest
                 if (!player.level().isClientSide()) {
                     ServerPlayer serverPlayer = (ServerPlayer) player;
-                    NonNullList<ItemStack> originalContents = bettershulker$copyEnderChestContents(serverPlayer);
+                    NonNullList<ItemStack> originalContents = EnderChestService.copyEnderChestContents(serverPlayer);
                     ItemStack invStack = bettershulker$insertIntoEnderChest(serverPlayer, other.copy());
 
                     if (invStack.getCount() != other.getCount() && slotAccess.set(invStack)) {
@@ -179,7 +178,7 @@ public abstract class ItemMixin {
                         ci.setReturnValue(true);
                     } else {
                         // SlotAccess can reject a write; never retain a transferred item in that case.
-                        bettershulker$restoreEnderChestContents(serverPlayer, originalContents);
+                        EnderChestService.applyEnderChestContents(serverPlayer, originalContents);
                     }
                 } else if (bettershulker$canInsertIntoEnderChest(
                         bettershulker$getClientEnderChestContents(), other)) {
@@ -192,37 +191,6 @@ public abstract class ItemMixin {
     // =========================================================================
     //  Private Helpers
     // =========================================================================
-
-    @org.spongepowered.asm.mixin.Unique
-    private ItemStack bettershulker$safeInsertIntoSlot(Player player, Slot slot, ItemStack stack) {
-        if (stack.isEmpty() || !slot.isActive() || slot.isFake() || !slot.mayPlace(stack)) {
-            return stack;
-        }
-        if (!slot.allowModification(player)) {
-            return stack;
-        }
-        return slot.safeInsert(stack);
-    }
-
-    @org.spongepowered.asm.mixin.Unique
-    private void bettershulker$restoreExtractedStack(Player player, NonNullList<ItemStack> contents,
-                                                      int index, ItemStack remainder) {
-        if (remainder.isEmpty()) return;
-
-        ItemStack current = contents.get(index);
-        if (current.isEmpty()) {
-            contents.set(index, remainder);
-        } else if (ItemStack.isSameItemSameComponents(current, remainder)) {
-            current.grow(remainder.getCount());
-        } else if (!player.level().isClientSide()) {
-            // Unreachable by construction: the remainder came from this very slot. Falling
-            // through silently would have deleted the stack, so hand it back to the player.
-            BetterShulkerMod.LOGGER.error("[BetterShulker] Extracted stack no longer matches its"
-                    + " source slot for player {}; returning {} to their inventory",
-                    player.getName().getString(), remainder);
-            player.getInventory().placeItemBackInInventory(remainder, Prediction.SERVER_ONLY);
-        }
-    }
 
     @org.spongepowered.asm.mixin.Unique
     private int bettershulker$firstOccupiedSlot(NonNullList<ItemStack> contents) {
@@ -292,43 +260,14 @@ public abstract class ItemMixin {
         PlatformNetworking.sendToPlayer(player, EnderChestSync.buildEnderChestSyncPayload(player));
     }
 
-    @org.spongepowered.asm.mixin.Unique
-    private NonNullList<ItemStack> bettershulker$copyEnderChestContents(ServerPlayer player) {
-        var enderInv = player.getEnderChestInventory();
-        NonNullList<ItemStack> contents = NonNullList.withSize(enderInv.getContainerSize(), ItemStack.EMPTY);
-        for (int i = 0; i < enderInv.getContainerSize(); i++) {
-            contents.set(i, enderInv.getItem(i).copy());
-        }
-        return contents;
-    }
-
-    @org.spongepowered.asm.mixin.Unique
-    private void bettershulker$restoreEnderChestContents(ServerPlayer player, NonNullList<ItemStack> contents) {
-        var enderInv = player.getEnderChestInventory();
-        for (int i = 0; i < enderInv.getContainerSize() && i < contents.size(); i++) {
-            enderInv.setItem(i, contents.get(i));
-        }
-    }
-
+    /** Inserts into the player's Ender Chest, returning {@code stack} shrunk to what did not fit. */
     @org.spongepowered.asm.mixin.Unique
     private ItemStack bettershulker$insertIntoEnderChest(ServerPlayer player, ItemStack stack) {
-        var enderInv = player.getEnderChestInventory();
-        for (int i = 0; i < enderInv.getContainerSize() && !stack.isEmpty(); i++) {
-            ItemStack existing = enderInv.getItem(i);
-            if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, stack)) {
-                int toInsert = Math.min(existing.getMaxStackSize() - existing.getCount(), stack.getCount());
-                if (toInsert > 0) {
-                    existing.grow(toInsert);
-                    stack.shrink(toInsert);
-                }
-            }
-        }
-        for (int i = 0; i < enderInv.getContainerSize() && !stack.isEmpty(); i++) {
-            if (enderInv.getItem(i).isEmpty()) {
-                int toInsert = Math.min(stack.getMaxStackSize(), stack.getCount());
-                enderInv.setItem(i, stack.copyWithCount(toInsert));
-                stack.shrink(toInsert);
-            }
+        int before = stack.getCount();
+        NonNullList<ItemStack> contents = EnderChestService.copyEnderChestContents(player);
+        ContainerTransfer.insertIntoEnderChest(contents, stack);
+        if (stack.getCount() < before) {
+            EnderChestService.applyEnderChestContents(player, contents);
         }
         return stack;
     }

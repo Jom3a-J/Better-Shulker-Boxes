@@ -17,7 +17,6 @@ import com.bettershulker.util.ContainerHelper;
 import com.bettershulker.util.ContainerTransfer;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -37,12 +36,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import java.util.ArrayList;
-import java.util.HashMap;
-
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -85,7 +80,6 @@ public abstract class HandledScreenMixin extends Screen {
     private Slot getHoveredSlot(double mouseX, double mouseY) {
         throw new AssertionError();
     }
-
 
     // =========================================================================
     //  State Tracking Fields
@@ -144,7 +138,6 @@ public abstract class HandledScreenMixin extends Screen {
         super(title);
     }
 
-
     @Unique
     private static boolean bettershulker$consumeTooltipScrollStep() {
         long now = System.currentTimeMillis();
@@ -155,15 +148,11 @@ public abstract class HandledScreenMixin extends Screen {
         return true;
     }
 
-
-
     @Unique
     @SuppressWarnings("unchecked")
     private AbstractContainerScreen<? extends AbstractContainerMenu> bettershulker$self() {
         return (AbstractContainerScreen<? extends AbstractContainerMenu>) (Object) this;
     }
-
-
 
     @Unique
     private ContainerActions.ActiveContainer bettershulker$getActiveContainer() {
@@ -197,7 +186,6 @@ public abstract class HandledScreenMixin extends Screen {
         return new ContainerActions.ActiveContainer(containerStack, MenuSlotRef.encode(sourceSlot, player));
     }
 
-
     @Unique
     private void bettershulker$resetDragState() {
         bettershulker$isDragging = false;
@@ -219,7 +207,6 @@ public abstract class HandledScreenMixin extends Screen {
         // Without the mod on the server every click here belongs to vanilla.
         if (!ContainerPrediction.canInteract(self)) return;
         ItemStack carried = self.getMenu().getCarried();
-
 
         // Right-click on a container in inventory while carrying nothing → extract selected item
         if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT
@@ -450,17 +437,6 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     // =========================================================================
-    //  Tap extraction — right-click tap extracts selected item to hovered slot
-    // =========================================================================
-    //  Container-in-slot extraction — right-click on container in inventory extracts selected item
-    // =========================================================================
-
-
-
-
-
-
-    // =========================================================================
     //  Scroll wheel — cycle through tooltip selected item
     // =========================================================================
 
@@ -515,12 +491,6 @@ public abstract class HandledScreenMixin extends Screen {
             ci.cancel();
         }
     }
-
-
-
-
-
-
 
     // =========================================================================
     //  Key press — arrow keys to cycle tooltip item
@@ -715,7 +685,6 @@ public abstract class HandledScreenMixin extends Screen {
         EnderChestCache.setEnderChestTooltipSourceSlot(EnderChestRequestPayload.ANY_ACCESSIBLE_SOURCE);
     }
 
-
     @Inject(method = "getTooltipFromContainerItem", at = @At("RETURN"), cancellable = true)
     private void bettershulker$onGetTooltipFromContainerItem(ItemStack stack,
                                                                CallbackInfoReturnable<List<Component>> ci) {
@@ -743,9 +712,6 @@ public abstract class HandledScreenMixin extends Screen {
     // =========================================================================
     //  Utility Helpers
     // =========================================================================
-
-
-
 
     @Unique
     private void bettershulker$renderContainerOverlay(GuiGraphicsExtractor graphics) {
@@ -786,16 +752,12 @@ public abstract class HandledScreenMixin extends Screen {
         }
     }
 
-
     @Unique
     private boolean bettershulker$isHoveringContainer() {
         return this.hoveredSlot != null && this.hoveredSlot.hasItem()
                 && ContainerHelper.isContainer(this.hoveredSlot.getItem())
                 && ContainerSelection.hasContents(this.hoveredSlot.getItem());
     }
-
-
-
 
     /** Sends an interaction, predicting it locally first. See {@link ContainerPrediction}. */
     @Unique

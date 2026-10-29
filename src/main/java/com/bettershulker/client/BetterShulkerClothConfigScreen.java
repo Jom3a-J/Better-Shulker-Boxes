@@ -2,31 +2,18 @@ package com.bettershulker.client;
 
 import com.bettershulker.BetterShulkerConfig;
 import com.bettershulker.client.render.ResourcePackContainerTextures;
-import com.bettershulker.client.render.ResourcePackLayout;
 import com.bettershulker.client.render.ResourcePackLayoutProfiles;
 
-import me.shedaniel.clothconfig2.api.AbstractConfigListEntry;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.api.Requirement;
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
-import net.minecraft.client.renderer.RenderPipelines;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
-
-import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
-import static com.bettershulker.client.render.ThemeColorUtil.getTextColorForBackground;
-import static com.bettershulker.client.render.ThemeColorUtil.normalizeOverlayAlpha;
-import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
 
 /**
  * Cloth Config-powered settings screen for Better Shulker Boxes.
@@ -53,25 +40,6 @@ public final class BetterShulkerClothConfigScreen {
 
         return builder.build();
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     private static void addGeneralCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {
         ConfigCategory category = builder.getOrCreateCategory(text("General"));
@@ -230,7 +198,6 @@ public final class BetterShulkerClothConfigScreen {
         category.addEntry(sub.setExpanded(false).build());
     }
 
-
     private static void addControlsCategory(ConfigBuilder builder, ConfigEntryBuilder entry) {
         ConfigCategory category = builder.getOrCreateCategory(text("Controls"));
         category.addEntry(entry.fillKeybindingField(text("Open Settings"), ClientKeybinds.getSettingsKey()).build());
@@ -271,8 +238,6 @@ public final class BetterShulkerClothConfigScreen {
         category.addEntry(sub.setRequirement(enableRequirement).setExpanded(false).build());
         return new LiveTooltipPreview.ColorSliders(red, green, blue);
     }
-
-
 
     private static int red(int color) { return (color >> 16) & 0xFF; }
     private static int green(int color) { return (color >> 8) & 0xFF; }

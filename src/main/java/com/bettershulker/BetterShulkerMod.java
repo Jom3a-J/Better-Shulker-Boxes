@@ -6,11 +6,8 @@ import com.bettershulker.server.EnderChestService;
 import com.bettershulker.server.InteractionRateLimiter;
 import com.bettershulker.server.ShulkerInteractionHandler;
 import com.bettershulker.server.ServerSlots;
-import com.bettershulker.network.EnderChestRequestPayload;
-import com.bettershulker.network.EnderChestSyncPayload;
 import com.bettershulker.network.MenuSlotRef;
 import com.bettershulker.util.ContainerHelper;
-import com.bettershulker.platform.PlatformNetworking;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -20,11 +17,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.function.Supplier;
 
 /**
@@ -43,19 +36,15 @@ public class BetterShulkerMod {
 
     public static final String MOD_ID = "bettershulker";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-    /**
-     * Maximum allowed container interactions per single game tick (exploit protection).
-     * Multi-select extraction can legitimately send up to one packet per shulker slot,
-     * so this must be high enough for a full 27-slot batch while still bounding spam.
-     */
+
     // =========================================================================
-    //  Shared Cache / Validation Utilities
+    //  Shared Cache Utilities
+    // =========================================================================
 
     public static void clearPlayerCaches(UUID uuid) {
         EnderChestSync.clearPlayer(uuid);
         InteractionRateLimiter.clearPlayer(uuid);
     }
-
 
     /**
      * Reads the client's cached Ender Chest contents, installed by the client entrypoint.
@@ -77,16 +66,7 @@ public class BetterShulkerMod {
         return supplier == null ? null : supplier.get();
     }
 
-
-
-
-
-
-
-
-
-
-
+    // =========================================================================
     //  Interaction Logic Handler & Validation
     // =========================================================================
 
@@ -190,28 +170,4 @@ public class BetterShulkerMod {
         InteractionRateLimiter.warnRejectedInteraction(player, "tried to interact with non-container item: " + containerStack.getItem());
         ServerSlots.resyncPlayer(player);
     }
-
-    // =========================================================================
-    //  Shulker Box Operations
-    // =========================================================================
-
-
-
-
-
-
-
-
-
-
-    //  Ender Chest Operations
-    // =========================================================================
-
-
-
-    // =========================================================================
-    //  Synchronization & Resync Utilities
-    // =========================================================================
-
-
 }

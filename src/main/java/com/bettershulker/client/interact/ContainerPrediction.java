@@ -209,7 +209,7 @@ public final class ContainerPrediction {
             var player = Minecraft.getInstance().player;
             if (player == null || !ContainerHelper.canAccessContainer(containerStack, player)) return;
 
-            long txId = BetterShulkerClient.startPrediction(carried, containerStack, containerSlotId);
+            long txId = BetterShulkerClient.startPrediction(carried);
 
             Slot snapshotSlot = MenuSlotRef.resolve(inventorySlotId, self.getMenu(), player);
             if (snapshotSlot != null) {
@@ -394,27 +394,7 @@ public final class ContainerPrediction {
         switch (action) {
             case INSERT -> {
                 if (cursorStack.isEmpty()) return;
-                for (int i = 0; i < contents.size(); i++) {
-                    ItemStack existing = contents.get(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, cursorStack)) {
-                        int canFit = existing.getMaxStackSize() - existing.getCount();
-                        int toInsert = Math.min(canFit, cursorStack.getCount());
-                        if (toInsert > 0) {
-                            existing.grow(toInsert);
-                            cursorStack.shrink(toInsert);
-                        }
-                    }
-                    if (cursorStack.isEmpty()) break;
-                }
-                if (!cursorStack.isEmpty()) {
-                    while (cursorStack.getCount() > 0) {
-                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(contents, cursorStack);
-                        if (bestSlot == -1) break;
-                        int toInsert = Math.min(cursorStack.getMaxStackSize(), cursorStack.getCount());
-                        contents.set(bestSlot, cursorStack.copyWithCount(toInsert));
-                        cursorStack.shrink(toInsert);
-                    }
-                }
+                ContainerTransfer.insertIntoEnderChest(contents, cursorStack);
             }
             case INSERT_ONE -> {
                 if (cursorStack.isEmpty()) return;
@@ -485,27 +465,7 @@ public final class ContainerPrediction {
                 ItemStack originalStack = targetSlot.getItem();
                 if (originalStack.isEmpty()) return;
                 ItemStack invStack = originalStack.copy();
-                for (int i = 0; i < contents.size(); i++) {
-                    ItemStack existing = contents.get(i);
-                    if (!existing.isEmpty() && ItemStack.isSameItemSameComponents(existing, invStack)) {
-                        int canFit = existing.getMaxStackSize() - existing.getCount();
-                        int toInsert = Math.min(canFit, invStack.getCount());
-                        if (toInsert > 0) {
-                            existing.grow(toInsert);
-                            invStack.shrink(toInsert);
-                        }
-                    }
-                    if (invStack.isEmpty()) break;
-                }
-                if (!invStack.isEmpty()) {
-                    while (invStack.getCount() > 0) {
-                        int bestSlot = ContainerTransfer.findSmartMergeEmptySlot(contents, invStack);
-                        if (bestSlot == -1) break;
-                        int toInsert = Math.min(invStack.getMaxStackSize(), invStack.getCount());
-                        contents.set(bestSlot, invStack.copyWithCount(toInsert));
-                        invStack.shrink(toInsert);
-                    }
-                }
+                ContainerTransfer.insertIntoEnderChest(contents, invStack);
                 if (invStack.getCount() < originalStack.getCount()) {
                     targetSlot.setByPlayer(invStack, originalStack);
                 }
@@ -606,11 +566,4 @@ public final class ContainerPrediction {
             logPredictionFailure("verifyPredictions error: " + e);
         }
     }
-
-    /**
-     * Whether the carried stack could actually be dropped into the box sitting in this slot.
-     *
-     * <p>Both the bounce and the plus badge are promises that a drop will land somewhere. A full
-     * box refuses the drop, so neither is shown for one.</p>
-     */
 }

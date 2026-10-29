@@ -9,7 +9,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -23,7 +22,6 @@ import java.util.Optional;
 
 import static com.bettershulker.client.render.ThemeColorUtil.blendColor;
 import static com.bettershulker.client.render.ThemeColorUtil.normalizeOverlayAlpha;
-import static com.bettershulker.client.render.ThemeColorUtil.opaqueOrDefault;
 import static com.bettershulker.client.render.ThemeColorUtil.withAlpha;
 
 /**
@@ -316,7 +314,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         }
     }
 
-
     /** Panel built from the vanilla container texture, or handed to the pack painter. */
     private void drawVanillaTexturePanel(GuiGraphicsExtractor context, int panelX, int panelY) {
         if (this.resourcePackOverridesPanel) {
@@ -352,16 +349,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         drawFullStyleCompactPanel(context, panelX, panelY);
         drawFullStyleCompactOverlay(context, panelX, panelY);
     }
-
-
-
-
-
-
-
-
-
-
 
     private void drawFullStyleCompactPanel(GuiGraphicsExtractor context, int panelX, int panelY) {
         if (isGlassTheme()) {
@@ -575,17 +562,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return this.resourcePackOverridesPanel ? this.panelTexture.texture() : null;
     }
 
-
-
-
-
-
-
-
-
-
-
-
     /** Name for the right-hand tab, or null when there is nothing to show there. */
     private String getModernSelectedTabName() {
         if (!BetterShulkerConfig.selectedItemNameEnabled) return null;
@@ -594,9 +570,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         String name = selectedStack.getHoverName().getString();
         return name.isEmpty() ? null : name;
     }
-
-
-
 
     private Identifier getPanelTexture() {
         return this.isEnderChest ? VanillaTooltipTextures.generic54() : this.panelTexture.texture();
@@ -1149,7 +1122,6 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
         return this.resourcePackOverridesPanel ? this.panelTexture.layout().outputSlotY() : SLOT_START_Y;
     }
 
-
     private boolean isGlassTheme() {
         return BetterShulkerConfig.getTooltipTheme() == BetterShulkerConfig.TooltipTheme.GLASS;
     }
@@ -1171,7 +1143,5 @@ public class ShulkerTooltipComponent implements ClientTooltipComponent {
     public boolean drawsOwnPanel() {
         return isModernStyle();
     }
-
-
 
 }
