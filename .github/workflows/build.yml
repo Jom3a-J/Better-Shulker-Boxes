@@ -30,16 +30,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Fabric, Quilt and NeoForge
-        run: ./gradlew build --stacktrace
-
       - name: Install a virtual display
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri mesa-vulkan-drivers
 
-      - name: Run client game tests
-        run: xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :fabric:runClientGameTest --stacktrace
+      # One Gradle run rather than two: the projects build in parallel, so the client tests
+      # (Fabric only) overlap NeoForge's setup instead of waiting for it, and Gradle configures
+      # the build once.
+      - name: Build all loaders and run client game tests
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew build :fabric:runClientGameTest --stacktrace
 
       - name: Upload game test logs
         if: failure()
