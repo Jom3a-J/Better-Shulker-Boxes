@@ -52,7 +52,7 @@ public final class EnderChestSync {
 
     public static void handleEnderChestSyncRequest(ServerPlayer player, int sourceSlotId) {
         UUID uuid = player.getUUID();
-        long currentTick = player.level().getGameTime();
+        long currentTick = InteractionRateLimiter.serverTick(player);
         Long lastRequestTick = lastEnderChestSyncRequestTick.get(uuid);
         if (lastRequestTick != null && currentTick - lastRequestTick < ENDER_CHEST_SYNC_COOLDOWN_TICKS) {
             return;

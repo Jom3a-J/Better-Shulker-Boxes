@@ -51,8 +51,18 @@ public final class InteractionRateLimiter {
         lastInteractionDropResyncTick.remove(uuid);
     }
 
+    /**
+     * The server's own tick count, which every per-tick limit here is measured in.
+     *
+     * <p>Not the level's game time: {@code /tick freeze} stops that while the server keeps
+     * ticking, so a limit counted in it would never reset for the rest of the freeze.</p>
+     */
+    static long serverTick(ServerPlayer player) {
+        return player.level().getServer().getTickCount();
+    }
+
     public static boolean consume(ServerPlayer player) {
-        long currentTick = player.level().getGameTime();
+        long currentTick = serverTick(player);
         UUID uuid = player.getUUID();
 
         long lastTick = lastInteractionTick.getOrDefault(uuid, -1L);
@@ -71,7 +81,7 @@ public final class InteractionRateLimiter {
 
     /** Limits logs from malformed or unauthorized client payloads without hiding them entirely. */
     public static void warnRejectedInteraction(ServerPlayer player, String detail) {
-        long currentTick = player.level().getGameTime();
+        long currentTick = serverTick(player);
         UUID uuid = player.getUUID();
         Long lastWarningTick = lastInteractionWarningTick.get(uuid);
         if (lastWarningTick == null || currentTick - lastWarningTick >= INTERACTION_WARNING_COOLDOWN_TICKS) {
@@ -98,7 +108,7 @@ public final class InteractionRateLimiter {
      * amplified into an equally large flood of resyncs.</p>
      */
     public static void resyncDroppedInteraction(ServerPlayer player) {
-        long currentTick = player.level().getGameTime();
+        long currentTick = serverTick(player);
         UUID uuid = player.getUUID();
         Long lastResyncTick = lastInteractionDropResyncTick.get(uuid);
         if (lastResyncTick != null && lastResyncTick == currentTick) {

@@ -24,7 +24,8 @@
       "com.bettershulker.gametest.StackedBoxGameTest",
       "com.bettershulker.gametest.CreativeChestGameTest",
       "com.bettershulker.gametest.ContainerRefusalGameTest",
-      "com.bettershulker.gametest.ServerWithoutModGameTest"
+      "com.bettershulker.gametest.ServerWithoutModGameTest",
+      "com.bettershulker.gametest.TickFreezeGameTest"
     ]
   }
 }
