@@ -6,7 +6,10 @@ name: Build and test
 
 on:
   push:
-    branches: [main]
+    # Long-lived branches are named after the Minecraft version they target, such as 26.3.
+    branches:
+      - '[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
   pull_request:
 
 permissions:
