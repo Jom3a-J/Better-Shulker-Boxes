@@ -1,5 +1,7 @@
 package com.bettershulker.client.render;
 
+import com.bettershulker.util.ContainerHelper;
+
 /**
  * Geometry used to recompose a resource-pack container texture into the tooltip panel.
  *
@@ -27,6 +29,12 @@ public record ResourcePackLayout(
         int textureHeight
 ) {
     private static final int MAX_LAYOUT_DIMENSION = 16_384;
+
+    /**
+     * Cells the grid must offer: one per Shulker Box slot. The preview draws every slot, so a
+     * smaller grid would put the leftover ones outside the panel.
+     */
+    private static final int MIN_GRID_CELLS = ContainerHelper.SHULKER_SLOT_COUNT;
 
     public static ResourcePackLayout standard() {
         return new ResourcePackLayout(
@@ -102,6 +110,7 @@ public record ResourcePackLayout(
                 && this.slotSize <= MAX_LAYOUT_DIMENSION
                 && this.columns > 0
                 && this.rows > 0
+                && (long) this.columns * this.rows >= MIN_GRID_CELLS
                 && gridWidth <= MAX_LAYOUT_DIMENSION
                 && gridHeight <= MAX_LAYOUT_DIMENSION
                 && this.outputWidth > 0
