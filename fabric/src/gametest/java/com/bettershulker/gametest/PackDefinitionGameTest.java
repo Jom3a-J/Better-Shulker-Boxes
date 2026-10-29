@@ -45,6 +45,7 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
         iniSectionsForOtherTexturesOrBadPrioritiesAreDropped();
         nameRulesFollowOptiFineSyntax();
         texturePatternsReadWildcardsLikeNameRules();
+        layoutsTooSmallForABoxAreRejected();
         aFileWithoutColorsReadsAsEachModReadsIt();
         texturePathsResolveLikeTheMods();
         context.runOnClient(client -> unnamedBoxesAreMatchedByTheirScreenTitle());
@@ -155,6 +156,29 @@ public class PackDefinitionGameTest implements FabricClientGameTest {
                 "* should still stand for any run of characters");
         assertTrue(ResourcePackLayoutProfiles.wildcardMatches("MINECRAFT:textures/gui/container/shulker_box.png", box),
                 "texture patterns should stay case-insensitive");
+    }
+
+    /**
+     * A layout's grid must hold all 27 of a box's slots. The preview draws every slot, so a
+     * smaller grid put the leftover row below the panel, where it could still be hovered and
+     * selected. A larger grid is fine: the extra cells just stay empty.
+     */
+    private void layoutsTooSmallForABoxAreRejected() {
+        assertTrue(ResourcePackLayout.standard().isUsable(), "the standard 9x3 layout should be usable");
+        assertTrue(!gridOf(9, 2).isUsable(), "a 9x2 grid has room for 18 slots, not 27, and should be rejected");
+        assertTrue(!gridOf(8, 3).isUsable(), "an 8x3 grid has room for 24 slots, not 27, and should be rejected");
+        assertTrue(gridOf(9, 6).isUsable(), "a 9x6 grid holds all 27 slots and should stay usable");
+    }
+
+    /** The standard layout with only its grid changed, on a texture big enough for any of them. */
+    private static ResourcePackLayout gridOf(int columns, int rows) {
+        ResourcePackLayout s = ResourcePackLayout.standard();
+        return new ResourcePackLayout("test-" + columns + "x" + rows,
+                s.sourcePanelX(), s.sourcePanelY(), s.sourcePanelWidth(), s.sourcePanelHeight(),
+                s.sourceSlotX(), s.sourceSlotY(), s.slotSize(), columns, rows,
+                s.outputWidth(), s.outputSlotX(), s.outputSlotY(),
+                s.bottomCapSourceY(), s.bottomCapHeight(),
+                s.textureWidth(), s.textureHeight());
     }
 
     private void aFileWithoutColorsReadsAsEachModReadsIt() {
