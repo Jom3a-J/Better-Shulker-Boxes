@@ -1,0 +1,53 @@
+name: Build and test
+
+# Builds every loader and runs the Fabric client game tests, which drive a real Minecraft client
+# through the mod's container interactions. They need a display, so they run under Xvfb with
+# Mesa's software renderer.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Fabric, Quilt and NeoForge
+        run: ./gradlew build --stacktrace
+
+      - name: Install a virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1-mesa-dri mesa-vulkan-drivers
+
+      - name: Run client game tests
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :fabric:runClientGameTest --stacktrace
+
+      - name: Upload game test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-gametest-logs
+          path: |
+            fabric/build/run/**/logs/
+            fabric/build/run/**/crash-reports/
+            fabric/build/run/**/screenshots/
+          if-no-files-found: ignore
