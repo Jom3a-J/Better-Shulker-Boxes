@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.6.5
+
+### Fixed
+
+- **Stacked Shulker Boxes duplicated items.** Where boxes can stack (through a datapack, a
+  command or a mod such as Carpet), putting one item into a stack of four boxes put it into all
+  four. The mod now leaves stacked boxes to vanilla.
+- **Creative mode: taking items out of a box with a chest open deleted them.** The items went
+  onto a cursor the server never saw. Boxes inside the chest also ignored clicks. Any screen other
+  than the creative inventory now works as it does in survival.
+- **Backpacks and other modded containers could be put inside a Shulker Box.** The mod now
+  follows the same rule vanilla's Shulker Box uses, so a mod that keeps its containers out of
+  boxes is obeyed. Vanilla items are unaffected.
+- **Fabric and Quilt: on a server without the mod, clicks were taken over and items jumped
+  back.** The client now leaves clicks and keys to vanilla there. The preview still works.
+- **During `/tick freeze`, the mod stopped after 32 clicks and the Ender Chest preview stopped
+  updating.** Its limits now count server ticks, which keep going while the world is frozen.
+- **The config file could end up outside the game folder, and a crash while saving could empty
+  it.** It now lives in the loader's config folder and is saved without a half-written state. A
+  config from an older version is read from its old place, so settings carry over.
+- **Resource packs: `?` in a layout file's texture pattern** made the character before it
+  optional. It now stands for exactly one character, as it does in name rules.
+- **Resource packs: a layout file with room for fewer than 27 slots** drew the leftover items
+  below the preview. Such a file is now ignored and the standard layout is used.
+
 ## 1.6.4
 
 ### Fixed
