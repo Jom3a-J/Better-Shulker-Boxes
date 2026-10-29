@@ -31,6 +31,7 @@ public final class BetterShulkerFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         BetterShulkerMod.LOGGER.info("[BetterShulker] Initializing Fabric client module");
 
+        BetterShulkerConfig.setConfigDir(FabricLoader.getInstance().getConfigDir());
         BetterShulkerConfig.load();
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
                 ResourcePackCacheReloader.ID, ResourcePackCacheReloader.create());
