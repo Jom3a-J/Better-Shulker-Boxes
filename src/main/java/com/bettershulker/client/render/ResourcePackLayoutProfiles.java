@@ -184,18 +184,14 @@ public final class ResourcePackLayoutProfiles {
         return wildcardMatches(texturePattern, texture.toString());
     }
 
-    private static boolean wildcardMatches(String pattern, String value) {
-        String normalizedPattern = pattern.trim().toLowerCase(java.util.Locale.ROOT);
-        String normalizedValue = value.toLowerCase(java.util.Locale.ROOT);
-        if (normalizedPattern.equals(normalizedValue)) return true;
-        StringBuilder regex = new StringBuilder("^");
-        for (int i = 0; i < normalizedPattern.length(); i++) {
-            char ch = normalizedPattern.charAt(i);
-            if (ch == '*') regex.append(".*");
-            else if (".[](){}+$^|\\".indexOf(ch) >= 0) regex.append('\\').append(ch);
-            else regex.append(ch);
-        }
-        return normalizedValue.matches(regex.append('$').toString());
+    /**
+     * Whether a profile's {@code match.texture} pattern names {@code value}, ignoring case.
+     *
+     * <p>Same wildcards as a {@code pattern:} name rule, and the same code: {@code *} is any run of
+     * characters and {@code ?} exactly one. Everything else is literal.</p>
+     */
+    public static boolean wildcardMatches(String pattern, String value) {
+        return ShulkerGuiRules.NameMatcher.wildcard(pattern.trim(), true).matches(value);
     }
 
     private static JsonObject object(JsonObject parent, String key) {
